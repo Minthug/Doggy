@@ -1,7 +1,6 @@
 package com.doggy.backend.domain.place.repository;
 
 import com.doggy.backend.domain.place.entity.Place;
-import com.doggy.backend.domain.place.entity.Place.Category;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
