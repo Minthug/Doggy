@@ -1,0 +1,22 @@
+package com.doggy.backend.domain.walk.repository;
+
+import com.doggy.backend.domain.walk.entity.WalkPoint;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.List;
+
+public interface WalkPointRepository extends JpaRepository<WalkPoint, Long> {
+
+    List<WalkPoint> findAllBySessionIdOrderByRecordedAt(Long sessionId);
+
+    @Query(value = """
+            SELECT ST_AsGeoJSON(ST_MakeLine(ST_MakePoint(wp.lng, wp.lat) ORDER BY wp.recorded_at))
+            FROM walk_points wp
+            WHERE wp.session_id = :sessionId
+            """, nativeQuery = true)
+    String findRouteGeoJsonBySessionId(@Param("sessionId") Long sessionId);
+
+    void deleteAllBySessionId(Long sessionId);
+}
