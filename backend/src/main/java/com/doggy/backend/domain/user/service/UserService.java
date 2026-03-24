@@ -85,6 +85,7 @@ public class UserService {
         return UserProfileResponse.from(user);
     }
 
+    /* Firebase Cloud Messaging */
     @Transactional
     public void updateFcmToken(Long userId, String fcmToken) {
         User user = userRepository.findById(userId)
