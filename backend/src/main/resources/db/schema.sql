@@ -49,6 +49,8 @@ CREATE TABLE walk_sessions (
     distance_meters  INTEGER     NOT NULL DEFAULT 0,
     duration_seconds INTEGER     NOT NULL DEFAULT 0,
     status           VARCHAR(20) NOT NULL DEFAULT 'IN_PROGRESS', -- IN_PROGRESS / COMPLETED / PAUSED
+    is_public        BOOLEAN     NOT NULL DEFAULT false,          -- 경로 공개 여부
+    title            VARCHAR(100),                                -- 공개 경로 제목
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -95,6 +97,33 @@ CREATE TABLE place_votes (
     vote_type  VARCHAR(20) NOT NULL, -- HELPFUL / NOT_HELPFUL
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_place_vote UNIQUE (place_id, user_id)
+);
+
+-- walk_route_likes (경로 좋아요 - 인기 경로 추천 기반)
+CREATE TABLE walk_route_likes (
+    id         BIGSERIAL PRIMARY KEY,
+    session_id BIGINT      NOT NULL REFERENCES walk_sessions (id) ON DELETE CASCADE,
+    user_id    BIGINT      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_route_like UNIQUE (session_id, user_id)
+);
+
+-- walk_route_bookmarks (경로 저장 - 사용자 취향 파악 기반)
+CREATE TABLE walk_route_bookmarks (
+    id         BIGSERIAL PRIMARY KEY,
+    session_id BIGINT      NOT NULL REFERENCES walk_sessions (id) ON DELETE CASCADE,
+    user_id    BIGINT      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_route_bookmark UNIQUE (session_id, user_id)
+);
+
+-- walk_route_tags (경로 태그 - 속성 기반 필터링 기반)
+-- 태그 종류: SHADY(그늘많음), QUIET(조용함), PARK(공원경유), RIVERSIDE(강변),
+--           HILL(언덕있음), FLAT(평지), DOG_FRIENDLY(반려견친화), WIDE_ROAD(넓은길)
+CREATE TABLE walk_route_tags (
+    session_id BIGINT      NOT NULL REFERENCES walk_sessions (id) ON DELETE CASCADE,
+    tag        VARCHAR(30) NOT NULL,
+    PRIMARY KEY (session_id, tag)
 );
 
 -- push_settings

@@ -26,11 +26,11 @@ public class PlaceController {
     public ResponseEntity<List<PlaceResponse>> findNearby(
             @RequestParam double lat,
             @RequestParam double lng,
-            @RequestParam(required = false) Double radius,
+            @RequestParam(required = false) Double radiusMeters,
             @RequestParam(required = false) Category category) {
         List<PlaceResponse> result = category != null
-                ? placeService.findNearbyByCategory(lat, lng, radius, category)
-                : placeService.findNearby(lat, lng, radius);
+                ? placeService.findNearbyByCategory(lat, lng, radiusMeters, category)
+                : placeService.findNearby(lat, lng, radiusMeters);
         return ResponseEntity.ok(result);
     }
 
