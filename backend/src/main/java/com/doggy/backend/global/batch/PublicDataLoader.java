@@ -88,27 +88,26 @@ public class PublicDataLoader {
     }
 
     /**
-     * 행안부 동물병원 CSV 컬럼 순서:
-     * 0:번호, 1:개방서비스명, 2:개방서비스ID, 3:개방자치단체코드, 4:관리번호,
-     * 5:인허가일자, 6:인허가취소일자, 7:영업상태구분코드, 8:영업상태명,
-     * 9:상세영업상태코드, 10:상세영업상태명, 11:폐업일자, 12:휴업시작일자,
-     * 13:휴업종료일자, 14:재개업일자, 15:소재지전화, 16:소재지면적,
-     * 17:소재지우편번호, 18:소재지전체주소, 19:도로명전체주소,
-     * 20:도로명우편번호, 21:사업장명, 22:최종수정시점, 23:데이터갱신구분,
-     * 24:데이터갱신일자, 25:업태구분명, 26:좌표정보(X), 27:좌표정보(Y)
+     * 실제 CSV 컬럼 순서 (EUC-KR):
+     * 0:개방자치단체코드, 1:관리번호, 2:인허가일자, 3:인허가취소일자,
+     * 4:영업상태명, 5:폐업일자, 6:휴업시작일자, 7:휴업종료일자,
+     * 8:재개업일자, 9:소재지면적, 10:소재지우편번호, 11:도로명우편번호,
+     * 12:사업장명, 13:데이터갱신구분, 14:권리주체일련번호, 15:데이터갱신시점,
+     * 16:도로명주소, 17:상세영업상태명, 18:상세영업상태코드, 19:영업상태코드,
+     * 20:전화번호, 21:좌표정보(X), 22:좌표정보(Y), 23:지번주소, 24:최종수정시점
      */
     private Object[] parseHospitalRow(String[] row) {
-        if (row.length < 28) return null;
+        if (row.length < 23) return null;
 
-        String statusCode = row[7].trim();
-        if (!"01".equals(statusCode)) return null; // 영업 중인 곳만
+        String statusName = row[4].trim();
+        if (!statusName.contains("영업") && !statusName.contains("정상")) return null; // 영업 중인 곳만
 
-        String name = row[21].trim();
-        String address = row[19].isBlank() ? row[18].trim() : row[19].trim();
-        String phone = row[15].trim();
+        String name = row[12].trim();
+        String address = row[16].isBlank() ? row[23].trim() : row[16].trim();
+        String phone = row[20].trim();
 
-        String xStr = row[26].trim();
-        String yStr = row[27].trim();
+        String xStr = row[21].trim();
+        String yStr = row[22].trim();
         if (xStr.isBlank() || yStr.isBlank()) return null;
 
         double tmX = Double.parseDouble(xStr);
