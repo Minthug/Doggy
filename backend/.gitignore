@@ -40,3 +40,6 @@ out/
 src/main/resources/application.properties
 src/main/resources/application-*.properties
 src/main/resources/firebase-service-account.json
+
+### 공공데이터 CSV (용량 큰 파일)
+src/main/resources/data/*.csv

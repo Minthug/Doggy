@@ -1,6 +1,9 @@
 spring.application.name=doggy
 server.port=8080
 
+# 공공데이터 배치 (CSV 파일 준비 후 true로 변경)
+batch.public-data.enabled=false
+
 # DB
 spring.datasource.url=jdbc:postgresql://localhost:5432/doggy
 spring.datasource.username=doggy
