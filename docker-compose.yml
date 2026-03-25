@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: doggy-db
+    environment:
+      POSTGRES_DB: doggy
+      POSTGRES_USER: doggy
+      POSTGRES_PASSWORD: doggy
+    ports:
+      - "5432:5432"
+    volumes:
+      - doggy_data:/var/lib/postgresql/data
+      - ./backend/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U doggy -d doggy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  doggy_data:
