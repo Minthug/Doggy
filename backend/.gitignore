@@ -36,6 +36,9 @@ out/
 ### VS Code ###
 .vscode/
 
+### macOS ###
+.DS_Store
+
 ### Secrets ###
 src/main/resources/application.properties
 src/main/resources/application-*.properties
