@@ -1,4 +1,5 @@
 spring.application.name=doggy
+server.port=8082
 
 # DB
 spring.datasource.url=jdbc:postgresql://localhost:5432/doggy

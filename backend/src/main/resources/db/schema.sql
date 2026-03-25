@@ -75,7 +75,7 @@ CREATE TABLE places (
     lng          DOUBLE PRECISION NOT NULL,
     location     GEOMETRY(POINT, 4326) NOT NULL,
     phone        VARCHAR(20),
-    is_open_24h  BOOLEAN      NOT NULL DEFAULT false,
+    is_open24h   BOOLEAN      NOT NULL DEFAULT false,
     is_emergency BOOLEAN      NOT NULL DEFAULT false,
     allows_dogs  BOOLEAN      NOT NULL DEFAULT true,
     source       VARCHAR(20)  NOT NULL, -- PUBLIC_DATA / KAKAO / USER
