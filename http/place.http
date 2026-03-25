@@ -1,0 +1,61 @@
+@token = ACCESS_TOKEN_HERE
+@placeId = 1
+
+### 주변 장소 전체 검색 (반경 1km)
+GET http://localhost:8080/api/places?lat=37.5665&lng=126.9780&radius=1000
+Authorization: Bearer {{token}}
+
+###
+
+### 주변 동물병원만 검색
+GET http://localhost:8080/api/places?lat=37.5665&lng=126.9780&radius=1000&category=HOSPITAL
+Authorization: Bearer {{token}}
+
+###
+
+### 장소 단건 조회
+GET http://localhost:8080/api/places/{{placeId}}
+Authorization: Bearer {{token}}
+
+###
+
+### 장소 직접 등록 (크라우드소싱)
+POST http://localhost:8080/api/places
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "우리동네 동물병원",
+  "category": "HOSPITAL",
+  "address": "서울시 중구 테스트로 1",
+  "lat": 37.5665,
+  "lng": 126.9780,
+  "phone": "02-1234-5678",
+  "isOpen24h": false,
+  "isEmergency": false,
+  "allowsDogs": true
+}
+
+###
+
+### 도움이 됐어요 투표
+POST http://localhost:8080/api/places/{{placeId}}/vote
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "voteType": "HELPFUL"
+}
+
+###
+
+### 도움 안됐어요 투표
+POST http://localhost:8080/api/places/{{placeId}}/vote
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "voteType": "NOT_HELPFUL"
+}
+
+###

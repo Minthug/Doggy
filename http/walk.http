@@ -1,0 +1,49 @@
+@token = ACCESS_TOKEN_HERE
+@sessionId = 1
+
+### 산책 시작
+POST http://localhost:8080/api/walks
+Authorization: Bearer {{token}}
+
+###
+
+### 산책 일시정지
+PATCH http://localhost:8080/api/walks/{{sessionId}}/pause
+Authorization: Bearer {{token}}
+
+###
+
+### 산책 재개
+PATCH http://localhost:8080/api/walks/{{sessionId}}/resume
+Authorization: Bearer {{token}}
+
+###
+
+### 산책 완료 (포인트 배열 전송)
+POST http://localhost:8080/api/walks/{{sessionId}}/complete
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "endedAt": "2026-03-25T16:00:00",
+  "points": [
+    { "recordedAt": "2026-03-25T15:30:00", "lat": 37.5665, "lng": 126.9780, "accuracy": 5.0 },
+    { "recordedAt": "2026-03-25T15:30:05", "lat": 37.5667, "lng": 126.9782, "accuracy": 4.5 },
+    { "recordedAt": "2026-03-25T15:30:10", "lat": 37.5669, "lng": 126.9784, "accuracy": 5.0 },
+    { "recordedAt": "2026-03-25T15:30:15", "lat": 37.5671, "lng": 126.9786, "accuracy": 4.0 }
+  ]
+}
+
+###
+
+### 산책 이력 조회
+GET http://localhost:8080/api/walks?page=0&size=20
+Authorization: Bearer {{token}}
+
+###
+
+### 산책 상세 조회 (경로 GeoJSON 포함)
+GET http://localhost:8080/api/walks/{{sessionId}}
+Authorization: Bearer {{token}}
+
+###

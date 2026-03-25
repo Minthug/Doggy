@@ -1,0 +1,28 @@
+@token = ACCESS_TOKEN_HERE
+
+### 내 프로필 조회
+GET http://localhost:8080/api/users/me
+Authorization: Bearer {{token}}
+
+###
+
+### 프로필 수정
+PATCH http://localhost:8080/api/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nickname": "수정된닉네임",
+  "profileImage": null
+}
+
+###
+
+### FCM 토큰 업데이트
+PATCH http://localhost:8080/api/users/me/fcm-token
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+"fcm-test-token-1234"
+
+###
