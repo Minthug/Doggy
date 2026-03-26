@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/naver_map_init.dart';
 import 'features/auth/presentation/screens/signup_screen.dart';
 import 'features/home/presentation/screens/main_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initNaverMap();
   runApp(const ProviderScope(child: DoggyApp()));
 }
 
@@ -24,17 +27,6 @@ class DoggyApp extends StatelessWidget {
       },
       // TODO: 개발용 - 로그인 없이 바로 메인 화면
       home: const MainScreen(),
-      // 로그인 기능 활성화 시 아래 주석 해제
-      // home: Consumer(builder: (context, ref, _) {
-      //   return ref.watch(isLoggedInProvider).when(
-      //     data: (isLoggedIn) =>
-      //         isLoggedIn ? const MainScreen() : const LoginScreen(),
-      //     loading: () => const Scaffold(
-      //       body: Center(child: CircularProgressIndicator()),
-      //     ),
-      //     error: (e, _) => const LoginScreen(),
-      //   );
-      // }),
     );
   }
 }

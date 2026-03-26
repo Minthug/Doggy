@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../place/presentation/screens/map_tab.dart';
 import 'home_tab.dart';
 
 class MainScreen extends StatefulWidget {
@@ -14,7 +15,7 @@ class _MainScreenState extends State<MainScreen> {
   final _tabs = const [
     HomeTab(),
     _PlaceholderTab(icon: Icons.directions_walk, label: '산책'),
-    _PlaceholderTab(icon: Icons.place, label: '장소'),
+    MapTab(),
     _PlaceholderTab(icon: Icons.person, label: '프로필'),
   ];
 

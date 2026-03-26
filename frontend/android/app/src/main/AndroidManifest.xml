@@ -30,6 +30,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- 네이버 지도 Client ID: 네이버 클라우드 플랫폼에서 발급받은 키를 입력하세요 -->
+        <meta-data
+            android:name="com.naver.maps.map.CLIENT_ID"
+            android:value="YOUR_NAVER_MAP_CLIENT_ID" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
