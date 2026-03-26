@@ -7,6 +7,7 @@ import '../../../dog/presentation/screens/dog_register_screen.dart';
 import '../../../walk/data/models/walk_model.dart';
 import '../../../walk/domain/providers/walk_provider.dart';
 import '../../domain/providers/home_provider.dart';
+import 'main_screen.dart';
 
 class HomeTab extends ConsumerWidget {
   const HomeTab({super.key});
@@ -269,7 +270,7 @@ class _StartWalkButton extends StatelessWidget {
       width: double.infinity,
       height: 56,
       child: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => MainScreen.jumpToTab(context, 1),
         icon: const Icon(Icons.directions_walk),
         label: const Text('산책 시작',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
