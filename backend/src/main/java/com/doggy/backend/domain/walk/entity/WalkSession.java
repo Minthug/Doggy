@@ -36,10 +36,26 @@ public class WalkSession extends BaseEntity {
     @Column(nullable = false, length = 20)
     private Status status = Status.IN_PROGRESS;
 
+    @Column(nullable = false)
+    private boolean isPublic = false;
+
+    @Column(length = 100)
+    private String title;
+
     @Builder
     public WalkSession(User user, LocalDateTime startedAt) {
         this.user = user;
         this.startedAt = startedAt;
+    }
+
+    public void makePublic(String title) {
+        this.isPublic = true;
+        this.title = title;
+    }
+
+    public void makePrivate() {
+        this.isPublic = false;
+        this.title = null;
     }
 
     public void complete(LocalDateTime endedAt, int distanceMeters, int durationSeconds) {
