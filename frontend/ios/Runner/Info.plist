@@ -4,7 +4,7 @@
 <dict>
 	<!-- 네이버 지도 Client ID: 네이버 클라우드 플랫폼에서 발급받은 키를 입력하세요 -->
 	<key>NMFClientId</key>
-	<string>YOUR_NAVER_MAP_CLIENT_ID</string>
+	<string>ahzh2m6ngr</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

@@ -46,4 +46,3 @@ app.*.map.json
 
 # Secrets
 .env
-lib/core/secrets.dart
