@@ -109,6 +109,7 @@ class _MapTabState extends ConsumerState<MapTab> {
         (prev, next) {
           next.whenData((places) => _addMarkers(places));
         },
+        fireImmediately: true,
       );
     }
 

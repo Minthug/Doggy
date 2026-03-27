@@ -18,12 +18,14 @@ class PlaceRepository {
     double radiusMeters = 2000,
     String? category,
   }) async {
-    final response = await _dio.get('/api/places', queryParameters: {
+    final params = <String, dynamic>{
       'lat': lat,
       'lng': lng,
       'radiusMeters': radiusMeters,
-      'category': category,
-    });
+    };
+    if (category != null) params['category'] = category;
+
+    final response = await _dio.get('/api/places', queryParameters: params);
     return (response.data as List).map((e) => Place.fromJson(e)).toList();
   }
 }
