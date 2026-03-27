@@ -23,6 +23,65 @@ class WalkSession {
         durationSeconds: json['durationSeconds'] ?? 0,
         status: json['status'] ?? '',
       );
+
+  String get distanceText {
+    if (distanceMeters >= 1000) {
+      return '${(distanceMeters / 1000).toStringAsFixed(2)}km';
+    }
+    return '${distanceMeters}m';
+  }
+
+  String get durationText {
+    final m = durationSeconds ~/ 60;
+    final s = durationSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  DateTime? get startedAtDate =>
+      startedAt != null ? DateTime.parse(startedAt!) : null;
+}
+
+class WalkDetail {
+  final int id;
+  final String? startedAt;
+  final String? endedAt;
+  final int distanceMeters;
+  final int durationSeconds;
+  final String status;
+  final String? routeGeoJson;
+
+  WalkDetail({
+    required this.id,
+    this.startedAt,
+    this.endedAt,
+    required this.distanceMeters,
+    required this.durationSeconds,
+    required this.status,
+    this.routeGeoJson,
+  });
+
+  factory WalkDetail.fromJson(Map<String, dynamic> json) => WalkDetail(
+        id: json['id'],
+        startedAt: json['startedAt'],
+        endedAt: json['endedAt'],
+        distanceMeters: json['distanceMeters'] ?? 0,
+        durationSeconds: json['durationSeconds'] ?? 0,
+        status: json['status'] ?? '',
+        routeGeoJson: json['routeGeoJson'],
+      );
+
+  String get distanceText {
+    if (distanceMeters >= 1000) {
+      return '${(distanceMeters / 1000).toStringAsFixed(2)}km';
+    }
+    return '${distanceMeters}m';
+  }
+
+  String get durationText {
+    final m = durationSeconds ~/ 60;
+    final s = durationSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
 }
 
 class TodayWalkStats {
@@ -40,7 +99,7 @@ class TodayWalkStats {
     if (totalDistanceMeters >= 1000) {
       return '${(totalDistanceMeters / 1000).toStringAsFixed(1)}km';
     }
-    return '$totalDistanceMeters m';
+    return '${totalDistanceMeters}m';
   }
 
   String get durationText {

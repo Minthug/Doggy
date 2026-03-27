@@ -43,4 +43,9 @@ class WalkRepository {
     });
     return (response.data as List).map((e) => WalkSession.fromJson(e)).toList();
   }
+
+  Future<WalkDetail> getDetail(int sessionId) async {
+    final response = await _dio.get('/api/walks/$sessionId');
+    return WalkDetail.fromJson(response.data);
+  }
 }

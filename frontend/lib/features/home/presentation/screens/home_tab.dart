@@ -7,6 +7,7 @@ import '../../../dog/presentation/screens/dog_register_screen.dart';
 import '../../../walk/data/models/walk_model.dart';
 import '../../../walk/domain/providers/walk_provider.dart';
 import '../../domain/providers/home_provider.dart';
+import '../../../walk/presentation/screens/walk_history_screen.dart';
 import 'main_screen.dart';
 
 class HomeTab extends ConsumerWidget {
@@ -68,10 +69,17 @@ class HomeTab extends ConsumerWidget {
             Consumer(
               builder: (context, ref, _) {
                 final statsAsync = ref.watch(todayWalkStatsProvider);
-                return statsAsync.when(
-                  data: (stats) => _TodayWalkCard(stats: stats),
-                  loading: () => _TodayWalkCard(stats: null),
-                  error: (e, _) => _TodayWalkCard(stats: null),
+                return GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const WalkHistoryScreen()),
+                  ),
+                  child: statsAsync.when(
+                    data: (stats) => _TodayWalkCard(stats: stats),
+                    loading: () => _TodayWalkCard(stats: null),
+                    error: (e, _) => _TodayWalkCard(stats: null),
+                  ),
                 );
               },
             ),
