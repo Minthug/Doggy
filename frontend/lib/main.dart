@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/naver_map_init.dart';
 import 'core/notifications/fcm_service.dart';
+import 'firebase_options.dart';
 import 'features/auth/presentation/screens/signup_screen.dart';
 import 'features/home/presentation/screens/main_screen.dart';
 // ignore: unused_import
@@ -11,7 +12,7 @@ export 'features/home/presentation/screens/main_screen.dart' show mainScreenKey;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initNaverMap();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const ProviderScope(child: DoggyApp()));
 }
 
