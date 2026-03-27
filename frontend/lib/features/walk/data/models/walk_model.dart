@@ -84,6 +84,35 @@ class WalkDetail {
   }
 }
 
+class MonthlyWalkStats {
+  final int totalDistanceMeters;
+  final int totalDurationSeconds;
+  final int walkCount;
+  final int month;
+
+  MonthlyWalkStats({
+    required this.totalDistanceMeters,
+    required this.totalDurationSeconds,
+    required this.walkCount,
+    required this.month,
+  });
+
+  String get distanceText {
+    if (totalDistanceMeters >= 1000) {
+      return '${(totalDistanceMeters / 1000).toStringAsFixed(1)}km';
+    }
+    return '${totalDistanceMeters}m';
+  }
+
+  String get durationText {
+    final minutes = totalDurationSeconds ~/ 60;
+    if (minutes >= 60) {
+      return '${minutes ~/ 60}시간 ${minutes % 60}분';
+    }
+    return '$minutes분';
+  }
+}
+
 class TodayWalkStats {
   final int totalDistanceMeters;
   final int totalDurationSeconds;

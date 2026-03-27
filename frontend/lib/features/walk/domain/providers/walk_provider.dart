@@ -6,6 +6,29 @@ final walkHistoryProvider = FutureProvider<List<WalkSession>>((ref) async {
   return ref.watch(walkRepositoryProvider).getHistory();
 });
 
+// 이번 달 산책 통계
+final monthlyWalkStatsProvider = FutureProvider<MonthlyWalkStats>((ref) async {
+  final history = await ref.watch(walkHistoryProvider.future);
+  final now = DateTime.now();
+
+  final monthlySessions = history.where((s) {
+    if (s.startedAt == null) return false;
+    final started = DateTime.parse(s.startedAt!);
+    return started.year == now.year &&
+        started.month == now.month &&
+        s.status == 'COMPLETED';
+  }).toList();
+
+  return MonthlyWalkStats(
+    totalDistanceMeters:
+        monthlySessions.fold(0, (sum, s) => sum + s.distanceMeters),
+    totalDurationSeconds:
+        monthlySessions.fold(0, (sum, s) => sum + s.durationSeconds),
+    walkCount: monthlySessions.length,
+    month: now.month,
+  );
+});
+
 // 오늘 산책 통계만 추출
 final todayWalkStatsProvider = FutureProvider<TodayWalkStats>((ref) async {
   final history = await ref.watch(walkHistoryProvider.future);

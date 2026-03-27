@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../place/presentation/screens/map_tab.dart';
+import '../../../profile/presentation/screens/profile_tab.dart';
 import '../../../walk/presentation/screens/walk_screen.dart';
 import 'home_tab.dart';
 
@@ -28,7 +29,7 @@ class _MainScreenState extends State<MainScreen> {
     HomeTab(),
     WalkScreen(),
     MapTab(),
-    _PlaceholderTab(icon: Icons.person, label: '프로필'),
+    ProfileTab(),
   ];
 
   @override
@@ -53,24 +54,3 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-class _PlaceholderTab extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _PlaceholderTab({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: Colors.grey),
-          const SizedBox(height: 8),
-          Text('$label 화면 준비 중',
-              style: const TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-}
