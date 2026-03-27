@@ -1,18 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../data/models/place_model.dart';
+import '../../domain/providers/place_provider.dart';
 
-class MapTab extends StatefulWidget {
+class MapTab extends ConsumerStatefulWidget {
   const MapTab({super.key});
 
   @override
-  State<MapTab> createState() => _MapTabState();
+  ConsumerState<MapTab> createState() => _MapTabState();
 }
 
-class _MapTabState extends State<MapTab> {
+class _MapTabState extends ConsumerState<MapTab> {
   NaverMapController? _mapController;
   NLatLng? _currentPosition;
+  Place? _selectedPlace;
   bool _locationLoading = true;
+
+  static const _categories = [
+    (label: '전체', value: null),
+    (label: '🏥 동물병원', value: 'HOSPITAL'),
+    (label: '🌳 공원', value: 'PARK'),
+    (label: '☕ 카페', value: 'CAFE'),
+    (label: '🛍️ 펫샵', value: 'PET_SHOP'),
+  ];
 
   @override
   void initState() {
@@ -26,26 +38,18 @@ class _MapTabState extends State<MapTab> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
       );
-
       setState(() {
         _currentPosition = NLatLng(position.latitude, position.longitude);
         _locationLoading = false;
       });
-
       _mapController?.updateCamera(
-        NCameraUpdate.scrollAndZoomTo(
-          target: _currentPosition!,
-          zoom: 15,
-        ),
+        NCameraUpdate.scrollAndZoomTo(target: _currentPosition!, zoom: 15),
       );
     } catch (e) {
-      // 위치 권한 거부 등 → 서울 시청으로 기본값
       setState(() {
         _currentPosition = const NLatLng(37.5665, 126.9780);
         _locationLoading = false;
@@ -53,19 +57,66 @@ class _MapTabState extends State<MapTab> {
     }
   }
 
+  void _addMarkers(List<Place> places) async {
+    if (_mapController == null) return;
+    await _mapController!.clearOverlays();
+
+    for (final place in places) {
+      final marker = NMarker(
+        id: 'place_${place.id}',
+        position: NLatLng(place.lat, place.lng),
+        caption: NOverlayCaption(
+          text: place.name,
+          textSize: 12,
+        ),
+        iconTintColor: _markerColor(place.category),
+      );
+      marker.setOnTapListener((_) {
+        setState(() => _selectedPlace = place);
+      });
+      await _mapController!.addOverlay(marker);
+    }
+  }
+
+  Color _markerColor(String category) {
+    switch (category) {
+      case 'HOSPITAL':
+        return Colors.red;
+      case 'PARK':
+        return Colors.green;
+      case 'CAFE':
+        return Colors.brown;
+      case 'PET_SHOP':
+        return Colors.orange;
+      default:
+        return Colors.blue;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final selectedCategory = ref.watch(selectedCategoryProvider);
+    final location = _currentPosition;
+
+    if (location != null) {
+      ref.listen(
+        nearbyPlacesProvider((lat: location.latitude, lng: location.longitude)),
+        (prev, next) {
+          next.whenData((places) => _addMarkers(places));
+        },
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text(
-          '주변 장소',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('주변 장소',
+            style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: Stack(
         children: [
+          // 지도
           NaverMap(
             options: NaverMapViewOptions(
               initialCameraPosition: NCameraPosition(
@@ -79,17 +130,202 @@ class _MapTabState extends State<MapTab> {
               if (_currentPosition != null) {
                 controller.updateCamera(
                   NCameraUpdate.scrollAndZoomTo(
-                    target: _currentPosition!,
-                    zoom: 15,
-                  ),
+                      target: _currentPosition!, zoom: 15),
                 );
               }
+              // 지도 준비되면 마커 로드
+              if (location != null) {
+                ref
+                    .read(nearbyPlacesProvider(
+                            (lat: location.latitude, lng: location.longitude)))
+                    .whenData((places) => _addMarkers(places));
+              }
+            },
+            onMapTapped: (point, coord) {
+              setState(() => _selectedPlace = null);
             },
           ),
+
+          // 로딩
           if (_locationLoading)
             const Center(child: CircularProgressIndicator()),
+
+          // 카테고리 필터
+          Positioned(
+            top: 12,
+            left: 0,
+            right: 0,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: _categories.map((cat) {
+                  final selected = selectedCategory == cat.value;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        ref
+                            .read(selectedCategoryProvider.notifier)
+                            .state = cat.value;
+                        setState(() => _selectedPlace = null);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? const Color(0xFF4CAF50)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 4),
+                          ],
+                        ),
+                        child: Text(
+                          cat.label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: selected ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+
+          // 선택된 장소 팝업
+          if (_selectedPlace != null)
+            Positioned(
+              bottom: 24,
+              left: 16,
+              right: 16,
+              child: _PlaceCard(
+                place: _selectedPlace!,
+                onClose: () => setState(() => _selectedPlace = null),
+              ),
+            ),
         ],
       ),
+    );
+  }
+}
+
+// 장소 팝업 카드
+class _PlaceCard extends StatelessWidget {
+  final Place place;
+  final VoidCallback onClose;
+
+  const _PlaceCard({required this.place, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15), blurRadius: 12),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Text(place.categoryEmoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  place.name,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                onPressed: onClose,
+                icon: const Icon(Icons.close, size: 20),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // 주소
+          if (place.address != null)
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    place.address!,
+                    style:
+                        const TextStyle(color: Colors.grey, fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+
+          // 전화번호
+          if (place.phone != null && place.phone!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.phone, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(place.phone!,
+                    style:
+                        const TextStyle(color: Colors.grey, fontSize: 13)),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 12),
+
+          // 배지
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              if (place.isOpen24h) _badge('24시간', Colors.blue),
+              if (place.isEmergency) _badge('응급', Colors.red),
+              if (place.allowsDogs) _badge('반려견 가능', Colors.green),
+              if (place.isVerified) _badge('인증', Colors.orange),
+              if (place.helpfulCount > 0)
+                _badge('도움돼요 ${place.helpfulCount}', Colors.purple),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _badge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 }
