@@ -71,7 +71,7 @@ CREATE INDEX idx_walk_points_session_time ON walk_points (session_id, recorded_a
 CREATE TABLE places (
     id           BIGSERIAL PRIMARY KEY,
     name         VARCHAR(200) NOT NULL,
-    category     VARCHAR(50)  NOT NULL, -- HOSPITAL / PARK / CAFE / PET_SHOP / PET_HOTEL
+    category     VARCHAR(50)  NOT NULL, -- HOSPITAL / PARK / CAFE / PET_SHOP / PET_HOTEL / CONVENIENCE / UNMANNED_STORE / RESTAURANT / GROOMING
     address      VARCHAR(500),
     lat          DOUBLE PRECISION NOT NULL,
     lng          DOUBLE PRECISION NOT NULL,

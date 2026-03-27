@@ -24,6 +24,11 @@ class _MapTabState extends ConsumerState<MapTab> {
     (label: '🌳 공원', value: 'PARK'),
     (label: '☕ 카페', value: 'CAFE'),
     (label: '🛍️ 펫샵', value: 'PET_SHOP'),
+    (label: '🏨 펫호텔', value: 'PET_HOTEL'),
+    (label: '🏪 편의점', value: 'CONVENIENCE'),
+    (label: '🤖 무인스토어', value: 'UNMANNED_STORE'),
+    (label: '🍽️ 동반식당', value: 'RESTAURANT'),
+    (label: '✂️ 미용실', value: 'GROOMING'),
   ];
 
   @override
@@ -80,16 +85,16 @@ class _MapTabState extends ConsumerState<MapTab> {
 
   Color _markerColor(String category) {
     switch (category) {
-      case 'HOSPITAL':
-        return Colors.red;
-      case 'PARK':
-        return Colors.green;
-      case 'CAFE':
-        return Colors.brown;
-      case 'PET_SHOP':
-        return Colors.orange;
-      default:
-        return Colors.blue;
+      case 'HOSPITAL':        return Colors.red;
+      case 'PARK':            return Colors.green;
+      case 'CAFE':            return Colors.brown;
+      case 'PET_SHOP':        return Colors.orange;
+      case 'PET_HOTEL':       return Colors.purple;
+      case 'CONVENIENCE':     return Colors.teal;
+      case 'UNMANNED_STORE':  return Colors.indigo;
+      case 'RESTAURANT':      return Colors.deepOrange;
+      case 'GROOMING':        return Colors.pink;
+      default:                return Colors.blue;
     }
   }
 

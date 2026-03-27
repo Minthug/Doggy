@@ -75,7 +75,15 @@ public class Place extends BaseEntity {
     }
 
     public enum Category {
-        HOSPITAL, PARK, CAFE, PET_SHOP, PET_HOTEL
+        HOSPITAL,       // 동물병원
+        PARK,           // 공원
+        CAFE,           // 반려견 카페
+        PET_SHOP,       // 펫샵
+        PET_HOTEL,      // 펫호텔
+        CONVENIENCE,    // 편의점
+        UNMANNED_STORE, // 24시 무인 스토어
+        RESTAURANT,     // 반려견 동반 식당
+        GROOMING        // 미용실
     }
 
     public enum Source {

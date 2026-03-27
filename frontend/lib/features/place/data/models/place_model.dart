@@ -47,35 +47,31 @@ class Place {
 
   String get categoryLabel {
     switch (category) {
-      case 'HOSPITAL':
-        return '동물병원';
-      case 'PARK':
-        return '공원';
-      case 'CAFE':
-        return '카페';
-      case 'PET_SHOP':
-        return '펫샵';
-      case 'PET_HOTEL':
-        return '펫호텔';
-      default:
-        return category;
+      case 'HOSPITAL':      return '동물병원';
+      case 'PARK':          return '공원';
+      case 'CAFE':          return '반려견 카페';
+      case 'PET_SHOP':      return '펫샵';
+      case 'PET_HOTEL':     return '펫호텔';
+      case 'CONVENIENCE':   return '편의점';
+      case 'UNMANNED_STORE': return '무인 스토어';
+      case 'RESTAURANT':    return '동반 식당';
+      case 'GROOMING':      return '미용실';
+      default:              return category;
     }
   }
 
   String get categoryEmoji {
     switch (category) {
-      case 'HOSPITAL':
-        return '🏥';
-      case 'PARK':
-        return '🌳';
-      case 'CAFE':
-        return '☕';
-      case 'PET_SHOP':
-        return '🛍️';
-      case 'PET_HOTEL':
-        return '🏨';
-      default:
-        return '📍';
+      case 'HOSPITAL':      return '🏥';
+      case 'PARK':          return '🌳';
+      case 'CAFE':          return '☕';
+      case 'PET_SHOP':      return '🛍️';
+      case 'PET_HOTEL':     return '🏨';
+      case 'CONVENIENCE':   return '🏪';
+      case 'UNMANNED_STORE': return '🤖';
+      case 'RESTAURANT':    return '🍽️';
+      case 'GROOMING':      return '✂️';
+      default:              return '📍';
     }
   }
 }
