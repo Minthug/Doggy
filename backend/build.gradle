@@ -44,6 +44,9 @@ dependencies {
 	// CSV 파싱
 	implementation 'com.opencsv:opencsv:5.9'
 
+	// Firebase Admin SDK (FCM 푸시 알림)
+	implementation 'com.google.firebase:firebase-admin:9.4.2'
+
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'

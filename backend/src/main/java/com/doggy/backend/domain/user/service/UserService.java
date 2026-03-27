@@ -1,9 +1,11 @@
 package com.doggy.backend.domain.user.service;
 
 import com.doggy.backend.domain.user.dto.*;
+import com.doggy.backend.domain.user.entity.PushSetting;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.entity.UserAuth;
 import com.doggy.backend.domain.user.entity.UserAuth.AuthType;
+import com.doggy.backend.domain.user.repository.PushSettingRepository;
 import com.doggy.backend.domain.user.repository.UserAuthRepository;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
@@ -20,6 +22,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserAuthRepository userAuthRepository;
+    private final PushSettingRepository pushSettingRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
 
@@ -91,6 +94,27 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
         user.updateFcmToken(fcmToken);
+    }
+
+    public PushSettingResponse getPushSetting(Long userId) {
+        PushSetting setting = pushSettingRepository.findByUserId(userId)
+                .orElseGet(() -> createDefaultPushSetting(userId));
+        return PushSettingResponse.from(setting);
+    }
+
+    @Transactional
+    public PushSettingResponse updatePushSetting(Long userId, UpdatePushSettingRequest request) {
+        PushSetting setting = pushSettingRepository.findByUserId(userId)
+                .orElseGet(() -> createDefaultPushSetting(userId));
+        setting.update(request.walkReminderEnabled(), request.reminderIntervalHours(), request.weatherAlertEnabled());
+        return PushSettingResponse.from(setting);
+    }
+
+    @Transactional
+    private PushSetting createDefaultPushSetting(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
+        return pushSettingRepository.save(PushSetting.builder().user(user).build());
     }
 
     private TokenResponse issueTokens(Long userId) {

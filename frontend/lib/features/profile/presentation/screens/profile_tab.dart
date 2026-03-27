@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/domain/providers/auth_provider.dart';
+import 'push_setting_screen.dart';
 import '../../../dog/data/models/dog_model.dart';
 import '../../../dog/domain/providers/dog_provider.dart';
 import '../../../dog/presentation/screens/dog_register_screen.dart';
@@ -92,6 +93,43 @@ class ProfileTab extends ConsumerWidget {
                     ),
               loading: () => const _LoadingCard(height: 100),
               error: (_, __) => const SizedBox.shrink(),
+            ),
+
+            const SizedBox(height: 12),
+
+            // 알림 설정
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const PushSettingScreen()),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 8),
+                    ],
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.notifications_outlined,
+                          color: Color(0xFF4CAF50)),
+                      SizedBox(width: 12),
+                      Expanded(
+                          child: Text('알림 설정',
+                              style: TextStyle(fontSize: 15))),
+                      Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
+                  ),
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),

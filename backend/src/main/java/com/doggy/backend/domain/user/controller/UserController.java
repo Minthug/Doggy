@@ -50,4 +50,17 @@ public class UserController {
         userService.updateFcmToken(principal.getId(), fcmToken);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/api/users/me/push-settings")
+    public ResponseEntity<PushSettingResponse> getPushSetting(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(userService.getPushSetting(principal.getId()));
+    }
+
+    @PutMapping("/api/users/me/push-settings")
+    public ResponseEntity<PushSettingResponse> updatePushSetting(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody UpdatePushSettingRequest request) {
+        return ResponseEntity.ok(userService.updatePushSetting(principal.getId(), request));
+    }
 }

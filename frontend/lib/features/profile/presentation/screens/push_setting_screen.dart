@@ -1,0 +1,181 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/api/api_client.dart';
+
+final _pushSettingProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final dio = ref.watch(dioProvider);
+  final response = await dio.get('/api/users/me/push-settings');
+  return response.data as Map<String, dynamic>;
+});
+
+class PushSettingScreen extends ConsumerStatefulWidget {
+  const PushSettingScreen({super.key});
+
+  @override
+  ConsumerState<PushSettingScreen> createState() => _PushSettingScreenState();
+}
+
+class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
+  bool _walkReminderEnabled = true;
+  int _reminderIntervalHours = 8;
+  bool _weatherAlertEnabled = true;
+  bool _loaded = false;
+
+  final _intervalOptions = [4, 6, 8, 12, 24];
+
+  @override
+  Widget build(BuildContext context) {
+    final settingAsync = ref.watch(_pushSettingProvider);
+
+    settingAsync.whenData((data) {
+      if (!_loaded) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _walkReminderEnabled = data['walkReminderEnabled'] ?? true;
+              _reminderIntervalHours = data['reminderIntervalHours'] ?? 8;
+              _weatherAlertEnabled = data['weatherAlertEnabled'] ?? true;
+              _loaded = true;
+            });
+          }
+        });
+      }
+    });
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text('알림 설정',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          TextButton(
+            onPressed: _save,
+            child: const Text('저장',
+                style: TextStyle(
+                    color: Color(0xFF4CAF50), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+      backgroundColor: const Color(0xFFF5F5F5),
+      body: settingAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) =>
+            const Center(child: Text('설정을 불러오지 못했습니다')),
+        data: (_) => ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _SettingCard(
+              children: [
+                SwitchListTile(
+                  title: const Text('산책 리마인더',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('일정 시간 산책을 안 하면 알림을 보내드려요'),
+                  value: _walkReminderEnabled,
+                  activeColor: const Color(0xFF4CAF50),
+                  onChanged: (v) => setState(() => _walkReminderEnabled = v),
+                ),
+                if (_walkReminderEnabled) ...[
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('알림 주기',
+                            style: TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          children: _intervalOptions.map((hours) {
+                            final selected = _reminderIntervalHours == hours;
+                            return ChoiceChip(
+                              label: Text(hours == 24
+                                  ? '하루 1회'
+                                  : '$hours시간마다'),
+                              selected: selected,
+                              selectedColor: const Color(0xFF4CAF50),
+                              labelStyle: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : Colors.black87,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              onSelected: (_) => setState(
+                                  () => _reminderIntervalHours = hours),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SettingCard(
+              children: [
+                SwitchListTile(
+                  title: const Text('날씨 알림',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('산책하기 좋은 날씨일 때 알림을 보내드려요'),
+                  value: _weatherAlertEnabled,
+                  activeColor: const Color(0xFF4CAF50),
+                  onChanged: (v) =>
+                      setState(() => _weatherAlertEnabled = v),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.put('/api/users/me/push-settings', data: {
+        'walkReminderEnabled': _walkReminderEnabled,
+        'reminderIntervalHours': _reminderIntervalHours,
+        'weatherAlertEnabled': _weatherAlertEnabled,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('알림 설정이 저장됐습니다')),
+        );
+        Navigator.pop(context);
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장 실패: ${e.message}')),
+        );
+      }
+    }
+  }
+}
+
+class _SettingCard extends StatelessWidget {
+  final List<Widget> children;
+
+  const _SettingCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+        ],
+      ),
+      child: Column(children: children),
+    );
+  }
+}

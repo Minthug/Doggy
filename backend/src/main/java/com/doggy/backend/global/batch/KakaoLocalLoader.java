@@ -23,7 +23,7 @@ public class KakaoLocalLoader {
     private final JdbcTemplate jdbcTemplate;
     private final RestClient restClient;
 
-    private static final int PAGE_SIZE = 45;  // 카카오 API 최대값
+    private static final int PAGE_SIZE = 15;  // 카카오 키워드 검색 API 최대값
     private static final int MAX_PAGES = 3;   // 카카오 API 최대 페이지
 
     // 검색할 키워드와 카테고리 매핑
