@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../data/models/place_model.dart';
 import '../../domain/providers/place_provider.dart';
+import 'place_register_screen.dart';
 
 class MapTab extends ConsumerStatefulWidget {
   const MapTab({super.key});
@@ -17,6 +18,8 @@ class _MapTabState extends ConsumerState<MapTab> {
   NLatLng? _currentPosition;
   Place? _selectedPlace;
   bool _locationLoading = true;
+  bool _pinMode = false;       // 장소 등록 모드
+  NLatLng? _pinnedPosition;   // 핀 찍은 좌표
 
   static const _categories = [
     (label: '전체', value: null),
@@ -60,6 +63,72 @@ class _MapTabState extends ConsumerState<MapTab> {
         _locationLoading = false;
       });
     }
+  }
+
+  void _showPinConfirmSheet(NLatLng coord) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.location_on, color: Color(0xFF4CAF50), size: 40),
+            const SizedBox(height: 12),
+            const Text('이 위치에 장소를 등록할까요?',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text(
+              '위도 ${coord.latitude.toStringAsFixed(5)}, 경도 ${coord.longitude.toStringAsFixed(5)}',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      setState(() => _pinnedPosition = null);
+                    },
+                    child: const Text('취소'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4CAF50),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      setState(() => _pinMode = false);
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PlaceRegisterScreen(
+                            lat: coord.latitude,
+                            lng: coord.longitude,
+                          ),
+                        ),
+                      );
+                      if (result == true && _currentPosition != null) {
+                        ref.invalidate(nearbyPlacesProvider);
+                      }
+                    },
+                    child: const Text('등록하기'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _addMarkers(List<Place> places) async {
@@ -119,6 +188,28 @@ class _MapTabState extends ConsumerState<MapTab> {
         elevation: 0,
         title: const Text('주변 장소',
             style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _pinMode ? Icons.close : Icons.add_location_alt_outlined,
+              color: _pinMode ? Colors.red : const Color(0xFF4CAF50),
+            ),
+            onPressed: () {
+              setState(() {
+                _pinMode = !_pinMode;
+                _pinnedPosition = null;
+              });
+              if (_pinMode) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('등록할 장소 위치를 지도에서 탭해주세요'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -148,7 +239,12 @@ class _MapTabState extends ConsumerState<MapTab> {
               }
             },
             onMapTapped: (point, coord) {
-              setState(() => _selectedPlace = null);
+              if (_pinMode) {
+                setState(() => _pinnedPosition = coord);
+                _showPinConfirmSheet(coord);
+              } else {
+                setState(() => _selectedPlace = null);
+              }
             },
           ),
 
@@ -205,6 +301,38 @@ class _MapTabState extends ConsumerState<MapTab> {
               ),
             ),
           ),
+
+          // 핀 모드 안내 배너
+          if (_pinMode)
+            Positioned(
+              top: 60,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CAF50),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 8),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.touch_app, color: Colors.white, size: 18),
+                    SizedBox(width: 8),
+                    Text('등록할 위치를 탭해주세요',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
 
           // 선택된 장소 팝업
           if (_selectedPlace != null)

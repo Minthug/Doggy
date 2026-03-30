@@ -12,6 +12,31 @@ class PlaceRepository {
 
   PlaceRepository(this._dio);
 
+  Future<Place> create({
+    required String name,
+    required String category,
+    required double lat,
+    required double lng,
+    String? address,
+    String? phone,
+    bool isOpen24h = false,
+    bool isEmergency = false,
+    bool allowsDogs = true,
+  }) async {
+    final response = await _dio.post('/api/places', data: {
+      'name': name,
+      'category': category,
+      'lat': lat,
+      'lng': lng,
+      'address': address,
+      'phone': phone,
+      'isOpen24h': isOpen24h,
+      'isEmergency': isEmergency,
+      'allowsDogs': allowsDogs,
+    });
+    return Place.fromJson(response.data);
+  }
+
   Future<List<Place>> findNearby({
     required double lat,
     required double lng,
