@@ -4,9 +4,13 @@ import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.domain.walk.dto.*;
 import com.doggy.backend.domain.walk.entity.WalkPoint;
+import com.doggy.backend.domain.walk.entity.WalkRouteBookmark;
+import com.doggy.backend.domain.walk.entity.WalkRouteLike;
 import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.entity.WalkSession.Status;
 import com.doggy.backend.domain.walk.repository.WalkPointRepository;
+import com.doggy.backend.domain.walk.repository.WalkRouteBookmarkRepository;
+import com.doggy.backend.domain.walk.repository.WalkRouteLikeRepository;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
 import com.doggy.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +28,8 @@ public class WalkService {
 
     private final WalkSessionRepository walkSessionRepository;
     private final WalkPointRepository walkPointRepository;
+    private final WalkRouteLikeRepository likeRepository;
+    private final WalkRouteBookmarkRepository bookmarkRepository;
     private final UserRepository userRepository;
 
     @Transactional
@@ -105,6 +111,66 @@ public class WalkService {
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
         String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
         return WalkDetailResponse.of(session, routeGeoJson);
+    }
+
+    // 경로 공개
+    @Transactional
+    public WalkDetailResponse publish(Long userId, Long sessionId, PublishRouteRequest request) {
+        WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+        if (session.getStatus() != Status.COMPLETED) {
+            throw BusinessException.badRequest("완료된 산책만 공개할 수 있습니다");
+        }
+        session.makePublic(request.title());
+        String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+        return WalkDetailResponse.of(session, routeGeoJson);
+    }
+
+    // 경로 비공개
+    @Transactional
+    public void unpublish(Long userId, Long sessionId) {
+        WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+        session.makePrivate();
+    }
+
+    // 공개 경로 피드
+    public List<PublicRouteResponse> getPublicRoutes(Long userId, int page, int size) {
+        return walkSessionRepository.findPublicRoutes(PageRequest.of(page, size)).stream()
+                .map(session -> {
+                    long likeCount = likeRepository.countBySessionId(session.getId());
+                    boolean likedByMe = userId != null && likeRepository.existsBySessionIdAndUserId(session.getId(), userId);
+                    boolean bookmarkedByMe = userId != null && bookmarkRepository.existsBySessionIdAndUserId(session.getId(), userId);
+                    String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(session.getId());
+                    return PublicRouteResponse.of(session, likeCount, likedByMe, bookmarkedByMe, routeGeoJson);
+                })
+                .toList();
+    }
+
+    // 좋아요 토글
+    @Transactional
+    public boolean toggleLike(Long userId, Long sessionId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
+        WalkSession session = walkSessionRepository.findById(sessionId)
+                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+
+        return likeRepository.findBySessionIdAndUserId(sessionId, userId)
+                .map(like -> { likeRepository.delete(like); return false; })
+                .orElseGet(() -> { likeRepository.save(WalkRouteLike.builder().session(session).user(user).build()); return true; });
+    }
+
+    // 북마크 토글
+    @Transactional
+    public boolean toggleBookmark(Long userId, Long sessionId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
+        WalkSession session = walkSessionRepository.findById(sessionId)
+                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+
+        return bookmarkRepository.findBySessionIdAndUserId(sessionId, userId)
+                .map(bm -> { bookmarkRepository.delete(bm); return false; })
+                .orElseGet(() -> { bookmarkRepository.save(WalkRouteBookmark.builder().session(session).user(user).build()); return true; });
     }
 
     private int calculateDistance(List<WalkPointRequest> points) {

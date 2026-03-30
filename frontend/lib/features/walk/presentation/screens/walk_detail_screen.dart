@@ -26,11 +26,69 @@ class WalkDetailScreen extends ConsumerWidget {
         elevation: 0,
         title: const Text('산책 상세',
             style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          TextButton.icon(
+            onPressed: () => _showPublishDialog(context, ref),
+            icon: const Icon(Icons.share_outlined, size: 18),
+            label: const Text('공개'),
+            style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF4CAF50)),
+          ),
+        ],
       ),
       body: detailAsync.when(
         data: (detail) => _DetailBody(detail: detail),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => const Center(child: Text('불러오기 실패')),
+      ),
+    );
+  }
+
+  void _showPublishDialog(BuildContext context, WidgetRef ref) {
+    final titleController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('경로 공개하기'),
+        content: TextField(
+          controller: titleController,
+          decoration: const InputDecoration(
+            hintText: '예) 한강 야경 코스, 북한산 둘레길',
+            labelText: '경로 제목',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('취소')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                foregroundColor: Colors.white),
+            onPressed: () async {
+              if (titleController.text.trim().isEmpty) return;
+              Navigator.pop(ctx);
+              try {
+                await ref
+                    .read(walkRepositoryProvider)
+                    .publish(sessionId, titleController.text.trim());
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('경로가 공개됐습니다')),
+                  );
+                }
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('공개에 실패했습니다')),
+                  );
+                }
+              }
+            },
+            child: const Text('공개하기'),
+          ),
+        ],
       ),
     );
   }

@@ -22,6 +22,10 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> 
     @Query("SELECT w FROM WalkSession w WHERE w.user.id = :userId AND w.status = :status")
     Optional<WalkSession> findActiveSession(@Param("userId") Long userId, @Param("status") Status status);
 
+    // 공개된 경로 목록 (최신순)
+    @Query("SELECT w FROM WalkSession w WHERE w.isPublic = true AND w.status = 'COMPLETED' ORDER BY w.startedAt DESC")
+    List<WalkSession> findPublicRoutes(Pageable pageable);
+
     // 마지막 산책이 since 이전인 유저 ID 목록 (fcmToken 있는 유저만)
     @Query("""
             SELECT DISTINCT w.user.id FROM WalkSession w

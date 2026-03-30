@@ -48,4 +48,28 @@ class WalkRepository {
     final response = await _dio.get('/api/walks/$sessionId');
     return WalkDetail.fromJson(response.data);
   }
+
+  Future<void> publish(int sessionId, String title) async {
+    await _dio.patch('/api/walks/$sessionId/publish', data: {'title': title});
+  }
+
+  Future<void> unpublish(int sessionId) async {
+    await _dio.patch('/api/walks/$sessionId/unpublish');
+  }
+
+  Future<List<PublicRoute>> getPublicRoutes({int page = 0, int size = 20}) async {
+    final response = await _dio.get('/api/walks/public', queryParameters: {
+      'page': page,
+      'size': size,
+    });
+    return (response.data as List).map((e) => PublicRoute.fromJson(e)).toList();
+  }
+
+  Future<void> toggleLike(int sessionId) async {
+    await _dio.post('/api/walks/$sessionId/like');
+  }
+
+  Future<void> toggleBookmark(int sessionId) async {
+    await _dio.post('/api/walks/$sessionId/bookmark');
+  }
 }

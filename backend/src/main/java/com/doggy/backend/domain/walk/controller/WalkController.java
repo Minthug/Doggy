@@ -61,4 +61,45 @@ public class WalkController {
             @PathVariable Long sessionId) {
         return ResponseEntity.ok(walkService.getDetail(principal.getId(), sessionId));
     }
+
+    @PatchMapping("/{sessionId}/publish")
+    public ResponseEntity<WalkDetailResponse> publish(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId,
+            @Valid @RequestBody PublishRouteRequest request) {
+        return ResponseEntity.ok(walkService.publish(principal.getId(), sessionId, request));
+    }
+
+    @PatchMapping("/{sessionId}/unpublish")
+    public ResponseEntity<Void> unpublish(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId) {
+        walkService.unpublish(principal.getId(), sessionId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/public")
+    public ResponseEntity<List<PublicRouteResponse>> getPublicRoutes(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Long userId = principal != null ? principal.getId() : null;
+        return ResponseEntity.ok(walkService.getPublicRoutes(userId, page, size));
+    }
+
+    @PostMapping("/{sessionId}/like")
+    public ResponseEntity<Void> toggleLike(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId) {
+        walkService.toggleLike(principal.getId(), sessionId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{sessionId}/bookmark")
+    public ResponseEntity<Void> toggleBookmark(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId) {
+        walkService.toggleBookmark(principal.getId(), sessionId);
+        return ResponseEntity.noContent().build();
+    }
 }

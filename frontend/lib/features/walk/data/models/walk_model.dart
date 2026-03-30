@@ -84,6 +84,57 @@ class WalkDetail {
   }
 }
 
+class PublicRoute {
+  final int sessionId;
+  final String title;
+  final String authorNickname;
+  final int distanceMeters;
+  final int durationSeconds;
+  final String? startedAt;
+  final int likeCount;
+  final bool likedByMe;
+  final bool bookmarkedByMe;
+  final String? routeGeoJson;
+
+  PublicRoute({
+    required this.sessionId,
+    required this.title,
+    required this.authorNickname,
+    required this.distanceMeters,
+    required this.durationSeconds,
+    this.startedAt,
+    required this.likeCount,
+    required this.likedByMe,
+    required this.bookmarkedByMe,
+    this.routeGeoJson,
+  });
+
+  factory PublicRoute.fromJson(Map<String, dynamic> json) => PublicRoute(
+        sessionId: json['sessionId'],
+        title: json['title'] ?? '',
+        authorNickname: json['authorNickname'] ?? '',
+        distanceMeters: json['distanceMeters'] ?? 0,
+        durationSeconds: json['durationSeconds'] ?? 0,
+        startedAt: json['startedAt'],
+        likeCount: json['likeCount'] ?? 0,
+        likedByMe: json['likedByMe'] ?? false,
+        bookmarkedByMe: json['bookmarkedByMe'] ?? false,
+        routeGeoJson: json['routeGeoJson'],
+      );
+
+  String get distanceText {
+    if (distanceMeters >= 1000) {
+      return '${(distanceMeters / 1000).toStringAsFixed(1)}km';
+    }
+    return '${distanceMeters}m';
+  }
+
+  String get durationText {
+    final m = durationSeconds ~/ 60;
+    return '$m분';
+  }
+}
+
 class MonthlyWalkStats {
   final int totalDistanceMeters;
   final int totalDurationSeconds;

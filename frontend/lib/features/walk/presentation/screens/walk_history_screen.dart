@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/walk_model.dart';
 import '../../domain/providers/walk_provider.dart';
+import 'public_routes_screen.dart';
 import 'walk_detail_screen.dart';
 
 class WalkHistoryScreen extends ConsumerWidget {
@@ -20,6 +21,16 @@ class WalkHistoryScreen extends ConsumerWidget {
           '산책 기록',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.explore_outlined),
+            tooltip: '인기 경로',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PublicRoutesScreen()),
+            ),
+          ),
+        ],
       ),
       body: historyAsync.when(
         data: (history) {
