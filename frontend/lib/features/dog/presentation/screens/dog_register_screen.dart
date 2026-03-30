@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/models/dog_model.dart';
 import '../../data/repositories/dog_repository.dart';
 import '../../domain/providers/dog_provider.dart';
 
 class DogRegisterScreen extends ConsumerStatefulWidget {
-  const DogRegisterScreen({super.key});
+  final Dog? dog; // null이면 등록 모드, 값이 있으면 수정 모드
+
+  const DogRegisterScreen({super.key, this.dog});
 
   @override
   ConsumerState<DogRegisterScreen> createState() => _DogRegisterScreenState();
@@ -20,6 +23,21 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
   DateTime? _birthDate;
   bool _isLoading = false;
 
+  bool get _isEditMode => widget.dog != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final dog = widget.dog;
+    if (dog != null) {
+      _nameController.text = dog.name;
+      _breedController.text = dog.breed ?? '';
+      _weightController.text = dog.weightKg?.toString() ?? '';
+      _gender = dog.gender ?? 'MALE';
+      _isNeutered = dog.isNeutered;
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -31,12 +49,17 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
   Future<void> _pickBirthDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 365)),
+      initialDate: _birthDate ?? DateTime.now().subtract(const Duration(days: 365)),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
       helpText: '생년월일 선택',
     );
     if (picked != null) setState(() => _birthDate = picked);
+  }
+
+  String? _formatDate(DateTime? date) {
+    if (date == null) return null;
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
   Future<void> _submit() async {
@@ -49,24 +72,70 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(dogRepositoryProvider).create(
-            name: _nameController.text.trim(),
-            breed: _breedController.text.trim(),
-            birthDate: _birthDate != null
-                ? '${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}'
-                : null,
-            weightKg: _weightController.text.isNotEmpty
-                ? double.tryParse(_weightController.text)
-                : null,
-            gender: _gender,
-            isNeutered: _isNeutered,
-          );
+      if (_isEditMode) {
+        await ref.read(dogRepositoryProvider).update(
+              dogId: widget.dog!.id,
+              name: _nameController.text.trim(),
+              breed: _breedController.text.trim(),
+              birthDate: _formatDate(_birthDate),
+              weightKg: _weightController.text.isNotEmpty
+                  ? double.tryParse(_weightController.text)
+                  : null,
+              gender: _gender,
+              isNeutered: _isNeutered,
+            );
+      } else {
+        await ref.read(dogRepositoryProvider).create(
+              name: _nameController.text.trim(),
+              breed: _breedController.text.trim(),
+              birthDate: _formatDate(_birthDate),
+              weightKg: _weightController.text.isNotEmpty
+                  ? double.tryParse(_weightController.text)
+                  : null,
+              gender: _gender,
+              isNeutered: _isNeutered,
+            );
+      }
       ref.invalidate(myDogsProvider);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('등록에 실패했습니다. 다시 시도해주세요')),
+          SnackBar(content: Text(_isEditMode ? '수정에 실패했습니다' : '등록에 실패했습니다')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('반려견 삭제'),
+        content: Text('${widget.dog!.name}을(를) 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('삭제', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(dogRepositoryProvider).delete(widget.dog!.id);
+      ref.invalidate(myDogsProvider);
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('삭제에 실패했습니다')),
         );
       }
     } finally {
@@ -79,9 +148,17 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: const Text('반려견 등록'),
+        title: Text(_isEditMode ? '반려견 정보 수정' : '반려견 등록'),
         backgroundColor: Colors.white,
         elevation: 0,
+        actions: _isEditMode
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: _isLoading ? null : _delete,
+                ),
+              ]
+            : null,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -124,7 +201,6 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
             _sectionTitle('기본 정보'),
             const SizedBox(height: 12),
 
-            // 이름
             _inputField(
               controller: _nameController,
               label: '이름 *',
@@ -132,7 +208,6 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
             ),
             const SizedBox(height: 12),
 
-            // 견종
             _inputField(
               controller: _breedController,
               label: '견종',
@@ -140,7 +215,6 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
             ),
             const SizedBox(height: 12),
 
-            // 생년월일
             GestureDetector(
               onTap: _pickBirthDate,
               child: Container(
@@ -162,43 +236,29 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
                         color: _birthDate == null ? Colors.grey : Colors.black,
                       ),
                     ),
-                    const Icon(Icons.calendar_today,
-                        color: Colors.grey, size: 20),
+                    const Icon(Icons.calendar_today, color: Colors.grey, size: 20),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 12),
 
-            // 몸무게
             _inputField(
               controller: _weightController,
               label: '몸무게 (kg)',
               hint: '예) 3.5',
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 24),
 
             _sectionTitle('성별'),
             const SizedBox(height: 12),
 
-            // 성별 선택
             Row(
               children: [
-                Expanded(
-                  child: _genderButton(
-                    label: '남아 ♂',
-                    value: 'MALE',
-                  ),
-                ),
+                Expanded(child: _genderButton(label: '남아 ♂', value: 'MALE')),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: _genderButton(
-                    label: '여아 ♀',
-                    value: 'FEMALE',
-                  ),
-                ),
+                Expanded(child: _genderButton(label: '여아 ♀', value: 'FEMALE')),
               ],
             ),
             const SizedBox(height: 24),
@@ -206,7 +266,6 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
             _sectionTitle('중성화'),
             const SizedBox(height: 12),
 
-            // 중성화 여부
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -221,7 +280,6 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
             ),
             const SizedBox(height: 32),
 
-            // 등록 버튼
             SizedBox(
               width: double.infinity,
               height: 56,
@@ -235,9 +293,11 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
                 ),
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('등록하기',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    : Text(
+                        _isEditMode ? '수정하기' : '등록하기',
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
           ],
@@ -249,9 +309,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
   Widget _sectionTitle(String title) {
     return Text(title,
         style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87));
+            fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87));
   }
 
   Widget _inputField({

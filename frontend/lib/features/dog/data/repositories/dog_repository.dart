@@ -36,6 +36,26 @@ class DogRepository {
     return Dog.fromJson(response.data);
   }
 
+  Future<Dog> update({
+    required int dogId,
+    required String name,
+    String? breed,
+    String? birthDate,
+    double? weightKg,
+    required String gender,
+    required bool isNeutered,
+  }) async {
+    final response = await _dio.patch('/api/dogs/$dogId', data: {
+      'name': name,
+      'breed': breed?.isNotEmpty == true ? breed : null,
+      'birthDate': birthDate,
+      'weightKg': weightKg,
+      'gender': gender,
+      'isNeutered': isNeutered,
+    });
+    return Dog.fromJson(response.data);
+  }
+
   Future<void> delete(int dogId) async {
     await _dio.delete('/api/dogs/$dogId');
   }

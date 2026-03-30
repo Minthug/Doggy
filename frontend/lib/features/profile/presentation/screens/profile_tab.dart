@@ -318,7 +318,12 @@ class _DogCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final calories = dog.dailyCalories;
 
-    return Container(
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => DogRegisterScreen(dog: dog)),
+      ),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -434,6 +439,7 @@ class _DogCard extends StatelessWidget {
               ],
             ),
         ],
+      ),
       ),
     );
   }
