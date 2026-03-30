@@ -173,13 +173,11 @@ class _MapTabState extends ConsumerState<MapTab> {
     final location = _currentPosition;
 
     if (location != null) {
-      ref.listen(
-        nearbyPlacesProvider((lat: location.latitude, lng: location.longitude)),
-        (prev, next) {
-          next.whenData((places) => _addMarkers(places));
-        },
-        fireImmediately: true,
-      );
+      final placesAsync = ref.watch(
+          nearbyPlacesProvider((lat: location.latitude, lng: location.longitude)));
+      placesAsync.whenData((places) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _addMarkers(places));
+      });
     }
 
     return Scaffold(
