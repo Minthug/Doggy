@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../domain/providers/auth_provider.dart';
 
-const _oauthBaseUrl = 'http://10.0.2.2:8080';
+// 에뮬레이터: adb reverse tcp:8080 tcp:8080 실행 후 localhost 사용
+const _oauthBaseUrl = 'http://localhost:8080';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
