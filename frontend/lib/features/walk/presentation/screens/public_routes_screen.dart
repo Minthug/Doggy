@@ -234,7 +234,6 @@ class _RouteMapPreviewState extends State<_RouteMapPreview> {
       options: const NaverMapViewOptions(
         scrollGesturesEnable: false,
         zoomGesturesEnable: false,
-        rotateGesturesEnable: false,
         tiltGesturesEnable: false,
         locationButtonEnable: false,
       ),

@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../data/models/dog_model.dart';
 import '../../data/repositories/dog_repository.dart';
 import '../../domain/providers/dog_provider.dart';
@@ -22,6 +24,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
   bool _isNeutered = false;
   DateTime? _birthDate;
   bool _isLoading = false;
+  File? _imageFile;
 
   bool get _isEditMode => widget.dog != null;
 
@@ -44,6 +47,19 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
     _breedController.dispose();
     _weightController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 80,
+    );
+    if (picked != null) {
+      setState(() => _imageFile = File(picked.path));
+    }
   }
 
   Future<void> _pickBirthDate() async {
@@ -165,35 +181,43 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 프로필 사진 자리
+            // 프로필 사진
             Center(
-              child: Stack(
-                children: [
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: const Icon(Icons.pets,
-                        color: Color(0xFF4CAF50), size: 48),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 32,
-                      height: 32,
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 100,
+                      height: 100,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50),
-                        borderRadius: BorderRadius.circular(16),
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(50),
                       ),
-                      child: const Icon(Icons.camera_alt,
-                          color: Colors.white, size: 18),
+                      child: _imageFile != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(50),
+                              child: Image.file(_imageFile!, fit: BoxFit.cover),
+                            )
+                          : const Icon(Icons.pets,
+                              color: Color(0xFF4CAF50), size: 48),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(Icons.camera_alt,
+                            color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 24),
