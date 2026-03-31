@@ -136,8 +136,19 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     });
   }
 
-  void _startTracking() {
+  Future<void> _startTracking() async {
     _positionSubscription?.cancel();
+
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) return;
+
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,

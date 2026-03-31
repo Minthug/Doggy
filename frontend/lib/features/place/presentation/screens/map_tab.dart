@@ -42,14 +42,25 @@ class _MapTabState extends ConsumerState<MapTab> {
 
   Future<void> _getCurrentLocation() async {
     try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('위치 서비스가 꺼져 있습니다');
+      }
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw Exception('위치 권한이 거부됐습니다');
+      }
+
       final position = await Geolocator.getCurrentPosition(
         locationSettings:
             const LocationSettings(accuracy: LocationAccuracy.high),
       );
+      if (!mounted) return;
       setState(() {
         _currentPosition = NLatLng(position.latitude, position.longitude);
         _locationLoading = false;
@@ -58,6 +69,7 @@ class _MapTabState extends ConsumerState<MapTab> {
         NCameraUpdate.scrollAndZoomTo(target: _currentPosition!, zoom: 15),
       );
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _currentPosition = const NLatLng(37.5665, 126.9780);
         _locationLoading = false;
