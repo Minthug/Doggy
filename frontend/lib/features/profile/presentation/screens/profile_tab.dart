@@ -159,6 +159,10 @@ class ProfileTab extends ConsumerWidget {
                     );
                     if (confirmed == true && context.mounted) {
                       await ref.read(authActionProvider).logout();
+                      if (context.mounted) {
+                        Navigator.of(context).pushNamedAndRemoveUntil(
+                            '/login', (_) => false);
+                      }
                     }
                   },
                   icon: const Icon(Icons.logout, color: Colors.red),

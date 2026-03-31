@@ -56,6 +56,9 @@ dependencies:
   # 딥링크 (OAuth2 콜백)
   app_links: ^6.4.0
 
+  # 브라우저 열기 (OAuth2 로그인)
+  url_launcher: ^6.3.1
+
   # 이미지
   cached_network_image: ^3.4.1
   image_picker: ^1.1.2
