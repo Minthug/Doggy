@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../domain/providers/walk_active_provider.dart';
 
 class WalkScreen extends ConsumerStatefulWidget {
@@ -12,6 +13,19 @@ class WalkScreen extends ConsumerStatefulWidget {
 
 class _WalkScreenState extends ConsumerState<WalkScreen> {
   NaverMapController? _mapController;
+
+  @override
+  void initState() {
+    super.initState();
+    _requestLocationPermission();
+  }
+
+  Future<void> _requestLocationPermission() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      await Geolocator.requestPermission();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +69,17 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
             child: _StatsCard(walkState: walkState),
           ),
 
+          // 내 위치 버튼
+          Positioned(
+            bottom: 120,
+            right: 16,
+            child: FloatingActionButton.small(
+              onPressed: _moveToCurrentLocation,
+              backgroundColor: Colors.white,
+              child: const Icon(Icons.my_location, color: Color(0xFF4CAF50)),
+            ),
+          ),
+
           // 하단 버튼
           Positioned(
             bottom: 32,
@@ -75,13 +100,28 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
   }
 
   Future<void> _moveToCurrentLocation() async {
-    // 초기 위치로 카메라 이동
-    _mapController?.updateCamera(
-      NCameraUpdate.scrollAndZoomTo(
-        target: const NLatLng(37.5665, 126.9780),
-        zoom: 15,
-      ),
-    );
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) return;
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      _mapController?.updateCamera(
+        NCameraUpdate.scrollAndZoomTo(
+          target: NLatLng(position.latitude, position.longitude),
+          zoom: 17,
+        ),
+      );
+    } catch (_) {
+      _mapController?.updateCamera(
+        NCameraUpdate.scrollAndZoomTo(
+          target: const NLatLng(37.5665, 126.9780),
+          zoom: 15,
+        ),
+      );
+    }
   }
 
   void _updateRoute(WalkState state) {
