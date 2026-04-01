@@ -17,8 +17,13 @@ class HomeRepository {
     return UserProfile.fromJson(response.data);
   }
 
-  Future<Map<String, dynamic>> getWalkIndex() async {
-    final response = await _dio.get('/api/weather/walk-index');
+  Future<Map<String, dynamic>> getWalkIndex({double? lat, double? lng}) async {
+    final response = await _dio.get(
+      '/api/weather/walk-index',
+      queryParameters: (lat != null && lng != null)
+          ? {'lat': lat, 'lng': lng}
+          : null,
+    );
     return response.data as Map<String, dynamic>;
   }
 }
