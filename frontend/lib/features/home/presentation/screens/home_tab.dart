@@ -38,6 +38,7 @@ class HomeTab extends ConsumerWidget {
           ref.invalidate(userProfileProvider);
           ref.invalidate(myDogsProvider);
           ref.invalidate(todayWalkStatsProvider);
+          ref.invalidate(walkIndexProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -60,6 +61,19 @@ class HomeTab extends ConsumerWidget {
                       : _DogListCard(dogs: dogs),
                   loading: () => _DogCardSkeleton(),
                   error: (e, _) => _EmptyDogCard(),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // 산책 지수
+            Consumer(
+              builder: (context, ref, _) {
+                final walkIndexAsync = ref.watch(walkIndexProvider);
+                return walkIndexAsync.when(
+                  data: (data) => _WalkIndexCard(data: data),
+                  loading: () => const SizedBox.shrink(),
+                  error: (e, s) => const SizedBox.shrink(),
                 );
               },
             ),
@@ -289,6 +303,105 @@ class _StartWalkButton extends StatelessWidget {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
+    );
+  }
+}
+
+// 산책 지수 카드
+class _WalkIndexCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _WalkIndexCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final index = data['index'] as String? ?? 'CAUTION';
+    final label = data['label'] as String? ?? '산책 주의';
+    final emoji = data['emoji'] as String? ?? '🟡';
+    final description = data['description'] as String? ?? '';
+    final tmp = data['temperature'] as int? ?? 0;
+    final pop = data['precipitationProbability'] as int? ?? 0;
+    final pm10Grade = data['pm10Grade'] as String? ?? '보통';
+    final pm25Grade = data['pm25Grade'] as String? ?? '보통';
+    final precipitation = data['precipitationType'] as String? ?? '없음';
+
+    final Color indexColor = switch (index) {
+      'GOOD' => const Color(0xFF4CAF50),
+      'AVOID' => const Color(0xFFE53935),
+      _ => const Color(0xFFFFA726),
+    };
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('오늘의 산책 지수',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: indexColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$emoji $label',
+                  style: TextStyle(
+                    color: indexColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(description,
+              style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _WeatherItem(icon: Icons.thermostat, label: '기온', value: '$tmp°C'),
+              _WeatherItem(icon: Icons.umbrella, label: '강수확률', value: '$pop%'),
+              _WeatherItem(icon: Icons.water_drop_outlined, label: '날씨', value: precipitation),
+              _WeatherItem(icon: Icons.air, label: '미세먼지', value: pm10Grade),
+              _WeatherItem(icon: Icons.grain, label: '초미세먼지', value: pm25Grade),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeatherItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _WeatherItem({required this.icon, required this.label, required this.value});
+
+  Color _valueColor() {
+    if (value == '나쁨' || value == '매우나쁨') return const Color(0xFFE53935);
+    if (value == '보통') return const Color(0xFFFFA726);
+    return Colors.black87;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: Colors.grey),
+        const SizedBox(height: 4),
+        Text(value,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: _valueColor())),
+        Text(label,
+            style: const TextStyle(fontSize: 10, color: Colors.grey)),
+      ],
     );
   }
 }

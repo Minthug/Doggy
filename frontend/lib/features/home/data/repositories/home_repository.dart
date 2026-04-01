@@ -16,4 +16,9 @@ class HomeRepository {
     final response = await _dio.get('/api/users/me');
     return UserProfile.fromJson(response.data);
   }
+
+  Future<Map<String, dynamic>> getWalkIndex() async {
+    final response = await _dio.get('/api/weather/walk-index');
+    return response.data as Map<String, dynamic>;
+  }
 }

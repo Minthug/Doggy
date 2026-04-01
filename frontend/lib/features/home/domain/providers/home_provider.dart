@@ -5,3 +5,7 @@ import '../../data/repositories/home_repository.dart';
 final userProfileProvider = FutureProvider<UserProfile>((ref) async {
   return ref.watch(homeRepositoryProvider).getMyProfile();
 });
+
+final walkIndexProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  return ref.watch(homeRepositoryProvider).getWalkIndex();
+});
