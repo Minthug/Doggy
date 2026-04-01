@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalTime;
 import java.util.List;
 
 @Slf4j
@@ -20,16 +21,24 @@ public class WeatherAlertScheduler {
     private final WeatherService weatherService;
     private final FcmService fcmService;
 
-    // 매일 오전 7시 실행
-    @Scheduled(cron = "0 0 7 * * *")
+    // 매시간 정각 실행 — 유저별 설정 시각에 맞는 유저에게만 발송
+    @Scheduled(cron = "0 0 * * * *")
     public void sendWeatherAlerts() {
-        log.info("날씨 알림 스케줄러 실행");
+        int currentHour = LocalTime.now().getHour();
+        log.info("날씨 알림 스케줄러 실행 (현재 {}시)", currentHour);
 
+        List<PushSetting> settings = pushSettingRepository.findAll().stream()
+                .filter(PushSetting::isWeatherAlertEnabled)
+                .filter(s -> s.getWeatherAlertHour() == currentHour)
+                .toList();
+
+        if (settings.isEmpty()) return;
+
+        // 알림 받을 유저가 있을 때만 날씨 API 호출
         WalkIndexResponse walkIndex = weatherService.getWalkIndex();
         log.info("산책 지수: {} ({}도, PM10:{}, PM2.5:{})",
                 walkIndex.index(), walkIndex.temperature(), walkIndex.pm10(), walkIndex.pm25());
 
-        // AVOID이면 알림 생략
         if (walkIndex.index() == WalkIndex.AVOID) {
             log.info("산책 자제 날씨 - 알림 생략");
             return;
@@ -40,10 +49,6 @@ public class WeatherAlertScheduler {
                 : "산책 가능하지만 주의하세요 " + walkIndex.emoji();
 
         String body = buildBody(walkIndex);
-
-        List<PushSetting> settings = pushSettingRepository.findAll().stream()
-                .filter(PushSetting::isWeatherAlertEnabled)
-                .toList();
 
         int sent = 0;
         for (PushSetting setting : settings) {

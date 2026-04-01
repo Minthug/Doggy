@@ -20,6 +20,7 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
   bool _walkReminderEnabled = true;
   int _reminderIntervalHours = 8;
   bool _weatherAlertEnabled = true;
+  int _weatherAlertHour = 7;
   bool _loaded = false;
 
   final _intervalOptions = [4, 6, 8, 12, 24];
@@ -36,6 +37,7 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
               _walkReminderEnabled = data['walkReminderEnabled'] ?? true;
               _reminderIntervalHours = data['reminderIntervalHours'] ?? 8;
               _weatherAlertEnabled = data['weatherAlertEnabled'] ?? true;
+              _weatherAlertHour = data['weatherAlertHour'] ?? 7;
               _loaded = true;
             });
           }
@@ -124,15 +126,53 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
                   subtitle: const Text('산책하기 좋은 날씨일 때 알림을 보내드려요'),
                   value: _weatherAlertEnabled,
                   activeColor: const Color(0xFF4CAF50),
-                  onChanged: (v) =>
-                      setState(() => _weatherAlertEnabled = v),
+                  onChanged: (v) => setState(() => _weatherAlertEnabled = v),
                 ),
+                if (_weatherAlertEnabled) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    title: const Text('알림 받을 시각',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                    trailing: GestureDetector(
+                      onTap: _pickWeatherAlertTime,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${_weatherAlertHour.toString().padLeft(2, '0')}:00',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF4CAF50),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _pickWeatherAlertTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _weatherAlertHour, minute: 0),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() => _weatherAlertHour = picked.hour);
+    }
   }
 
   Future<void> _save() async {
@@ -142,6 +182,7 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
         'walkReminderEnabled': _walkReminderEnabled,
         'reminderIntervalHours': _reminderIntervalHours,
         'weatherAlertEnabled': _weatherAlertEnabled,
+        'weatherAlertHour': _weatherAlertHour,
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

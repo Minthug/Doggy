@@ -133,5 +133,6 @@ CREATE TABLE push_settings (
     walk_reminder_enabled   BOOLEAN NOT NULL DEFAULT true,
     reminder_interval_hours INTEGER NOT NULL DEFAULT 8,
     weather_alert_enabled   BOOLEAN NOT NULL DEFAULT true,
+    weather_alert_hour      INTEGER NOT NULL DEFAULT 7,
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
