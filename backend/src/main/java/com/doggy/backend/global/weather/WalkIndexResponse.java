@@ -13,7 +13,7 @@ public record WalkIndexResponse(
         String pm10Grade,  // 좋음, 보통, 나쁨, 매우나쁨
         String pm25Grade
 ) {
-    public static WalkIndexResponse of(WalkIndex index, int tmp, int pop, int pty, int pm10, int pm25) {
+    public static WalkIndexResponse of(WalkIndex index, int tmp, int pop, int pty, int pm10, int pm25, String pm10Grade, String pm25Grade) {
         return new WalkIndexResponse(
                 index,
                 index.label,
@@ -24,8 +24,8 @@ public record WalkIndexResponse(
                 precipitationLabel(pty),
                 pm10,
                 pm25,
-                pm10Grade(pm10),
-                pm25Grade(pm25)
+                pm10Grade,
+                pm25Grade
         );
     }
 
@@ -39,17 +39,4 @@ public record WalkIndexResponse(
         };
     }
 
-    private static String pm10Grade(int pm10) {
-        if (pm10 < 30) return "좋음";
-        if (pm10 < 80) return "보통";
-        if (pm10 < 150) return "나쁨";
-        return "매우나쁨";
-    }
-
-    private static String pm25Grade(int pm25) {
-        if (pm25 < 15) return "좋음";
-        if (pm25 < 35) return "보통";
-        if (pm25 < 75) return "나쁨";
-        return "매우나쁨";
-    }
 }

@@ -47,7 +47,7 @@ public class WeatherService {
         AirData air = fetchAirQuality(sido);
 
         WalkIndex index = calculateIndex(weather, air);
-        return WalkIndexResponse.of(index, weather.tmp, weather.pop, weather.pty, air.pm10, air.pm25);
+        return WalkIndexResponse.of(index, weather.tmp, weather.pop, weather.pty, air.pm10, air.pm25, air.pm10Grade(), air.pm25Grade());
     }
 
     // ── 산책 지수 계산 ──────────────────────────────────────────
@@ -57,12 +57,12 @@ public class WeatherService {
         if (w.tmp < 0 || w.tmp > 32) return WalkIndex.AVOID;
         if (w.pty != 0) return WalkIndex.AVOID;           // 비/눈/소나기
         if (w.pop >= 60) return WalkIndex.AVOID;
-        if (a.pm10 >= 150 || a.pm25 >= 75) return WalkIndex.AVOID; // 매우나쁨
+        if ("매우나쁨".equals(a.pm10Grade()) || "매우나쁨".equals(a.pm25Grade())) return WalkIndex.AVOID;
 
         // 주의 조건
         if (w.tmp < 5 || w.tmp > 27) return WalkIndex.CAUTION;
         if (w.pop >= 30) return WalkIndex.CAUTION;
-        if (a.pm10 >= 80 || a.pm25 >= 35) return WalkIndex.CAUTION; // 나쁨
+        if ("나쁨".equals(a.pm10Grade()) || "나쁨".equals(a.pm25Grade())) return WalkIndex.CAUTION;
 
         // 좋음: 기온 5~27도, 강수확률 30% 미만, 미세먼지 보통 이하
         return WalkIndex.GOOD;
@@ -134,14 +134,14 @@ public class WeatherService {
         try {
             String encodedSido = URLEncoder.encode(sido, StandardCharsets.UTF_8);
             String url = AIR_URL + "?serviceKey=" + apiKey
-                    + "&returnType=json&numOfRows=1&pageNo=1&sidoName=" + encodedSido + "&ver=1.0";
+                    + "&returnType=json&numOfRows=20&pageNo=1&sidoName=" + encodedSido + "&ver=1.0";
 
             Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
             return parseAir(response);
 
         } catch (Exception e) {
             log.warn("에어코리아 API 호출 실패 [{}]: {}", e.getClass().getSimpleName(), e.getMessage());
-            return new AirData(30, 10);
+            return new AirData(30, 10, "보통", "보통");
         }
     }
 
@@ -152,18 +152,35 @@ public class WeatherService {
             Map<String, Object> body = (Map<String, Object>) res.get("body");
             List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
 
-            if (items == null || items.isEmpty()) return new AirData(30, 10);
+            if (items == null || items.isEmpty()) return new AirData(30, 10, "보통", "보통");
 
-            Map<String, Object> item = items.get(0);
-            int pm10 = parseAirValue(item.get("pm10Value"));
-            int pm25 = parseAirValue(item.get("pm25Value"));
+            // 여러 측정소 평균값 사용
+            int pm10Sum = 0, pm25Sum = 0, count = 0;
+            int worstPm10Grade = 1, worstPm25Grade = 1;
+            for (Map<String, Object> item : items) {
+                int pm10v = parseAirValue(item.get("pm10Value"));
+                int pm25v = parseAirValue(item.get("pm25Value"));
+                if (pm10v > 0 && pm25v > 0) {
+                    pm10Sum += pm10v;
+                    pm25Sum += pm25v;
+                    count++;
+                    worstPm10Grade = Math.max(worstPm10Grade, parseGradeNum(item.get("pm10Grade")));
+                    worstPm25Grade = Math.max(worstPm25Grade, parseGradeNum(item.get("pm25Grade")));
+                }
+            }
+            if (count == 0) return new AirData(30, 10, "보통", "보통");
 
-            log.info("미세먼지 - PM10:{}㎍/㎥, PM2.5:{}㎍/㎥", pm10, pm25);
-            return new AirData(pm10, pm25);
+            int pm10 = pm10Sum / count;
+            int pm25 = pm25Sum / count;
+            String pm10Grade = gradeLabel(worstPm10Grade);
+            String pm25Grade = gradeLabel(worstPm25Grade);
+
+            log.info("미세먼지 ({} 측정소 평균) - PM10:{}({}), PM2.5:{}({})", count, pm10, pm10Grade, pm25, pm25Grade);
+            return new AirData(pm10, pm25, pm10Grade, pm25Grade);
 
         } catch (Exception e) {
             log.warn("미세먼지 데이터 파싱 실패: {}", e.getMessage());
-            return new AirData(30, 10);
+            return new AirData(30, 10, "보통", "보통");
         }
     }
 
@@ -171,6 +188,27 @@ public class WeatherService {
         if (val == null || "-".equals(val.toString())) return 30;
         try { return Integer.parseInt(val.toString()); }
         catch (NumberFormatException e) { return 30; }
+    }
+
+    private int parseGradeNum(Object grade) {
+        if (grade == null) return 1;
+        try { return Integer.parseInt(grade.toString()); }
+        catch (NumberFormatException e) { return 1; }
+    }
+
+    // 에어코리아 grade: 1=좋음, 2=보통, 3=나쁨, 4=매우나쁨
+    private String gradeLabel(Object grade) {
+        return gradeLabel(parseGradeNum(grade));
+    }
+
+    private String gradeLabel(int grade) {
+        return switch (grade) {
+            case 1 -> "좋음";
+            case 2 -> "보통";
+            case 3 -> "나쁨";
+            case 4 -> "매우나쁨";
+            default -> "보통";
+        };
     }
 
     // ── 시간 헬퍼 ─────────────────────────────────────────────
@@ -194,5 +232,5 @@ public class WeatherService {
     // ── 내부 데이터 클래스 ────────────────────────────────────
 
     record WeatherData(int tmp, int pop, int pty) {}
-    record AirData(int pm10, int pm25) {}
+    record AirData(int pm10, int pm25, String pm10Grade, String pm25Grade) {}
 }
