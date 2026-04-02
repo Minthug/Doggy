@@ -2,10 +2,14 @@ package com.doggy.backend.global.weather;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -17,9 +21,9 @@ import java.util.Map;
 public class WeatherService {
 
     private static final String FORECAST_URL =
-            "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst";
+            "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst";
     private static final String AIR_URL =
-            "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty";
+            "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty";
 
     // 기본 좌표: 서울
     private static final double DEFAULT_LAT = 37.5665;
@@ -29,7 +33,10 @@ public class WeatherService {
     @Value("${weather.api.key}")
     private String apiKey;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = new RestTemplateBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .readTimeout(Duration.ofSeconds(10))
+            .build();
 
     public WalkIndexResponse getWalkIndex() {
         return getWalkIndex(DEFAULT_LAT, DEFAULT_LNG, DEFAULT_SIDO);
@@ -104,7 +111,8 @@ public class WeatherService {
             for (Map<String, Object> item : items) {
                 if (!targetTime.equals(item.get("fcstTime"))) continue;
                 String category = (String) item.get("category");
-                int value = Integer.parseInt(item.get("fcstValue").toString());
+                if (!category.equals("TMP") && !category.equals("POP") && !category.equals("PTY")) continue;
+                int value = (int) Math.round(Double.parseDouble(item.get("fcstValue").toString()));
                 switch (category) {
                     case "TMP" -> tmp = value;
                     case "POP" -> pop = value;
@@ -124,22 +132,16 @@ public class WeatherService {
 
     private AirData fetchAirQuality(String sido) {
         try {
-            String url = UriComponentsBuilder.fromHttpUrl(AIR_URL)
-                    .queryParam("serviceKey", apiKey)
-                    .queryParam("returnType", "json")
-                    .queryParam("numOfRows", 1)
-                    .queryParam("pageNo", 1)
-                    .queryParam("sidoName", sido)
-                    .queryParam("ver", "1.0")
-                    .build(true)
-                    .toUriString();
+            String encodedSido = URLEncoder.encode(sido, StandardCharsets.UTF_8);
+            String url = AIR_URL + "?serviceKey=" + apiKey
+                    + "&returnType=json&numOfRows=1&pageNo=1&sidoName=" + encodedSido + "&ver=1.0";
 
-            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+            Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
             return parseAir(response);
 
         } catch (Exception e) {
-            log.warn("에어코리아 API 호출 실패: {}", e.getMessage());
-            return new AirData(30, 10); // 실패 시 보통 수준 기본값
+            log.warn("에어코리아 API 호출 실패 [{}]: {}", e.getClass().getSimpleName(), e.getMessage());
+            return new AirData(30, 10);
         }
     }
 
