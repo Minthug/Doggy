@@ -79,6 +79,43 @@ class _DoggyAppState extends State<DoggyApp> {
   }
 }
 
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFF4CAF50),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('🐶', style: TextStyle(fontSize: 72)),
+            SizedBox(height: 16),
+            Text(
+              'Doggy',
+              style: TextStyle(
+                fontSize: 40,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 2,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              '반려견 산책 기록',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AuthGate extends StatefulWidget {
   const _AuthGate();
 
@@ -103,7 +140,7 @@ class _AuthGateState extends State<_AuthGate> {
   @override
   Widget build(BuildContext context) {
     if (_isLoggedIn == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const _SplashScreen();
     }
     return _isLoggedIn!
         ? MainScreen(key: mainScreenKey)
