@@ -232,11 +232,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
             ),
             const SizedBox(height: 12),
 
-            _inputField(
-              controller: _breedController,
-              label: '견종',
-              hint: '예) 말티즈, 포메라니안',
-            ),
+            _breedAutocomplete(),
             const SizedBox(height: 12),
 
             GestureDetector(
@@ -327,6 +323,80 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  static const _breeds = [
+    '말티즈', '푸들', '포메라니안', '시츄', '비숑프리제', '골든리트리버', '래브라도리트리버',
+    '진돗개', '삽살개', '풍산개', '불독', '프렌치불독', '비글', '닥스훈트', '치와와',
+    '요크셔테리어', '파피용', '페키니즈', '퍼그', '시바이누', '아키타', '사모예드',
+    '허스키', '알래스칸말라뮤트', '보더콜리', '오스트레일리안셰퍼드', '웰시코기',
+    '셔틀랜드쉽독', '도베르만', '로트와일러', '저먼셰퍼드', '복서', '그레이트데인',
+    '달마시안', '아이리시세터', '잉글리시스프링거스패니얼', '코카스패니얼',
+    '바센지', '아프간하운드', '그레이하운드', '이탈리안그레이하운드', '휘핏',
+    '바셋하운드', '블러드하운드', '보르조이', '샤페이', '차우차우', '아메리칸핏불테리어',
+    '아메리칸스태퍼드셔테리어', '불테리어', '미니어처슈나우저', '스탠다드슈나우저',
+    '자이언트슈나우저', '에어데일테리어', '스코티시테리어', '웨스트하일랜드화이트테리어',
+    '케언테리어', '잭러셀테리어', '파슨러셀테리어', '미니어처핀셔', '도베르만핀셔',
+    '하바니즈', '말리노이즈', '벨지안셰퍼드', '믹스견',
+  ];
+
+  Widget _breedAutocomplete() {
+    return Autocomplete<String>(
+      initialValue: TextEditingValue(text: _breedController.text),
+      optionsBuilder: (textEditingValue) {
+        final query = textEditingValue.text.trim();
+        if (query.isEmpty) return const [];
+        return _breeds.where((b) => b.contains(query));
+      },
+      onSelected: (value) => _breedController.text = value,
+      fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+        if (_breedController.text.isNotEmpty && controller.text.isEmpty) {
+          controller.text = _breedController.text;
+        }
+        controller.addListener(() => _breedController.text = controller.text);
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: '견종',
+            hintText: '예) 말티즈, 포메라니안',
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF4CAF50))),
+          ),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (context, index) {
+                  final option = options.elementAt(index);
+                  return ListTile(
+                    dense: true,
+                    title: Text(option),
+                    onTap: () => onSelected(option),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
