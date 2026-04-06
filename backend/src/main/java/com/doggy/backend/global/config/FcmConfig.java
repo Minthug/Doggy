@@ -31,7 +31,7 @@ public class FcmConfig {
             GoogleCredentials credentials;
 
             if (!credentialsBase64.isBlank()) {
-                byte[] decoded = Base64.getDecoder().decode(credentialsBase64);
+                byte[] decoded = Base64.getDecoder().decode(credentialsBase64.replaceAll("\\s+", ""));
                 credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(decoded));
             } else if (credentialsResource.exists()) {
                 credentials = GoogleCredentials.fromStream(credentialsResource.getInputStream());
