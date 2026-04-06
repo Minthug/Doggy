@@ -43,7 +43,8 @@ public class SecurityConfig {
                                 "/oauth2/**",
                                 "/api/places/**",
                                 "/api/walks/public",
-                                "/api/weather/**"
+                                "/api/weather/**",
+                                "/actuator/health"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
