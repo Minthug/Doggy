@@ -21,6 +21,8 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
   int _reminderIntervalHours = 8;
   bool _weatherAlertEnabled = true;
   int _weatherAlertHour = 7;
+  bool _birthdayAlertEnabled = true;
+  bool _healthCheckupAlertEnabled = true;
   bool _loaded = false;
 
   final _intervalOptions = [4, 6, 8, 12, 24];
@@ -38,6 +40,8 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
               _reminderIntervalHours = data['reminderIntervalHours'] ?? 8;
               _weatherAlertEnabled = data['weatherAlertEnabled'] ?? true;
               _weatherAlertHour = data['weatherAlertHour'] ?? 7;
+              _birthdayAlertEnabled = data['birthdayAlertEnabled'] ?? true;
+              _healthCheckupAlertEnabled = data['healthCheckupAlertEnabled'] ?? true;
               _loaded = true;
             });
           }
@@ -121,6 +125,32 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
             _SettingCard(
               children: [
                 SwitchListTile(
+                  title: const Text('생일 알림',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('반려견 생일날 아침 8시에 알림을 보내드려요 🎂'),
+                  value: _birthdayAlertEnabled,
+                  activeColor: const Color(0xFF4CAF50),
+                  onChanged: (v) => setState(() => _birthdayAlertEnabled = v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SettingCard(
+              children: [
+                SwitchListTile(
+                  title: const Text('정기 건강검진 알림',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('매월 1일 건강검진을 상기시켜 드려요 🏥'),
+                  value: _healthCheckupAlertEnabled,
+                  activeColor: const Color(0xFF4CAF50),
+                  onChanged: (v) => setState(() => _healthCheckupAlertEnabled = v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SettingCard(
+              children: [
+                SwitchListTile(
                   title: const Text('날씨 알림',
                       style: TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: const Text('산책하기 좋은 날씨일 때 알림을 보내드려요'),
@@ -183,6 +213,8 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
         'reminderIntervalHours': _reminderIntervalHours,
         'weatherAlertEnabled': _weatherAlertEnabled,
         'weatherAlertHour': _weatherAlertHour,
+        'birthdayAlertEnabled': _birthdayAlertEnabled,
+        'healthCheckupAlertEnabled': _healthCheckupAlertEnabled,
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -4,5 +4,7 @@ public record UpdatePushSettingRequest(
         boolean walkReminderEnabled,
         int reminderIntervalHours,
         boolean weatherAlertEnabled,
-        int weatherAlertHour
+        int weatherAlertHour,
+        boolean birthdayAlertEnabled,
+        boolean healthCheckupAlertEnabled
 ) {}

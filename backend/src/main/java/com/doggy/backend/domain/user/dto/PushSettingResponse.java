@@ -6,14 +6,18 @@ public record PushSettingResponse(
         boolean walkReminderEnabled,
         int reminderIntervalHours,
         boolean weatherAlertEnabled,
-        int weatherAlertHour
+        int weatherAlertHour,
+        boolean birthdayAlertEnabled,
+        boolean healthCheckupAlertEnabled
 ) {
     public static PushSettingResponse from(PushSetting setting) {
         return new PushSettingResponse(
                 setting.isWalkReminderEnabled(),
                 setting.getReminderIntervalHours(),
                 setting.isWeatherAlertEnabled(),
-                setting.getWeatherAlertHour()
+                setting.getWeatherAlertHour(),
+                setting.isBirthdayAlertEnabled(),
+                setting.isHealthCheckupAlertEnabled()
         );
     }
 }

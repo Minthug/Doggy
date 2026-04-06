@@ -32,6 +32,12 @@ public class PushSetting {
     private int weatherAlertHour = 7; // 날씨 알림 수신 시각 (0~23)
 
     @Column(nullable = false)
+    private boolean birthdayAlertEnabled = true;
+
+    @Column(nullable = false)
+    private boolean healthCheckupAlertEnabled = true;
+
+    @Column(nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist
@@ -45,10 +51,14 @@ public class PushSetting {
         this.user = user;
     }
 
-    public void update(boolean walkReminderEnabled, int reminderIntervalHours, boolean weatherAlertEnabled, int weatherAlertHour) {
+    public void update(boolean walkReminderEnabled, int reminderIntervalHours,
+                       boolean weatherAlertEnabled, int weatherAlertHour,
+                       boolean birthdayAlertEnabled, boolean healthCheckupAlertEnabled) {
         this.walkReminderEnabled = walkReminderEnabled;
         this.reminderIntervalHours = reminderIntervalHours;
         this.weatherAlertEnabled = weatherAlertEnabled;
         this.weatherAlertHour = Math.max(0, Math.min(23, weatherAlertHour));
+        this.birthdayAlertEnabled = birthdayAlertEnabled;
+        this.healthCheckupAlertEnabled = healthCheckupAlertEnabled;
     }
 }
