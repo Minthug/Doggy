@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../storage/token_storage.dart';
 
-const _baseUrl = 'http://10.0.2.2:8080'; // 안드로이드 에뮬레이터 → localhost
+const _baseUrl = 'https://doggy-production-6c3f.up.railway.app';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
