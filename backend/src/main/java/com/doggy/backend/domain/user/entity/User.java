@@ -4,6 +4,8 @@ import com.doggy.backend.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -23,10 +25,21 @@ public class User extends BaseEntity {
     @Column(length = 500)
     private String fcmToken;
 
+    @Column(length = 20)
+    private String phone;
+
+    @Column(length = 100)
+    private String address;
+
+    private LocalDate birthDate;
+
     @Builder
-    public User(String nickname, String profileImage) {
+    public User(String nickname, String profileImage, String phone, String address, LocalDate birthDate) {
         this.nickname = nickname;
         this.profileImage = profileImage;
+        this.phone = phone;
+        this.address = address;
+        this.birthDate = birthDate;
     }
 
     public void updateProfile(String nickname, String profileImage) {

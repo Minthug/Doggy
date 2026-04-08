@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../../dog/data/models/dog_model.dart';
 import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
 
@@ -14,6 +15,7 @@ class WalkState {
   final int elapsedSeconds;
   final double distanceMeters;
   final Position? currentPosition;
+  final Dog? selectedDog;
 
   const WalkState({
     this.status = WalkStatus.idle,
@@ -22,6 +24,7 @@ class WalkState {
     this.elapsedSeconds = 0,
     this.distanceMeters = 0,
     this.currentPosition,
+    this.selectedDog,
   });
 
   WalkState copyWith({
@@ -31,6 +34,7 @@ class WalkState {
     int? elapsedSeconds,
     double? distanceMeters,
     Position? currentPosition,
+    Dog? selectedDog,
   }) =>
       WalkState(
         status: status ?? this.status,
@@ -39,6 +43,7 @@ class WalkState {
         elapsedSeconds: elapsedSeconds ?? this.elapsedSeconds,
         distanceMeters: distanceMeters ?? this.distanceMeters,
         currentPosition: currentPosition ?? this.currentPosition,
+        selectedDog: selectedDog ?? this.selectedDog,
       );
 
   String get elapsedText {
@@ -81,7 +86,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
 
   WalkActiveNotifier(this._repository) : super(const WalkState());
 
-  Future<void> startWalk() async {
+  Future<void> startWalk({Dog? dog}) async {
     final session = await _repository.start();
     state = state.copyWith(
       status: WalkStatus.inProgress,
@@ -89,6 +94,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       points: [],
       elapsedSeconds: 0,
       distanceMeters: 0,
+      selectedDog: dog,
     );
     _startTimer();
     _startTracking();

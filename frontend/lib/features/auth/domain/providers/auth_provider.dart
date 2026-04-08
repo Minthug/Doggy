@@ -25,12 +25,16 @@ class AuthAction {
     _ref.invalidate(isLoggedInProvider);
   }
 
-  Future<void> signUp(String email, String password, String nickname) async {
+  Future<void> signUp(String email, String password, String nickname,
+      {String? phone, String? address, String? birthDate}) async {
     final repo = _ref.read(authRepositoryProvider);
     final tokens = await repo.signUp(
       email: email,
       password: password,
       nickname: nickname,
+      phone: phone,
+      address: address,
+      birthDate: birthDate,
     );
     await repo.saveTokens(tokens);
     _ref.invalidate(isLoggedInProvider);

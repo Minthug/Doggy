@@ -5,13 +5,19 @@ import com.doggy.backend.domain.user.entity.User;
 public record UserProfileResponse(
         Long id,
         String nickname,
-        String profileImage
+        String profileImage,
+        String phone,
+        String address,
+        java.time.LocalDate birthDate
 ) {
     public static UserProfileResponse from(User user) {
         return new UserProfileResponse(
                 user.getId(),
                 user.getNickname(),
-                user.getProfileImage()
+                user.getProfileImage(),
+                user.getPhone(),
+                user.getAddress(),
+                user.getBirthDate()
         );
     }
 }

@@ -17,11 +17,17 @@ class AuthRepository {
     required String email,
     required String password,
     required String nickname,
+    String? phone,
+    String? address,
+    String? birthDate,
   }) async {
     final response = await _dio.post('/api/auth/signup', data: {
       'email': email,
       'password': password,
       'nickname': nickname,
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
+      if (address != null && address.isNotEmpty) 'address': address,
+      if (birthDate != null) 'birthDate': birthDate,
     });
     return TokenResponse.fromJson(response.data);
   }

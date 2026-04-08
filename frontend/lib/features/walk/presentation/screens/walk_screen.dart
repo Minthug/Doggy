@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../../dog/data/models/dog_model.dart';
+import '../../../dog/domain/providers/dog_provider.dart';
+import '../../domain/breed_walk_guide.dart';
 import '../../domain/providers/walk_active_provider.dart';
 
 class WalkScreen extends ConsumerStatefulWidget {
@@ -87,7 +90,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
             right: 16,
             child: _ControlButtons(
               walkState: walkState,
-              onStart: () => ref.read(walkActiveProvider.notifier).startWalk(),
+              onStart: () => _startWalkWithDogPicker(context),
               onPause: () => ref.read(walkActiveProvider.notifier).pauseWalk(),
               onResume: () =>
                   ref.read(walkActiveProvider.notifier).resumeWalk(),
@@ -97,6 +100,34 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _startWalkWithDogPicker(BuildContext context) async {
+    final dogs = await ref.read(myDogsProvider.future).catchError((_) => <Dog>[]);
+
+    if (!mounted) return;
+
+    Dog? selected;
+    if (dogs.isEmpty) {
+      // 강아지 없으면 바로 시작
+      ref.read(walkActiveProvider.notifier).startWalk();
+      return;
+    } else if (dogs.length == 1) {
+      selected = dogs.first;
+    } else {
+      if (!mounted) return;
+      // ignore: use_build_context_synchronously
+      selected = await showModalBottomSheet<Dog>(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => _DogPickerSheet(dogs: dogs),
+      );
+      if (selected == null) return; // 취소
+    }
+
+    ref.read(walkActiveProvider.notifier).startWalk(dog: selected);
   }
 
   Future<void> _moveToCurrentLocation() async {
@@ -164,14 +195,149 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
 
     if (confirm == true) {
       final notifier = ref.read(walkActiveProvider.notifier);
+      final walkState = ref.read(walkActiveProvider);
       await notifier.completeWalk();
       if (!mounted) return;
       // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('산책이 완료됐습니다! 🐾')),
-      );
+      await _showWalkResult(context, walkState);
       notifier.resetWalk();
     }
+  }
+
+  Future<void> _showWalkResult(BuildContext context, WalkState walkState) async {
+    final distance = walkState.distanceMeters;
+    final seconds = walkState.elapsedSeconds;
+    final minutes = seconds ~/ 60;
+    final distanceKm = distance / 1000;
+
+    final dog = walkState.selectedDog;
+    final guide = getWalkGuide(
+      breed: dog?.breed,
+      weightKg: dog?.weightKg,
+    );
+
+    // 칼로리: 체중 기반 (없으면 5kg 기준)
+    final weightKg = dog?.weightKg ?? 5.0;
+    final calories = (minutes * weightKg * 0.3).round();
+
+    final distanceStr = distance >= 1000
+        ? '${distanceKm.toStringAsFixed(2)} km'
+        : '${distance.toStringAsFixed(0)} m';
+
+    final timeStr = minutes >= 60
+        ? '${minutes ~/ 60}시간 ${minutes % 60}분'
+        : '$minutes분 ${seconds % 60}초';
+
+    // 권장 달성 여부
+    final metDistance = distanceKm >= guide.minDistanceKm;
+    final metTime = minutes >= guide.minMinutes;
+    final achieved = metDistance && metTime;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(achieved ? '🎉' : '🐾',
+                  style: const TextStyle(fontSize: 48)),
+              const SizedBox(height: 8),
+              Text(
+                achieved ? '권장 산책 달성!' : '산책 완료!',
+                style:
+                    const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              if (dog != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '${dog.name} · ${guide.sizeLabel}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+              ],
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _ResultItem(
+                      label: '거리', value: distanceStr, icon: Icons.route),
+                  _ResultItem(
+                      label: '시간', value: timeStr, icon: Icons.timer),
+                  _ResultItem(
+                      label: '칼로리',
+                      value: '${calories}kcal',
+                      icon: Icons.local_fire_department),
+                ],
+              ),
+              const SizedBox(height: 20),
+              // 권장 가이드 박스
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: achieved
+                      ? const Color(0xFF4CAF50).withValues(alpha: 0.1)
+                      : Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${guide.sizeLabel} 일일 권장',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: achieved
+                            ? const Color(0xFF4CAF50)
+                            : Colors.orange,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '거리 ${guide.distanceRange}  ·  시간 ${guide.timeRange}',
+                      style: const TextStyle(
+                          fontSize: 13, color: Colors.black87),
+                    ),
+                    if (!achieved) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        achieved
+                            ? ''
+                            : '오늘은 조금 부족했어요. 내일 더 함께해요! 💪',
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.orange),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('확인',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -333,6 +499,77 @@ class _StatItem extends StatelessWidget {
         Text(label,
             style: const TextStyle(color: Colors.grey, fontSize: 13)),
       ],
+    );
+  }
+}
+
+class _ResultItem extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  const _ResultItem({required this.label, required this.value, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, color: const Color(0xFF4CAF50), size: 28),
+        const SizedBox(height: 6),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF212121))),
+        const SizedBox(height: 2),
+        Text(label,
+            style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      ],
+    );
+  }
+}
+
+class _DogPickerSheet extends StatelessWidget {
+  final List<Dog> dogs;
+  const _DogPickerSheet({required this.dogs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '누구와 산책할까요?',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '강아지를 선택하면 맞춤 권장 거리를 알려드려요',
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          ...dogs.map((dog) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.15),
+                  child: Text(
+                    dog.name.isNotEmpty ? dog.name[0] : '🐶',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF4CAF50)),
+                  ),
+                ),
+                title: Text(dog.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(dog.breed ?? '견종 미등록',
+                    style: const TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.pop(context, dog),
+              )),
+        ],
+      ),
     );
   }
 }

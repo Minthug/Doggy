@@ -1,6 +1,9 @@
 package com.doggy.backend.domain.walk.service;
 
+import com.doggy.backend.domain.dog.entity.Dog;
+import com.doggy.backend.domain.dog.repository.DogRepository;
 import com.doggy.backend.domain.user.entity.User;
+import com.doggy.backend.domain.user.repository.PushSettingRepository;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.domain.walk.dto.*;
 import com.doggy.backend.domain.walk.entity.WalkPoint;
@@ -13,14 +16,18 @@ import com.doggy.backend.domain.walk.repository.WalkRouteBookmarkRepository;
 import com.doggy.backend.domain.walk.repository.WalkRouteLikeRepository;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
 import com.doggy.backend.global.exception.BusinessException;
+import com.doggy.backend.global.fcm.FcmService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -31,6 +38,9 @@ public class WalkService {
     private final WalkRouteLikeRepository likeRepository;
     private final WalkRouteBookmarkRepository bookmarkRepository;
     private final UserRepository userRepository;
+    private final DogRepository dogRepository;
+    private final PushSettingRepository pushSettingRepository;
+    private final FcmService fcmService;
 
     @Transactional
     public WalkSessionResponse start(Long userId) {
@@ -76,10 +86,79 @@ public class WalkService {
         int durationSeconds = (int) java.time.Duration.between(
                 session.getStartedAt(), request.endedAt()).getSeconds();
 
+        // 완료 전 이번 달 누적 거리 (이 세션 제외)
+        LocalDateTime now = request.endedAt();
+        int prevMonthlyMeters = walkSessionRepository.sumDistanceByUserAndMonth(
+                userId, now.getYear(), now.getMonthValue());
+
         session.complete(request.endedAt(), distanceMeters, durationSeconds);
+
+        // 완료 후 누적
+        int newMonthlyMeters = prevMonthlyMeters + distanceMeters;
+
+        // 달성 알림: 이번 완료로 처음 목표를 넘었을 때만 전송
+        sendGoalAchievedNotificationIfNeeded(userId, prevMonthlyMeters, newMonthlyMeters);
 
         String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
         return WalkDetailResponse.of(session, routeGeoJson);
+    }
+
+    private void sendGoalAchievedNotificationIfNeeded(Long userId, int prevMeters, int newMeters) {
+        try {
+            List<Dog> dogs = dogRepository.findAllByUserId(userId);
+            if (dogs.isEmpty()) return;
+
+            Dog representativeDog = dogs.get(0);
+            int targetMeters = getMonthlyTargetMeters(representativeDog);
+
+            // 이전엔 미달, 지금은 달성 → 딱 한 번만 전송
+            if (prevMeters >= targetMeters || newMeters < targetMeters) return;
+
+            pushSettingRepository.findByUserId(userId).ifPresent(setting -> {
+                if (!setting.isWalkReminderEnabled()) return;
+
+                String fcmToken = setting.getUser().getFcmToken();
+                if (fcmToken == null || fcmToken.isBlank()) return;
+
+                String dogName = representativeDog.getName();
+                fcmService.sendToToken(
+                        fcmToken,
+                        "🎉 월간 산책 목표 달성!",
+                        dogName + "의 꾸준한 산책으로 " + dogName + "이(가) 기뻐해요!"
+                );
+                log.info("월간 산책 목표 달성 알림 전송: userId={}, dog={}, {}m 달성",
+                        userId, dogName, newMeters);
+            });
+        } catch (Exception e) {
+            log.warn("달성 알림 전송 중 오류: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 견종/체중 기준 월간 최소 권장 산책 거리 (미터)
+     * 일일 최소 권장 × 30일
+     */
+    private int getMonthlyTargetMeters(Dog dog) {
+        String breed = dog.getBreed() != null ? dog.getBreed() : "";
+
+        // 고에너지 견종: 8km/일 × 30 = 240km
+        if (breed.contains("보더콜리") || breed.contains("도베르만") ||
+                breed.contains("달마시안") || breed.contains("비즐라") || breed.contains("와이마라너")) {
+            return 240_000;
+        }
+        // 단두종 (호흡기 약함): 1km/일 × 30 = 30km
+        if (breed.contains("프렌치") || breed.contains("불도그") ||
+                breed.contains("퍼그") || breed.contains("시추") || breed.contains("페키니즈")) {
+            return 30_000;
+        }
+
+        // 체중 기반 폴백
+        BigDecimal weight = dog.getWeightKg();
+        double kg = weight != null ? weight.doubleValue() : 10.0;
+
+        if (kg <= 10) return 45_000;   // 소형견: 1.5km/일 × 30
+        if (kg <= 25) return 90_000;   // 중형견: 3km/일 × 30
+        return 150_000;                // 대형견: 5km/일 × 30
     }
 
     @Transactional

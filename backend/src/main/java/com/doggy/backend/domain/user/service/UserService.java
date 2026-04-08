@@ -35,6 +35,9 @@ public class UserService {
         User user = userRepository.save(
                 User.builder()
                         .nickname(request.nickname())
+                        .phone(request.phone())
+                        .address(request.address())
+                        .birthDate(request.birthDate())
                         .build()
         );
 

@@ -38,4 +38,16 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> 
             )
             """)
     List<Long> findUserIdsNotWalkedSince(@Param("since") OffsetDateTime since);
+
+    // 특정 월의 완료된 산책 거리 합계 (미터)
+    @Query("""
+            SELECT COALESCE(SUM(w.distanceMeters), 0) FROM WalkSession w
+            WHERE w.user.id = :userId
+            AND w.status = 'COMPLETED'
+            AND FUNCTION('YEAR', w.startedAt) = :year
+            AND FUNCTION('MONTH', w.startedAt) = :month
+            """)
+    int sumDistanceByUserAndMonth(@Param("userId") Long userId,
+                                   @Param("year") int year,
+                                   @Param("month") int month);
 }
