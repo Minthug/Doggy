@@ -12,6 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -73,7 +75,7 @@ public class WeatherService {
     private WeatherData fetchWeather(double lat, double lng) {
         try {
             int[] grid = KmaGridConverter.toGrid(lat, lng);
-            String baseDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String baseDate = ZonedDateTime.now(KST).toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String baseTime = getBaseTime();
 
             String url = UriComponentsBuilder.fromHttpUrl(FORECAST_URL)
@@ -213,8 +215,10 @@ public class WeatherService {
 
     // ── 시간 헬퍼 ─────────────────────────────────────────────
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     private String getBaseTime() {
-        LocalTime now = LocalTime.now();
+        LocalTime now = ZonedDateTime.now(KST).toLocalTime();
         if (now.isBefore(LocalTime.of(8, 0))) return "0500";
         if (now.isBefore(LocalTime.of(11, 0))) return "0800";
         if (now.isBefore(LocalTime.of(14, 0))) return "1100";
@@ -222,7 +226,7 @@ public class WeatherService {
     }
 
     private String getTargetFcstTime() {
-        LocalTime now = LocalTime.now();
+        LocalTime now = ZonedDateTime.now(KST).toLocalTime();
         if (now.isBefore(LocalTime.of(9, 0))) return "0900";
         if (now.isBefore(LocalTime.of(12, 0))) return "1200";
         if (now.isBefore(LocalTime.of(15, 0))) return "1500";
