@@ -71,6 +71,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             birthDate: _formatDate(_birthDate),
           );
     } catch (e) {
+      debugPrint('[SignUp Error] $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('회원가입에 실패했습니다. 다시 시도해주세요')),

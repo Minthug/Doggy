@@ -145,10 +145,16 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   Future<void> _startTracking() async {
     _positionSubscription?.cancel();
 
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    // 권한/서비스 체크를 compute 대신 별도 Future로 분리해 UI 프레임과 겹치지 않게 처리
+    final results = await Future.wait([
+      Geolocator.isLocationServiceEnabled(),
+      Geolocator.checkPermission(),
+    ]);
+
+    final serviceEnabled = results[0] as bool;
     if (!serviceEnabled) return;
 
-    LocationPermission permission = await Geolocator.checkPermission();
+    LocationPermission permission = results[1] as LocationPermission;
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }

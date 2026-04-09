@@ -16,6 +16,7 @@ class WalkScreen extends ConsumerStatefulWidget {
 
 class _WalkScreenState extends ConsumerState<WalkScreen> {
   NaverMapController? _mapController;
+  int _lastDrawnPointCount = 0;
 
   @override
   void initState() {
@@ -158,10 +159,11 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
   void _updateRoute(WalkState state) {
     if (state.points.length < 2 || _mapController == null) return;
 
-    // 경로 폴리라인 그리기
-    final coords =
-        state.points.map((p) => NLatLng(p.lat, p.lng)).toList();
+    // 5포인트마다 한 번씩만 폴리라인 갱신 (매 업데이트마다 전체 좌표 재생성 방지)
+    if (state.points.length - _lastDrawnPointCount < 5) return;
+    _lastDrawnPointCount = state.points.length;
 
+    final coords = state.points.map((p) => NLatLng(p.lat, p.lng)).toList();
     final polyline = NPolylineOverlay(
       id: 'walk_route',
       coords: coords,
