@@ -17,6 +17,7 @@ class WalkScreen extends ConsumerStatefulWidget {
 class _WalkScreenState extends ConsumerState<WalkScreen> {
   NaverMapController? _mapController;
   int _lastDrawnPointCount = 0;
+  bool _followCamera = true; // 카메라가 내 위치를 자동으로 따라가는 모드
 
   @override
   void initState() {
@@ -35,17 +36,19 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
   Widget build(BuildContext context) {
     final walkState = ref.watch(walkActiveProvider);
 
-    // 위치 업데이트 시 지도 카메라 이동
+    // 위치 업데이트 시: 폴리라인은 항상 갱신, 카메라는 팔로우 모드일 때만 이동
     ref.listen(walkActiveProvider, (prev, next) {
       if (next.currentPosition != null && _mapController != null) {
-        final pos = next.currentPosition!;
-        _mapController!.updateCamera(
-          NCameraUpdate.scrollAndZoomTo(
-            target: NLatLng(pos.latitude, pos.longitude),
-            zoom: 17,
-          ),
-        );
         _updateRoute(next);
+        if (_followCamera) {
+          final pos = next.currentPosition!;
+          _mapController!.updateCamera(
+            NCameraUpdate.scrollAndZoomTo(
+              target: NLatLng(pos.latitude, pos.longitude),
+              zoom: 17,
+            ),
+          );
+        }
       }
     });
 
@@ -63,6 +66,12 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
               _mapController = controller;
               _moveToCurrentLocation();
             },
+            // 사용자가 직접 지도를 움직이면(animated=false) 팔로우 모드 해제
+            onCameraChange: (position, animated) {
+              if (!animated && _followCamera) {
+                setState(() => _followCamera = false);
+              }
+            },
           ),
 
           // 상단 통계
@@ -73,14 +82,17 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
             child: _StatsCard(walkState: walkState),
           ),
 
-          // 내 위치 버튼
+          // 내 위치 버튼 (팔로우 모드 아닐 때 강조 표시)
           Positioned(
             bottom: 120,
             right: 16,
             child: FloatingActionButton.small(
               onPressed: _moveToCurrentLocation,
-              backgroundColor: Colors.white,
-              child: const Icon(Icons.my_location, color: Color(0xFF4CAF50)),
+              backgroundColor: _followCamera ? const Color(0xFF4CAF50) : Colors.white,
+              child: Icon(
+                _followCamera ? Icons.my_location : Icons.location_searching,
+                color: _followCamera ? Colors.white : const Color(0xFF4CAF50),
+              ),
             ),
           ),
 
@@ -160,6 +172,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
   }
 
   Future<void> _moveToCurrentLocation() async {
+    setState(() => _followCamera = true); // 팔로우 모드 복구
     try {
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied ||
