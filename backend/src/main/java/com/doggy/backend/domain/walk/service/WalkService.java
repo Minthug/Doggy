@@ -113,7 +113,12 @@ public class WalkService {
         // 달성 알림: 이번 완료로 처음 목표를 넘었을 때만 전송
         sendGoalAchievedNotificationIfNeeded(userId, prevMonthlyMeters, newMonthlyMeters);
 
-        String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+        String routeGeoJson = null;
+        try {
+            routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+        } catch (Exception e) {
+            log.warn("경로 GeoJSON 생성 실패: {}", e.getMessage());
+        }
         return WalkDetailResponse.of(session, routeGeoJson);
     }
 

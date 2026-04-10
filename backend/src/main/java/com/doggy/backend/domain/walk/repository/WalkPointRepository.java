@@ -12,7 +12,10 @@ public interface WalkPointRepository extends JpaRepository<WalkPoint, Long> {
     List<WalkPoint> findAllBySessionIdOrderByRecordedAt(Long sessionId);
 
     @Query(value = """
-            SELECT ST_AsGeoJSON(ST_MakeLine(ST_MakePoint(wp.lng, wp.lat) ORDER BY wp.recorded_at))
+            SELECT CASE
+                WHEN COUNT(*) < 2 THEN NULL
+                ELSE ST_AsGeoJSON(ST_MakeLine(ST_MakePoint(wp.lng, wp.lat) ORDER BY wp.recorded_at))
+            END
             FROM walk_points wp
             WHERE wp.session_id = :sessionId
             """, nativeQuery = true)
