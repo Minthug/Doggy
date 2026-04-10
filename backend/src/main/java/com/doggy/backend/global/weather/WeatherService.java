@@ -27,10 +27,10 @@ public class WeatherService {
     private static final String AIR_URL =
             "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty";
 
-    // 기본 좌표: 서울
-    private static final double DEFAULT_LAT = 37.5665;
-    private static final double DEFAULT_LNG = 126.9780;
-    private static final String DEFAULT_SIDO = "서울";
+    // 기본 좌표
+    private static final double DEFAULT_LAT = 37.218392;
+    private static final double DEFAULT_LNG = 126.944858;
+    private static final String DEFAULT_SIDO = "경기";
 
     @Value("${weather.api.key}")
     private String apiKey;

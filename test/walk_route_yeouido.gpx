@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Doggy-Test"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1
+     http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>기본 위치 산책 루프 (~15분, ~900m)</name>
+    <desc>에뮬레이터 산책 기능 테스트용 GPX - 37.218392, 126.944858 기준</desc>
+  </metadata>
+  <trk>
+    <name>기본 위치 산책</name>
+    <trkseg>
+      <!-- 출발 -->
+      <trkpt lat="37.218392" lon="126.944858"><ele>15</ele><time>2024-06-01T00:00:00Z</time></trkpt>
+      <trkpt lat="37.218600" lon="126.945100"><ele>15</ele><time>2024-06-01T00:00:30Z</time></trkpt>
+      <trkpt lat="37.218800" lon="126.945350"><ele>15</ele><time>2024-06-01T00:01:00Z</time></trkpt>
+      <trkpt lat="37.219000" lon="126.945600"><ele>15</ele><time>2024-06-01T00:01:30Z</time></trkpt>
+      <trkpt lat="37.219200" lon="126.945850"><ele>15</ele><time>2024-06-01T00:02:00Z</time></trkpt>
+      <!-- 동쪽 이동 -->
+      <trkpt lat="37.219350" lon="126.946150"><ele>15</ele><time>2024-06-01T00:02:30Z</time></trkpt>
+      <trkpt lat="37.219400" lon="126.946500"><ele>15</ele><time>2024-06-01T00:03:00Z</time></trkpt>
+      <trkpt lat="37.219380" lon="126.946850"><ele>15</ele><time>2024-06-01T00:03:30Z</time></trkpt>
+      <trkpt lat="37.219300" lon="126.947150"><ele>15</ele><time>2024-06-01T00:04:00Z</time></trkpt>
+      <!-- 남쪽 이동 -->
+      <trkpt lat="37.219100" lon="126.947350"><ele>15</ele><time>2024-06-01T00:04:30Z</time></trkpt>
+      <trkpt lat="37.218850" lon="126.947450"><ele>15</ele><time>2024-06-01T00:05:00Z</time></trkpt>
+      <trkpt lat="37.218600" lon="126.947400"><ele>15</ele><time>2024-06-01T00:05:30Z</time></trkpt>
+      <trkpt lat="37.218350" lon="126.947300"><ele>15</ele><time>2024-06-01T00:06:00Z</time></trkpt>
+      <!-- 남서쪽 이동 -->
+      <trkpt lat="37.218100" lon="126.947100"><ele>15</ele><time>2024-06-01T00:06:30Z</time></trkpt>
+      <trkpt lat="37.217900" lon="126.946850"><ele>15</ele><time>2024-06-01T00:07:00Z</time></trkpt>
+      <trkpt lat="37.217750" lon="126.946550"><ele>15</ele><time>2024-06-01T00:07:30Z</time></trkpt>
+      <trkpt lat="37.217700" lon="126.946200"><ele>15</ele><time>2024-06-01T00:08:00Z</time></trkpt>
+      <!-- 서쪽 이동 -->
+      <trkpt lat="37.217750" lon="126.945850"><ele>15</ele><time>2024-06-01T00:08:30Z</time></trkpt>
+      <trkpt lat="37.217850" lon="126.945500"><ele>15</ele><time>2024-06-01T00:09:00Z</time></trkpt>
+      <trkpt lat="37.218000" lon="126.945200"><ele>15</ele><time>2024-06-01T00:09:30Z</time></trkpt>
+      <!-- 북쪽 복귀 -->
+      <trkpt lat="37.218100" lon="126.944950"><ele>15</ele><time>2024-06-01T00:10:00Z</time></trkpt>
+      <trkpt lat="37.218150" lon="126.944900"><ele>15</ele><time>2024-06-01T00:10:30Z</time></trkpt>
+      <trkpt lat="37.218200" lon="126.944870"><ele>15</ele><time>2024-06-01T00:11:00Z</time></trkpt>
+      <trkpt lat="37.218280" lon="126.944858"><ele>15</ele><time>2024-06-01T00:11:30Z</time></trkpt>
+      <!-- 출발 지점 복귀 -->
+      <trkpt lat="37.218392" lon="126.944858"><ele>15</ele><time>2024-06-01T00:12:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

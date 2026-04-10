@@ -92,6 +92,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
             child: _ControlButtons(
               walkState: walkState,
               onStart: () => _startWalkWithDogPicker(context),
+              onSimulate: () => _startSimulatedWalkWithDogPicker(context),
               onPause: () => ref.read(walkActiveProvider.notifier).pauseWalk(),
               onResume: () =>
                   ref.read(walkActiveProvider.notifier).resumeWalk(),
@@ -131,6 +132,33 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     ref.read(walkActiveProvider.notifier).startWalk(dog: selected);
   }
 
+  Future<void> _startSimulatedWalkWithDogPicker(BuildContext context) async {
+    final dogs = await ref.read(myDogsProvider.future).catchError((_) => <Dog>[]);
+
+    if (!mounted) return;
+
+    Dog? selected;
+    if (dogs.isEmpty) {
+      ref.read(walkActiveProvider.notifier).startSimulatedWalk();
+      return;
+    } else if (dogs.length == 1) {
+      selected = dogs.first;
+    } else {
+      if (!mounted) return;
+      // ignore: use_build_context_synchronously
+      selected = await showModalBottomSheet<Dog>(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => _DogPickerSheet(dogs: dogs),
+      );
+      if (selected == null) return;
+    }
+
+    ref.read(walkActiveProvider.notifier).startSimulatedWalk(dog: selected);
+  }
+
   Future<void> _moveToCurrentLocation() async {
     try {
       final permission = await Geolocator.checkPermission();
@@ -149,7 +177,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     } catch (_) {
       _mapController?.updateCamera(
         NCameraUpdate.scrollAndZoomTo(
-          target: const NLatLng(37.5665, 126.9780),
+          target: const NLatLng(37.218392, 126.944858),
           zoom: 15,
         ),
       );
@@ -379,6 +407,7 @@ class _StatsCard extends StatelessWidget {
 class _ControlButtons extends StatelessWidget {
   final WalkState walkState;
   final VoidCallback onStart;
+  final VoidCallback onSimulate;
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onComplete;
@@ -386,6 +415,7 @@ class _ControlButtons extends StatelessWidget {
   const _ControlButtons({
     required this.walkState,
     required this.onStart,
+    required this.onSimulate,
     required this.onPause,
     required this.onResume,
     required this.onComplete,
@@ -395,32 +425,75 @@ class _ControlButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (walkState.status) {
       case WalkStatus.idle:
-        return _bigButton(
-          label: '산책 시작',
-          icon: Icons.directions_walk,
-          color: const Color(0xFF4CAF50),
-          onTap: onStart,
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _bigButton(
+              label: '산책 시작',
+              icon: Icons.directions_walk,
+              color: const Color(0xFF4CAF50),
+              onTap: onStart,
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: onSimulate,
+                icon: const Icon(Icons.route, size: 18),
+                label: const Text('시뮬레이션 테스트',
+                    style: TextStyle(fontSize: 14)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.grey[600],
+                  side: BorderSide(color: Colors.grey[350]!),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
         );
 
       case WalkStatus.inProgress:
-        return Row(
+        return Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: _bigButton(
-                label: '일시정지',
-                icon: Icons.pause,
-                color: Colors.orange,
-                onTap: onPause,
+            if (walkState.isSimulating)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.route, size: 14, color: Colors.orange[700]),
+                    const SizedBox(width: 4),
+                    Text('시뮬레이션 모드',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange[700],
+                            fontWeight: FontWeight.bold)),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _bigButton(
-                label: '완료',
-                icon: Icons.stop,
-                color: Colors.redAccent,
-                onTap: onComplete,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: _bigButton(
+                    label: '일시정지',
+                    icon: Icons.pause,
+                    color: Colors.orange,
+                    onTap: onPause,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _bigButton(
+                    label: '완료',
+                    icon: Icons.stop,
+                    color: Colors.redAccent,
+                    onTap: onComplete,
+                  ),
+                ),
+              ],
             ),
           ],
         );

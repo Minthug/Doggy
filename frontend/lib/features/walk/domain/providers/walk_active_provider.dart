@@ -16,6 +16,7 @@ class WalkState {
   final double distanceMeters;
   final Position? currentPosition;
   final Dog? selectedDog;
+  final bool isSimulating;
 
   const WalkState({
     this.status = WalkStatus.idle,
@@ -25,6 +26,7 @@ class WalkState {
     this.distanceMeters = 0,
     this.currentPosition,
     this.selectedDog,
+    this.isSimulating = false,
   });
 
   WalkState copyWith({
@@ -35,6 +37,7 @@ class WalkState {
     double? distanceMeters,
     Position? currentPosition,
     Dog? selectedDog,
+    bool? isSimulating,
   }) =>
       WalkState(
         status: status ?? this.status,
@@ -44,6 +47,7 @@ class WalkState {
         distanceMeters: distanceMeters ?? this.distanceMeters,
         currentPosition: currentPosition ?? this.currentPosition,
         selectedDog: selectedDog ?? this.selectedDog,
+        isSimulating: isSimulating ?? this.isSimulating,
       );
 
   String get elapsedText {
@@ -82,7 +86,37 @@ final walkActiveProvider =
 class WalkActiveNotifier extends StateNotifier<WalkState> {
   final WalkRepository _repository;
   Timer? _timer;
+  Timer? _simTimer;
   StreamSubscription<Position>? _positionSubscription;
+  int _simIndex = 0;
+
+  // 기본 위치(37.218392, 126.944858) 기준 루프 경로
+  static const _simRoute = <({double lat, double lng})>[
+    (lat: 37.218392, lng: 126.944858),
+    (lat: 37.218600, lng: 126.945100),
+    (lat: 37.218800, lng: 126.945350),
+    (lat: 37.219000, lng: 126.945600),
+    (lat: 37.219200, lng: 126.945850),
+    (lat: 37.219350, lng: 126.946150),
+    (lat: 37.219400, lng: 126.946500),
+    (lat: 37.219380, lng: 126.946850),
+    (lat: 37.219300, lng: 126.947150),
+    (lat: 37.219100, lng: 126.947350),
+    (lat: 37.218850, lng: 126.947450),
+    (lat: 37.218600, lng: 126.947400),
+    (lat: 37.218350, lng: 126.947300),
+    (lat: 37.218100, lng: 126.947100),
+    (lat: 37.217900, lng: 126.946850),
+    (lat: 37.217750, lng: 126.946550),
+    (lat: 37.217700, lng: 126.946200),
+    (lat: 37.217750, lng: 126.945850),
+    (lat: 37.217850, lng: 126.945500),
+    (lat: 37.218000, lng: 126.945200),
+    (lat: 37.218100, lng: 126.944950),
+    (lat: 37.218200, lng: 126.944870),
+    (lat: 37.218280, lng: 126.944858),
+    (lat: 37.218392, lng: 126.944858),
+  ];
 
   WalkActiveNotifier(this._repository) : super(const WalkState());
 
@@ -95,9 +129,78 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       elapsedSeconds: 0,
       distanceMeters: 0,
       selectedDog: dog,
+      isSimulating: false,
     );
     _startTimer();
     _startTracking();
+  }
+
+  Future<void> startSimulatedWalk({Dog? dog}) async {
+    final session = await _repository.start();
+    _simIndex = 0;
+    state = state.copyWith(
+      status: WalkStatus.inProgress,
+      session: session,
+      points: [],
+      elapsedSeconds: 0,
+      distanceMeters: 0,
+      selectedDog: dog,
+      isSimulating: true,
+    );
+    _startTimer();
+    _startSimulation();
+  }
+
+  void _startSimulation() {
+    _simTimer?.cancel();
+    // 3초마다 다음 좌표로 이동 (빠른 테스트용)
+    _simTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (_simIndex >= _simRoute.length) {
+        _simTimer?.cancel();
+        return;
+      }
+      final coord = _simRoute[_simIndex++];
+      _applyPosition(coord.lat, coord.lng);
+    });
+    // 첫 좌표 즉시 적용
+    _applyPosition(_simRoute[0].lat, _simRoute[0].lng);
+    _simIndex = 1;
+  }
+
+  void _applyPosition(double lat, double lng) {
+    final newPoint = WalkPoint(
+      lat: lat,
+      lng: lng,
+      recordedAt: DateTime.now(),
+    );
+
+    double addedDistance = 0;
+    if (state.points.isNotEmpty) {
+      final last = state.points.last;
+      addedDistance = Geolocator.distanceBetween(
+        last.lat, last.lng, lat, lng,
+      );
+    }
+
+    final mockPosition = Position(
+      latitude: lat,
+      longitude: lng,
+      timestamp: DateTime.now(),
+      accuracy: 5.0,
+      altitude: 15.0,
+      heading: 0.0,
+      speed: 1.4,
+      speedAccuracy: 0.0,
+      altitudeAccuracy: 0.0,
+      headingAccuracy: 0.0,
+      isMocked: true,
+    );
+
+    state = state.copyWith(
+      points: [...state.points, newPoint],
+      distanceMeters: state.distanceMeters + addedDistance,
+      currentPosition: mockPosition,
+    );
   }
 
   Future<void> pauseWalk() async {
@@ -105,7 +208,11 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     await _repository.pause(state.session!.id);
     state = state.copyWith(status: WalkStatus.paused);
     _timer?.cancel();
-    _positionSubscription?.pause();
+    if (state.isSimulating) {
+      _simTimer?.cancel();
+    } else {
+      _positionSubscription?.pause();
+    }
   }
 
   Future<void> resumeWalk() async {
@@ -113,12 +220,17 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     await _repository.resume(state.session!.id);
     state = state.copyWith(status: WalkStatus.inProgress);
     _startTimer();
-    _positionSubscription?.resume();
+    if (state.isSimulating) {
+      _startSimulation();
+    } else {
+      _positionSubscription?.resume();
+    }
   }
 
   Future<void> completeWalk() async {
     if (state.session == null) return;
     _timer?.cancel();
+    _simTimer?.cancel();
     _positionSubscription?.cancel();
 
     await _repository.complete(
@@ -131,6 +243,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
 
   void resetWalk() {
     _timer?.cancel();
+    _simTimer?.cancel();
     _positionSubscription?.cancel();
     state = const WalkState();
   }
@@ -145,7 +258,6 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   Future<void> _startTracking() async {
     _positionSubscription?.cancel();
 
-    // 권한/서비스 체크를 compute 대신 별도 Future로 분리해 UI 프레임과 겹치지 않게 처리
     final results = await Future.wait([
       Geolocator.isLocationServiceEnabled(),
       Geolocator.checkPermission(),
@@ -164,7 +276,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5, // 5m 이상 이동 시 업데이트
+        distanceFilter: 5,
       ),
     ).listen((position) {
       final newPoint = WalkPoint(
@@ -195,6 +307,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   @override
   void dispose() {
     _timer?.cancel();
+    _simTimer?.cancel();
     _positionSubscription?.cancel();
     super.dispose();
   }
