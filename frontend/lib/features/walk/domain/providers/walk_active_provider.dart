@@ -5,6 +5,16 @@ import '../../../dog/data/models/dog_model.dart';
 import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
 
+String _formatDateTime(DateTime dt) {
+  final local = dt.toLocal();
+  return '${local.year.toString().padLeft(4, '0')}'
+      '-${local.month.toString().padLeft(2, '0')}'
+      '-${local.day.toString().padLeft(2, '0')}'
+      'T${local.hour.toString().padLeft(2, '0')}'
+      ':${local.minute.toString().padLeft(2, '0')}'
+      ':${local.second.toString().padLeft(2, '0')}';
+}
+
 // 산책 상태
 enum WalkStatus { idle, inProgress, paused, completed }
 
@@ -74,7 +84,7 @@ class WalkPoint {
   Map<String, dynamic> toJson() => {
         'lat': lat,
         'lng': lng,
-        'recordedAt': recordedAt.toIso8601String(),
+        'recordedAt': _formatDateTime(recordedAt),
       };
 }
 

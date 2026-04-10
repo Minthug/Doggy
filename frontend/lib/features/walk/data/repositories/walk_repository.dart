@@ -3,6 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/api/api_client.dart';
 import '../models/walk_model.dart';
 
+// LocalDateTime 포맷: "yyyy-MM-ddTHH:mm:ss" (Java LocalDateTime 호환)
+String _formatDateTime(DateTime dt) {
+  final local = dt.toLocal();
+  return '${local.year.toString().padLeft(4, '0')}'
+      '-${local.month.toString().padLeft(2, '0')}'
+      '-${local.day.toString().padLeft(2, '0')}'
+      'T${local.hour.toString().padLeft(2, '0')}'
+      ':${local.minute.toString().padLeft(2, '0')}'
+      ':${local.second.toString().padLeft(2, '0')}';
+}
+
 final walkRepositoryProvider = Provider<WalkRepository>((ref) {
   return WalkRepository(ref.watch(dioProvider));
 });
@@ -33,7 +44,7 @@ class WalkRepository {
     required DateTime endedAt,
   }) async {
     await _dio.post('/api/walks/$sessionId/complete', data: {
-      'endedAt': endedAt.toIso8601String(),
+      'endedAt': _formatDateTime(endedAt),
       'points': points,
     });
   }

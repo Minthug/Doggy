@@ -45,16 +45,22 @@ public class WalkService {
     @Transactional
     public WalkSessionResponse start(Long userId) {
         // 비정상 종료로 남은 세션이 있으면 자동 abandon 처리
-        walkSessionRepository.findActiveSession(userId, Status.IN_PROGRESS)
-                .ifPresent(s -> {
-                    log.warn("기존 IN_PROGRESS 세션 자동 abandon: sessionId={}", s.getId());
-                    s.abandon();
-                });
-        walkSessionRepository.findActiveSession(userId, Status.PAUSED)
-                .ifPresent(s -> {
-                    log.warn("기존 PAUSED 세션 자동 abandon: sessionId={}", s.getId());
-                    s.abandon();
-                });
+        try {
+            walkSessionRepository.findActiveSession(userId, Status.IN_PROGRESS)
+                    .ifPresent(s -> {
+                        log.warn("기존 IN_PROGRESS 세션 자동 abandon: sessionId={}", s.getId());
+                        s.abandon();
+                        walkSessionRepository.saveAndFlush(s);
+                    });
+            walkSessionRepository.findActiveSession(userId, Status.PAUSED)
+                    .ifPresent(s -> {
+                        log.warn("기존 PAUSED 세션 자동 abandon: sessionId={}", s.getId());
+                        s.abandon();
+                        walkSessionRepository.saveAndFlush(s);
+                    });
+        } catch (Exception e) {
+            log.error("기존 세션 abandon 실패 (무시하고 진행): {}", e.getMessage());
+        }
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
