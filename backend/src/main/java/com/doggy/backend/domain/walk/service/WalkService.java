@@ -207,7 +207,12 @@ public class WalkService {
     public WalkDetailResponse getDetail(Long userId, Long sessionId) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
-        String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+        String routeGeoJson = null;
+        try {
+            routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+        } catch (Exception e) {
+            log.warn("경로 GeoJSON 생성 실패 (getDetail): {}", e.getMessage());
+        }
         return WalkDetailResponse.of(session, routeGeoJson);
     }
 
@@ -220,7 +225,12 @@ public class WalkService {
             throw BusinessException.badRequest("완료된 산책만 공개할 수 있습니다");
         }
         session.makePublic(request.title());
-        String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+        String routeGeoJson = null;
+        try {
+            routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+        } catch (Exception e) {
+            log.warn("경로 GeoJSON 생성 실패 (publish): {}", e.getMessage());
+        }
         return WalkDetailResponse.of(session, routeGeoJson);
     }
 
