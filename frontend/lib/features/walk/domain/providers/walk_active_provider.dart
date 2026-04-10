@@ -241,6 +241,18 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     state = state.copyWith(status: WalkStatus.completed);
   }
 
+  // 방향키 한 번 = 약 10m 이동
+  static const stepLat = 0.00009; // 위/아래 ~10m
+  static const stepLng = 0.00011; // 좌/우 ~10m (37°N 기준)
+
+  void moveByKey(double dlat, double dlng) {
+    if (state.status != WalkStatus.inProgress) return;
+    final last = state.currentPosition;
+    final lat = (last?.latitude ?? 37.218392) + dlat;
+    final lng = (last?.longitude ?? 126.944858) + dlng;
+    _applyPosition(lat, lng);
+  }
+
   void resetWalk() {
     _timer?.cancel();
     _simTimer?.cancel();

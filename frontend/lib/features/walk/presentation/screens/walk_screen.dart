@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -17,12 +18,42 @@ class WalkScreen extends ConsumerStatefulWidget {
 class _WalkScreenState extends ConsumerState<WalkScreen> {
   NaverMapController? _mapController;
   int _lastDrawnPointCount = 0;
-  bool _followCamera = true; // 카메라가 내 위치를 자동으로 따라가는 모드
+  bool _followCamera = true;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _requestLocationPermission();
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final notifier = ref.read(walkActiveProvider.notifier);
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowUp:
+        notifier.moveByKey(WalkActiveNotifier.stepLat, 0);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowDown:
+        notifier.moveByKey(-WalkActiveNotifier.stepLat, 0);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowLeft:
+        notifier.moveByKey(0, -WalkActiveNotifier.stepLng);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
+        notifier.moveByKey(0, WalkActiveNotifier.stepLng);
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
   }
 
   Future<void> _requestLocationPermission() async {
@@ -52,7 +83,11 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       }
     });
 
-    return Scaffold(
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _handleKey,
+      child: Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
@@ -113,6 +148,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
