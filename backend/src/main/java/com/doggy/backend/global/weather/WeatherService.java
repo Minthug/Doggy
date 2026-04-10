@@ -75,7 +75,7 @@ public class WeatherService {
     private WeatherData fetchWeather(double lat, double lng) {
         try {
             int[] grid = KmaGridConverter.toGrid(lat, lng);
-            String baseDate = ZonedDateTime.now(KST).toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String baseDate = getBaseDate();
             String baseTime = getBaseTime();
 
             String url = UriComponentsBuilder.fromHttpUrl(FORECAST_URL)
@@ -107,10 +107,12 @@ public class WeatherService {
             List<Map<String, Object>> items = (List<Map<String, Object>>)
                     ((Map<String, Object>) body.get("items")).get("item");
 
+            String targetDate = getTargetFcstDate();
             String targetTime = getTargetFcstTime();
             int tmp = 20, pop = 0, pty = 0;
 
             for (Map<String, Object> item : items) {
+                if (!targetDate.equals(item.get("fcstDate"))) continue;
                 if (!targetTime.equals(item.get("fcstTime"))) continue;
                 String category = (String) item.get("category");
                 if (!category.equals("TMP") && !category.equals("POP") && !category.equals("PTY")) continue;
@@ -121,7 +123,7 @@ public class WeatherService {
                     case "PTY" -> pty = value;
                 }
             }
-            log.info("날씨 예보 - 기온:{}도, 강수확률:{}%, 강수형태:{}", tmp, pop, pty);
+            log.info("날씨 예보 ({} {}) - 기온:{}도, 강수확률:{}%, 강수형태:{}", targetDate, targetTime, tmp, pop, pty);
             return new WeatherData(tmp, pop, pty);
 
         } catch (Exception e) {
@@ -217,20 +219,53 @@ public class WeatherService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
-    private String getBaseTime() {
-        LocalTime now = ZonedDateTime.now(KST).toLocalTime();
-        if (now.isBefore(LocalTime.of(8, 0))) return "0500";
-        if (now.isBefore(LocalTime.of(11, 0))) return "0800";
-        if (now.isBefore(LocalTime.of(14, 0))) return "1100";
-        return "1400";
+    /**
+     * 기상청 단기예보 base_date.
+     * 새벽 02:10 이전은 전날 2300 발표분을 사용해야 하므로 전날 날짜 반환.
+     */
+    private String getBaseDate() {
+        ZonedDateTime now = ZonedDateTime.now(KST);
+        if (now.toLocalTime().isBefore(LocalTime.of(2, 10))) {
+            return now.minusDays(1).toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        }
+        return now.toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
     }
 
+    /**
+     * 기상청 단기예보 base_time.
+     * KMA 발표 주기: 0200, 0500, 0800, 1100, 1400, 1700, 2000, 2300 (발표 후 약 10분 뒤 조회 가능)
+     */
+    private String getBaseTime() {
+        LocalTime now = ZonedDateTime.now(KST).toLocalTime();
+        if (now.isBefore(LocalTime.of(2, 10)))  return "2300"; // 전날 2300 발표분
+        if (now.isBefore(LocalTime.of(5, 10)))  return "0200";
+        if (now.isBefore(LocalTime.of(8, 10)))  return "0500";
+        if (now.isBefore(LocalTime.of(11, 10))) return "0800";
+        if (now.isBefore(LocalTime.of(14, 10))) return "1100";
+        if (now.isBefore(LocalTime.of(17, 10))) return "1400";
+        if (now.isBefore(LocalTime.of(20, 10))) return "1700";
+        return "2000";
+    }
+
+    /** 조회 대상 예보 날짜 (항상 오늘) */
+    private String getTargetFcstDate() {
+        return ZonedDateTime.now(KST).toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+    }
+
+    /**
+     * 조회 대상 예보 시각 (3시간 단위, POP 제공 주기에 맞춤).
+     * 앱을 켠 현재 시각이 속하는 3시간 블록 반환 (미래가 아닌 지금 날씨).
+     */
     private String getTargetFcstTime() {
         LocalTime now = ZonedDateTime.now(KST).toLocalTime();
-        if (now.isBefore(LocalTime.of(9, 0))) return "0900";
-        if (now.isBefore(LocalTime.of(12, 0))) return "1200";
-        if (now.isBefore(LocalTime.of(15, 0))) return "1500";
-        return "1800";
+        if (now.isBefore(LocalTime.of(3, 0)))  return "0000";
+        if (now.isBefore(LocalTime.of(6, 0)))  return "0300";
+        if (now.isBefore(LocalTime.of(9, 0)))  return "0600";
+        if (now.isBefore(LocalTime.of(12, 0))) return "0900";
+        if (now.isBefore(LocalTime.of(15, 0))) return "1200";
+        if (now.isBefore(LocalTime.of(18, 0))) return "1500";
+        if (now.isBefore(LocalTime.of(21, 0))) return "1800";
+        return "2100";
     }
 
     // ── 내부 데이터 클래스 ────────────────────────────────────
