@@ -30,8 +30,10 @@ class WalkRepository {
   Future<void> complete({
     required int sessionId,
     required List<Map<String, dynamic>> points,
+    required DateTime endedAt,
   }) async {
     await _dio.post('/api/walks/$sessionId/complete', data: {
+      'endedAt': endedAt.toIso8601String(),
       'points': points,
     });
   }

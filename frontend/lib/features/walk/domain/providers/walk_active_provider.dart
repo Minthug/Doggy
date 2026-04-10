@@ -236,6 +236,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     await _repository.complete(
       sessionId: state.session!.id,
       points: state.points.map((p) => p.toJson()).toList(),
+      endedAt: DateTime.now(),
     );
 
     state = state.copyWith(status: WalkStatus.completed);

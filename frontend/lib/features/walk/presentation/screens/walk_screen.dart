@@ -281,7 +281,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       // ignore: use_build_context_synchronously
       await _showWalkResult(context, walkState);
       notifier.resetWalk();
-      ref.invalidate(todayWalkStatsProvider); // 홈 카드 즉시 갱신
+      ref.invalidate(walkHistoryProvider); // 서버 재조회 → todayWalkStats 자동 갱신
     }
   }
 
