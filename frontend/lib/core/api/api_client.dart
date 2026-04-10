@@ -22,6 +22,13 @@ final dioProvider = Provider<Dio>((ref) {
       handler.next(options);
     },
     onError: (error, handler) async {
+      // 에러 응답 body 로그 출력 (디버깅용)
+      if (error.response != null) {
+        // ignore: avoid_print
+        print('[API ERROR] ${error.response?.statusCode} '
+            '${error.requestOptions.path}\n'
+            'body: ${error.response?.data}');
+      }
       // 401이면 refreshToken으로 재발급 시도
       if (error.response?.statusCode == 401) {
         final refreshToken = await TokenStorage.getRefreshToken();

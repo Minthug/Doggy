@@ -77,8 +77,11 @@ public class GlobalExceptionHandler {
     // 그 외 예상치 못한 예외
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleException(Exception e) {
-        log.error("Unhandled exception", e);
+        log.error("Unhandled exception: {}", e.getMessage(), e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("message", "서버 오류가 발생했습니다"));
+                .body(Map.of(
+                        "message", "서버 오류가 발생했습니다",
+                        "debug", e.getClass().getSimpleName() + ": " + e.getMessage()
+                ));
     }
 }
