@@ -7,6 +7,7 @@ import '../../../dog/data/models/dog_model.dart';
 import '../../../dog/domain/providers/dog_provider.dart';
 import '../../domain/breed_walk_guide.dart';
 import '../../domain/providers/walk_active_provider.dart';
+import '../../domain/providers/walk_provider.dart';
 
 class WalkScreen extends ConsumerStatefulWidget {
   const WalkScreen({super.key});
@@ -280,6 +281,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       // ignore: use_build_context_synchronously
       await _showWalkResult(context, walkState);
       notifier.resetWalk();
+      ref.invalidate(todayWalkStatsProvider); // 홈 카드 즉시 갱신
     }
   }
 
