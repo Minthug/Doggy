@@ -65,6 +65,11 @@ public class WalkSession extends BaseEntity {
         this.status = Status.COMPLETED;
     }
 
+    public void abandon() {
+        this.endedAt = LocalDateTime.now();
+        this.status = Status.COMPLETED;
+    }
+
     public void pause() {
         this.status = Status.PAUSED;
     }
