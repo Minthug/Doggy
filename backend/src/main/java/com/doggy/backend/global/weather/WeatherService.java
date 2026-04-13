@@ -20,6 +20,8 @@ import java.util.Map;
 @Service
 public class WeatherService {
 
+    private static final String OBSERVATION_URL =
+            "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst";
     private static final String FORECAST_URL =
             "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst";
     private static final String AIR_STATION_URL =
@@ -73,11 +75,53 @@ public class WeatherService {
         return WalkIndex.GOOD;
     }
 
-    // ── 기상청 단기예보 ──────────────────────────────────────────
+    // ── 기상청 날씨 (기온: 초단기실황, 강수확률: 단기예보) ──────────────
 
     private WeatherData fetchWeather(double lat, double lng) {
+        int[] grid = KmaGridConverter.toGrid(lat, lng);
+        int tmp = fetchObservedTemperature(grid);
+        int[] popPty = fetchPrecipitation(grid);
+        return new WeatherData(tmp, popPty[0], popPty[1]);
+    }
+
+    /** 초단기실황 → 기온(T1H), 강수형태(PTY) */
+    @SuppressWarnings("unchecked")
+    private int fetchObservedTemperature(int[] grid) {
         try {
-            int[] grid = KmaGridConverter.toGrid(lat, lng);
+            String baseDate = getBaseDate();
+            String baseTime = getObsBaseTime();
+
+            String url = OBSERVATION_URL
+                    + "?serviceKey=" + apiKey
+                    + "&pageNo=1&numOfRows=10&dataType=JSON"
+                    + "&base_date=" + baseDate
+                    + "&base_time=" + baseTime
+                    + "&nx=" + grid[0]
+                    + "&ny=" + grid[1];
+
+            Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
+            Map<String, Object> body = (Map<String, Object>)
+                    ((Map<String, Object>) response.get("response")).get("body");
+            List<Map<String, Object>> items = (List<Map<String, Object>>)
+                    ((Map<String, Object>) body.get("items")).get("item");
+
+            for (Map<String, Object> item : items) {
+                if ("T1H".equals(item.get("category"))) {
+                    double val = Double.parseDouble(item.get("obsrValue").toString());
+                    log.info("초단기실황 기온 ({}{}) - {}도", baseDate, baseTime, val);
+                    return (int) Math.round(val);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("초단기실황 API 호출 실패: {}", e.getMessage());
+        }
+        return 20;
+    }
+
+    /** 단기예보 → 강수확률(POP), 강수형태(PTY) */
+    @SuppressWarnings("unchecked")
+    private int[] fetchPrecipitation(int[] grid) {
+        try {
             String baseDate = getBaseDate();
             String baseTime = getBaseTime();
 
@@ -90,62 +134,30 @@ public class WeatherService {
                     + "&ny=" + grid[1];
 
             Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
-            return parseWeather(response);
-
-        } catch (Exception e) {
-            log.warn("기상청 API 호출 실패: {}", e.getMessage());
-            return new WeatherData(20, 0, 0); // 실패 시 무해한 기본값
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private WeatherData parseWeather(Map<String, Object> response) {
-        try {
             Map<String, Object> body = (Map<String, Object>)
                     ((Map<String, Object>) response.get("response")).get("body");
             List<Map<String, Object>> items = (List<Map<String, Object>>)
                     ((Map<String, Object>) body.get("items")).get("item");
 
             String targetDate = getTargetFcstDate();
-            String targetPopTime = getTargetFcstTime(); // POP/PTY: 3시간 단위
-            int currentHour = ZonedDateTime.now(KST).getHour();
-
-            int tmp = 20, pop = 0, pty = 0;
-            int closestTmpDiff = Integer.MAX_VALUE;
-            String tmpFcstTime = null;
+            String targetTime = getTargetFcstTime();
+            int pop = 0, pty = 0;
 
             for (Map<String, Object> item : items) {
                 if (!targetDate.equals(item.get("fcstDate"))) continue;
-                String category = (String) item.get("category");
-                String fcstTime = (String) item.get("fcstTime");
+                if (!targetTime.equals(item.get("fcstTime"))) continue;
                 int value = (int) Math.round(Double.parseDouble(item.get("fcstValue").toString()));
-
-                // TMP: 1시간 단위, 현재 시각과 가장 가까운 예보값 사용
-                if ("TMP".equals(category)) {
-                    int fcstHour = Integer.parseInt(fcstTime.substring(0, 2));
-                    int diff = Math.abs(fcstHour - currentHour);
-                    if (diff < closestTmpDiff) {
-                        closestTmpDiff = diff;
-                        tmp = value;
-                        tmpFcstTime = fcstTime;
-                    }
-                }
-
-                // POP/PTY: 3시간 블록 기준
-                if (targetPopTime.equals(fcstTime)) {
-                    switch (category) {
-                        case "POP" -> pop = value;
-                        case "PTY" -> pty = value;
-                    }
+                switch ((String) item.get("category")) {
+                    case "POP" -> pop = value;
+                    case "PTY" -> pty = value;
                 }
             }
-            log.info("날씨 예보 (기온:{} {}, POP:{}) - 기온:{}도, 강수확률:{}%, 강수형태:{}",
-                    tmpFcstTime, targetDate, targetPopTime, tmp, pop, pty);
-            return new WeatherData(tmp, pop, pty);
+            log.info("단기예보 ({}{}) - 강수확률:{}%, 강수형태:{}", targetDate, targetTime, pop, pty);
+            return new int[]{pop, pty};
 
         } catch (Exception e) {
-            log.warn("날씨 데이터 파싱 실패: {}", e.getMessage());
-            return new WeatherData(20, 0, 0);
+            log.warn("단기예보 API 호출 실패: {}", e.getMessage());
+            return new int[]{0, 0};
         }
     }
 
@@ -318,6 +330,19 @@ public class WeatherService {
             return now.minusDays(1).toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         }
         return now.toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+    }
+
+    /**
+     * 초단기실황 base_time.
+     * 매시 10분 이후 갱신되므로, 10분 미만이면 이전 시간 사용.
+     */
+    private String getObsBaseTime() {
+        ZonedDateTime now = ZonedDateTime.now(KST);
+        int hour = now.getHour();
+        if (now.getMinute() < 10) {
+            hour = (hour - 1 + 24) % 24;
+        }
+        return String.format("%02d00", hour);
     }
 
     /**
