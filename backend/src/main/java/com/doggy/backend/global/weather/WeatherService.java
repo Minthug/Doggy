@@ -81,7 +81,7 @@ public class WeatherService {
             String url = UriComponentsBuilder.fromHttpUrl(FORECAST_URL)
                     .queryParam("serviceKey", apiKey)
                     .queryParam("pageNo", 1)
-                    .queryParam("numOfRows", 100)
+                    .queryParam("numOfRows", 300)
                     .queryParam("dataType", "JSON")
                     .queryParam("base_date", baseDate)
                     .queryParam("base_time", baseTime)
@@ -108,22 +108,40 @@ public class WeatherService {
                     ((Map<String, Object>) body.get("items")).get("item");
 
             String targetDate = getTargetFcstDate();
-            String targetTime = getTargetFcstTime();
+            String targetPopTime = getTargetFcstTime(); // POP/PTY: 3시간 단위
+            int currentHour = ZonedDateTime.now(KST).getHour();
+
             int tmp = 20, pop = 0, pty = 0;
+            int closestTmpDiff = Integer.MAX_VALUE;
+            String tmpFcstTime = null;
 
             for (Map<String, Object> item : items) {
                 if (!targetDate.equals(item.get("fcstDate"))) continue;
-                if (!targetTime.equals(item.get("fcstTime"))) continue;
                 String category = (String) item.get("category");
-                if (!category.equals("TMP") && !category.equals("POP") && !category.equals("PTY")) continue;
+                String fcstTime = (String) item.get("fcstTime");
                 int value = (int) Math.round(Double.parseDouble(item.get("fcstValue").toString()));
-                switch (category) {
-                    case "TMP" -> tmp = value;
-                    case "POP" -> pop = value;
-                    case "PTY" -> pty = value;
+
+                // TMP: 1시간 단위, 현재 시각과 가장 가까운 예보값 사용
+                if ("TMP".equals(category)) {
+                    int fcstHour = Integer.parseInt(fcstTime.substring(0, 2));
+                    int diff = Math.abs(fcstHour - currentHour);
+                    if (diff < closestTmpDiff) {
+                        closestTmpDiff = diff;
+                        tmp = value;
+                        tmpFcstTime = fcstTime;
+                    }
+                }
+
+                // POP/PTY: 3시간 블록 기준
+                if (targetPopTime.equals(fcstTime)) {
+                    switch (category) {
+                        case "POP" -> pop = value;
+                        case "PTY" -> pty = value;
+                    }
                 }
             }
-            log.info("날씨 예보 ({} {}) - 기온:{}도, 강수확률:{}%, 강수형태:{}", targetDate, targetTime, tmp, pop, pty);
+            log.info("날씨 예보 (기온:{} {}, POP:{}) - 기온:{}도, 강수확률:{}%, 강수형태:{}",
+                    tmpFcstTime, targetDate, targetPopTime, tmp, pop, pty);
             return new WeatherData(tmp, pop, pty);
 
         } catch (Exception e) {
