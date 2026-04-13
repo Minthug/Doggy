@@ -2,6 +2,7 @@ package com.doggy.backend.global.config;
 
 import com.doggy.backend.global.security.jwt.JwtAuthenticationFilter;
 import com.doggy.backend.global.security.oauth2.CustomOAuth2UserService;
+import com.doggy.backend.global.security.oauth2.HttpCookieOAuth2AuthorizationRequestRepository;
 import com.doggy.backend.global.security.oauth2.OAuth2SuccessHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
     private final ObjectMapper objectMapper;
 
     @Bean
@@ -49,6 +51,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(endpoint ->
+                                endpoint.authorizationRequestRepository(cookieAuthorizationRequestRepository))
                         .userInfoEndpoint(userInfo ->
                                 userInfo.userService(customOAuth2UserService))
                         .successHandler(oAuth2SuccessHandler)
