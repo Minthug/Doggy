@@ -115,9 +115,7 @@ class _GreetingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hour = DateTime.now().hour;
-    final greeting =
-        hour < 12 ? '좋은 아침이에요' : hour < 18 ? '안녕하세요' : '좋은 저녁이에요';
+    const greeting = '산책가기 좋은 날이에요';
 
     return Container(
       padding: const EdgeInsets.all(20),
