@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../../dog/domain/providers/dog_provider.dart';
+import '../../../walk/domain/providers/walk_provider.dart';
+import '../../../home/domain/providers/home_provider.dart';
 
 // 로그인 상태
 final isLoggedInProvider = FutureProvider<bool>((ref) async {
@@ -44,5 +47,11 @@ class AuthAction {
     final repo = _ref.read(authRepositoryProvider);
     await repo.logout();
     _ref.invalidate(isLoggedInProvider);
+    _ref.invalidate(userProfileProvider);
+    _ref.invalidate(myDogsProvider);
+    _ref.invalidate(todayWalkStatsProvider);
+    _ref.invalidate(walkIndexProvider);
+    _ref.invalidate(walkHistoryProvider);
+    _ref.invalidate(monthlyWalkStatsProvider);
   }
 }
