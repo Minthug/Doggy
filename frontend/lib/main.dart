@@ -25,9 +25,10 @@ class DoggyApp extends StatefulWidget {
   State<DoggyApp> createState() => _DoggyAppState();
 }
 
+final navigatorKey = GlobalKey<NavigatorState>();
+
 class _DoggyAppState extends State<DoggyApp> {
   final _appLinks = AppLinks();
-  final _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
@@ -53,7 +54,7 @@ class _DoggyAppState extends State<DoggyApp> {
           accessToken: accessToken,
           refreshToken: refreshToken,
         );
-        _navigatorKey.currentState
+        navigatorKey.currentState
             ?.pushNamedAndRemoveUntil('/home', (_) => false);
       }
     }
@@ -62,7 +63,7 @@ class _DoggyAppState extends State<DoggyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: _navigatorKey,
+      navigatorKey: navigatorKey,
       title: 'Doggy',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

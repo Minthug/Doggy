@@ -3,6 +3,7 @@ import '../../data/repositories/auth_repository.dart';
 import '../../../dog/domain/providers/dog_provider.dart';
 import '../../../walk/domain/providers/walk_provider.dart';
 import '../../../home/domain/providers/home_provider.dart';
+import '../../../../main.dart' show navigatorKey;
 
 // 로그인 상태
 final isLoggedInProvider = FutureProvider<bool>((ref) async {
@@ -53,5 +54,6 @@ class AuthAction {
     _ref.invalidate(walkIndexProvider);
     _ref.invalidate(walkHistoryProvider);
     _ref.invalidate(monthlyWalkStatsProvider);
+    navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (_) => false);
   }
 }
