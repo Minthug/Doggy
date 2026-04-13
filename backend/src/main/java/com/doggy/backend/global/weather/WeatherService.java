@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -78,19 +77,15 @@ public class WeatherService {
             String baseDate = getBaseDate();
             String baseTime = getBaseTime();
 
-            String url = UriComponentsBuilder.fromHttpUrl(FORECAST_URL)
-                    .queryParam("serviceKey", apiKey)
-                    .queryParam("pageNo", 1)
-                    .queryParam("numOfRows", 300)
-                    .queryParam("dataType", "JSON")
-                    .queryParam("base_date", baseDate)
-                    .queryParam("base_time", baseTime)
-                    .queryParam("nx", grid[0])
-                    .queryParam("ny", grid[1])
-                    .build(true)
-                    .toUriString();
+            String url = FORECAST_URL
+                    + "?serviceKey=" + apiKey
+                    + "&pageNo=1&numOfRows=300&dataType=JSON"
+                    + "&base_date=" + baseDate
+                    + "&base_time=" + baseTime
+                    + "&nx=" + grid[0]
+                    + "&ny=" + grid[1];
 
-            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+            Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
             return parseWeather(response);
 
         } catch (Exception e) {
