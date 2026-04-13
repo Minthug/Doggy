@@ -173,24 +173,25 @@ public class WeatherService {
 
             // 여러 측정소 평균값 사용
             int pm10Sum = 0, pm25Sum = 0, count = 0;
-            int worstPm10Grade = 1, worstPm25Grade = 1;
+            int pm10GradeSum = 0, pm25GradeSum = 0;
             for (Map<String, Object> item : items) {
                 int pm10v = parseAirValue(item.get("pm10Value"));
                 int pm25v = parseAirValue(item.get("pm25Value"));
                 if (pm10v > 0 && pm25v > 0) {
                     pm10Sum += pm10v;
                     pm25Sum += pm25v;
+                    pm10GradeSum += parseGradeNum(item.get("pm10Grade"));
+                    pm25GradeSum += parseGradeNum(item.get("pm25Grade"));
                     count++;
-                    worstPm10Grade = Math.max(worstPm10Grade, parseGradeNum(item.get("pm10Grade")));
-                    worstPm25Grade = Math.max(worstPm25Grade, parseGradeNum(item.get("pm25Grade")));
                 }
             }
             if (count == 0) return new AirData(30, 10, "보통", "보통");
 
             int pm10 = pm10Sum / count;
             int pm25 = pm25Sum / count;
-            String pm10Grade = gradeLabel(worstPm10Grade);
-            String pm25Grade = gradeLabel(worstPm25Grade);
+            // 평균 등급 (반올림) - 최악 등급 대신 지역 평균 반영
+            String pm10Grade = gradeLabel((int) Math.round((double) pm10GradeSum / count));
+            String pm25Grade = gradeLabel((int) Math.round((double) pm25GradeSum / count));
 
             log.info("미세먼지 ({} 측정소 평균) - PM10:{}({}), PM2.5:{}({})", count, pm10, pm10Grade, pm25, pm25Grade);
             return new AirData(pm10, pm25, pm10Grade, pm25Grade);
