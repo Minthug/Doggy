@@ -9,7 +9,6 @@ import org.springframework.web.client.RestTemplate;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -23,13 +22,14 @@ public class WeatherService {
 
     private static final String FORECAST_URL =
             "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst";
-    private static final String AIR_URL =
-            "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty";
+    private static final String AIR_STATION_URL =
+            "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesurDnsty";
+    private static final String NEARBY_STATION_URL =
+            "https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getNearbyMsrstnList";
 
-    // 기본 좌표
+    // 기본 좌표 (경기 봉담)
     private static final double DEFAULT_LAT = 37.218392;
     private static final double DEFAULT_LNG = 126.944858;
-    private static final String DEFAULT_SIDO = "경기";
 
     @Value("${weather.api.key}")
     private String apiKey;
@@ -40,12 +40,16 @@ public class WeatherService {
             .build();
 
     public WalkIndexResponse getWalkIndex() {
-        return getWalkIndex(DEFAULT_LAT, DEFAULT_LNG, DEFAULT_SIDO);
+        return getWalkIndex(DEFAULT_LAT, DEFAULT_LNG);
     }
 
     public WalkIndexResponse getWalkIndex(double lat, double lng, String sido) {
+        return getWalkIndex(lat, lng);
+    }
+
+    public WalkIndexResponse getWalkIndex(double lat, double lng) {
         WeatherData weather = fetchWeather(lat, lng);
-        AirData air = fetchAirQuality(sido);
+        AirData air = fetchAirQuality(lat, lng);
 
         WalkIndex index = calculateIndex(weather, air);
         return WalkIndexResponse.of(index, weather.tmp, weather.pop, weather.pty, air.pm10, air.pm25, air.pm10Grade(), air.pm25Grade());
@@ -147,14 +151,21 @@ public class WeatherService {
 
     // ── 에어코리아 미세먼지 ───────────────────────────────────────
 
-    private AirData fetchAirQuality(String sido) {
+    private AirData fetchAirQuality(double lat, double lng) {
         try {
-            String encodedSido = URLEncoder.encode(sido, StandardCharsets.UTF_8);
-            String url = AIR_URL + "?serviceKey=" + apiKey
-                    + "&returnType=json&numOfRows=20&pageNo=1&sidoName=" + encodedSido + "&ver=1.0";
+            String stationName = fetchNearestStation(lat, lng);
+            if (stationName == null) {
+                log.warn("근처 측정소를 찾지 못했습니다. 기본값 사용");
+                return new AirData(30, 10, "보통", "보통");
+            }
+            String encodedStation = URLEncoder.encode(stationName, StandardCharsets.UTF_8);
+            String url = AIR_STATION_URL + "?serviceKey=" + apiKey
+                    + "&returnType=json&numOfRows=1&pageNo=1"
+                    + "&stationName=" + encodedStation
+                    + "&dataTerm=DAILY&ver=1.0";
 
             Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
-            return parseAir(response);
+            return parseAir(stationName, response);
 
         } catch (Exception e) {
             log.warn("에어코리아 API 호출 실패 [{}]: {}", e.getClass().getSimpleName(), e.getMessage());
@@ -163,7 +174,33 @@ public class WeatherService {
     }
 
     @SuppressWarnings("unchecked")
-    private AirData parseAir(Map<String, Object> response) {
+    private String fetchNearestStation(double lat, double lng) {
+        try {
+            double[] tm = toTm(lat, lng);
+            String url = NEARBY_STATION_URL + "?serviceKey=" + apiKey
+                    + "&returnType=json&numOfRows=1&pageNo=1"
+                    + "&tmX=" + tm[0]
+                    + "&tmY=" + tm[1]
+                    + "&ver=1.1";
+
+            Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
+            Map<String, Object> res = (Map<String, Object>) response.get("response");
+            Map<String, Object> body = (Map<String, Object>) res.get("body");
+            List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
+
+            if (items == null || items.isEmpty()) return null;
+            String stationName = (String) items.get(0).get("stationName");
+            log.info("가장 가까운 측정소: {}", stationName);
+            return stationName;
+
+        } catch (Exception e) {
+            log.warn("측정소 조회 실패: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private AirData parseAir(String stationName, Map<String, Object> response) {
         try {
             Map<String, Object> res = (Map<String, Object>) response.get("response");
             Map<String, Object> body = (Map<String, Object>) res.get("body");
@@ -171,34 +208,76 @@ public class WeatherService {
 
             if (items == null || items.isEmpty()) return new AirData(30, 10, "보통", "보통");
 
-            // 여러 측정소 평균값 사용
-            int pm10Sum = 0, pm25Sum = 0, count = 0;
-            int pm10GradeSum = 0, pm25GradeSum = 0;
-            for (Map<String, Object> item : items) {
-                int pm10v = parseAirValue(item.get("pm10Value"));
-                int pm25v = parseAirValue(item.get("pm25Value"));
-                if (pm10v > 0 && pm25v > 0) {
-                    pm10Sum += pm10v;
-                    pm25Sum += pm25v;
-                    pm10GradeSum += parseGradeNum(item.get("pm10Grade"));
-                    pm25GradeSum += parseGradeNum(item.get("pm25Grade"));
-                    count++;
-                }
-            }
-            if (count == 0) return new AirData(30, 10, "보통", "보통");
+            Map<String, Object> item = items.get(0);
+            int pm10 = parseAirValue(item.get("pm10Value"));
+            int pm25 = parseAirValue(item.get("pm25Value"));
+            String pm10Grade = gradeByValue(pm10, "pm10");
+            String pm25Grade = gradeByValue(pm25, "pm25");
 
-            int pm10 = pm10Sum / count;
-            int pm25 = pm25Sum / count;
-            // 평균 등급 (반올림) - 최악 등급 대신 지역 평균 반영
-            String pm10Grade = gradeLabel((int) Math.round((double) pm10GradeSum / count));
-            String pm25Grade = gradeLabel((int) Math.round((double) pm25GradeSum / count));
-
-            log.info("미세먼지 ({} 측정소 평균) - PM10:{}({}), PM2.5:{}({})", count, pm10, pm10Grade, pm25, pm25Grade);
+            log.info("미세먼지 ({}) - PM10:{}({}), PM2.5:{}({})", stationName, pm10, pm10Grade, pm25, pm25Grade);
             return new AirData(pm10, pm25, pm10Grade, pm25Grade);
 
         } catch (Exception e) {
             log.warn("미세먼지 데이터 파싱 실패: {}", e.getMessage());
             return new AirData(30, 10, "보통", "보통");
+        }
+    }
+
+    /** WGS84 위경도 → 에어코리아 TM 좌표 변환 (GRS80, 중부원점 127°E) */
+    private double[] toTm(double lat, double lng) {
+        double a = 6378137.0;
+        double f = 1.0 / 298.257222101;
+        double k0 = 1.0;
+        double lon0 = Math.toRadians(127.0);
+        double lat0 = Math.toRadians(38.0);
+        double E0 = 200000.0;
+        double N0 = 500000.0;
+
+        double e2 = 2 * f - f * f;
+        double ep2 = e2 / (1 - e2);
+
+        double latR = Math.toRadians(lat);
+        double lonR = Math.toRadians(lng);
+
+        double N = a / Math.sqrt(1 - e2 * Math.sin(latR) * Math.sin(latR));
+        double T = Math.tan(latR) * Math.tan(latR);
+        double C = ep2 * Math.cos(latR) * Math.cos(latR);
+        double A = Math.cos(latR) * (lonR - lon0);
+
+        double e4 = e2 * e2, e6 = e4 * e2;
+        double M = a * (
+                (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * latR
+                - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * latR)
+                + (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * latR)
+                - (35 * e6 / 3072) * Math.sin(6 * latR));
+        double M0 = a * (
+                (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * lat0
+                - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * lat0)
+                + (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * lat0)
+                - (35 * e6 / 3072) * Math.sin(6 * lat0));
+
+        double A2 = A * A, A3 = A2 * A, A4 = A3 * A, A5 = A4 * A, A6 = A5 * A;
+        double x = E0 + k0 * N * (A + (1 - T + C) * A3 / 6
+                + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * A5 / 120);
+        double y = N0 + k0 * (M - M0 + N * Math.tan(latR) * (A2 / 2
+                + (5 - T + 9 * C + 4 * C * C) * A4 / 24
+                + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * A6 / 720));
+
+        return new double[]{x, y};
+    }
+
+    /** pm10/pm25 수치로 등급 직접 계산 (에어코리아 기준) */
+    private String gradeByValue(int value, String type) {
+        if ("pm10".equals(type)) {
+            if (value <= 30)  return "좋음";
+            if (value <= 80)  return "보통";
+            if (value <= 150) return "나쁨";
+            return "매우나쁨";
+        } else {
+            if (value <= 15)  return "좋음";
+            if (value <= 35)  return "보통";
+            if (value <= 75)  return "나쁨";
+            return "매우나쁨";
         }
     }
 
@@ -215,10 +294,6 @@ public class WeatherService {
     }
 
     // 에어코리아 grade: 1=좋음, 2=보통, 3=나쁨, 4=매우나쁨
-    private String gradeLabel(Object grade) {
-        return gradeLabel(parseGradeNum(grade));
-    }
-
     private String gradeLabel(int grade) {
         return switch (grade) {
             case 1 -> "좋음";
