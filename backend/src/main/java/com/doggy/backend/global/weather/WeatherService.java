@@ -178,7 +178,7 @@ public class WeatherService {
                 return new AirData(30, 10, "보통", "보통");
             }
             String encodedStation = URLEncoder.encode(stationName, StandardCharsets.UTF_8);
-            String url = AIR_STATION_URL + "?serviceKey=" + apiKey
+            String url = AIR_STATION_URL + "?serviceKey=" + airStationApiKey
                     + "&returnType=json&numOfRows=1&pageNo=1"
                     + "&stationName=" + encodedStation
                     + "&dataTerm=HOUR&ver=1.0";
