@@ -165,6 +165,12 @@ public class KakaoLocalLoader {
 
     @EventListener(ApplicationReadyEvent.class)
     public void load() {
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM places", Integer.class);
+        if (count != null && count > 0) {
+            log.info("장소 데이터 {}건 존재 - 카카오 로컬 적재 스킵", count);
+            return;
+        }
+
         log.info("카카오 로컬 데이터 적재 시작 - {} 키워드 × {} 지역",
                 TARGETS.size(), SEARCH_LOCATIONS.size());
         int total = 0;
