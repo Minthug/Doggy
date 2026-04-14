@@ -146,10 +146,14 @@ public class WeatherService {
             for (Map<String, Object> item : items) {
                 if (!targetDate.equals(item.get("fcstDate"))) continue;
                 if (!targetTime.equals(item.get("fcstTime"))) continue;
-                int value = (int) Math.round(Double.parseDouble(item.get("fcstValue").toString()));
-                switch ((String) item.get("category")) {
-                    case "POP" -> pop = value;
-                    case "PTY" -> pty = value;
+                String category = (String) item.get("category");
+                if (!"POP".equals(category) && !"PTY".equals(category)) continue;
+                try {
+                    int value = (int) Math.round(Double.parseDouble(item.get("fcstValue").toString()));
+                    if ("POP".equals(category)) pop = value;
+                    else pty = value;
+                } catch (NumberFormatException ignored) {
+                    // "강수없음" 등 비숫자 값은 0 유지
                 }
             }
             log.info("단기예보 ({}{}) - 강수확률:{}%, 강수형태:{}", targetDate, targetTime, pop, pty);
@@ -185,6 +189,22 @@ public class WeatherService {
         }
     }
 
+    // 주요 도시 대표 측정소 (API 403 시 fallback)
+    private static final double[][] STATION_COORDS = {
+            {37.5665, 126.9780}, {37.5172, 127.0473}, {37.5491, 126.9168}, // 서울 중구/강남/마포
+            {37.2636, 127.0286}, {37.4196, 127.1267}, {37.6584, 126.8320}, // 수원/성남/고양
+            {37.4563, 126.7052}, {35.1796, 129.0756}, {35.8714, 128.6014}, // 인천/부산/대구
+            {35.1595, 126.8526}, {36.3504, 127.3845}, {35.5384, 129.3114}, // 광주/대전/울산
+            {36.4800, 127.2890}, {33.4996, 126.5312}                        // 세종/제주
+    };
+    private static final String[] STATION_NAMES = {
+            "중구", "강남구", "마포구",
+            "수원", "성남", "고양",
+            "인천", "부산", "대구",
+            "광주", "대전", "울산",
+            "세종", "제주"
+    };
+
     @SuppressWarnings("unchecked")
     private String fetchNearestStation(double lat, double lng) {
         try {
@@ -200,15 +220,26 @@ public class WeatherService {
             Map<String, Object> body = (Map<String, Object>) res.get("body");
             List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
 
-            if (items == null || items.isEmpty()) return null;
+            if (items == null || items.isEmpty()) return fallbackStation(lat, lng);
             String stationName = (String) items.get(0).get("stationName");
             log.info("가장 가까운 측정소: {}", stationName);
             return stationName;
 
         } catch (Exception e) {
-            log.warn("측정소 조회 실패: {}", e.getMessage());
-            return null;
+            log.warn("측정소 조회 실패 (fallback 사용): {}", e.getMessage());
+            return fallbackStation(lat, lng);
         }
+    }
+
+    private String fallbackStation(double lat, double lng) {
+        int nearest = 0;
+        double minDist = Double.MAX_VALUE;
+        for (int i = 0; i < STATION_COORDS.length; i++) {
+            double d = Math.pow(lat - STATION_COORDS[i][0], 2) + Math.pow(lng - STATION_COORDS[i][1], 2);
+            if (d < minDist) { minDist = d; nearest = i; }
+        }
+        log.info("측정소 fallback 사용: {}", STATION_NAMES[nearest]);
+        return STATION_NAMES[nearest];
     }
 
     @SuppressWarnings("unchecked")
