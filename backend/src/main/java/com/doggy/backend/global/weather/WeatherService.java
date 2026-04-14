@@ -36,6 +36,9 @@ public class WeatherService {
     @Value("${weather.api.key}")
     private String apiKey;
 
+    @Value("${air.station.api.key}")
+    private String airStationApiKey;
+
     private final RestTemplate restTemplate = new RestTemplateBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .readTimeout(Duration.ofSeconds(10))
@@ -209,7 +212,7 @@ public class WeatherService {
     private String fetchNearestStation(double lat, double lng) {
         try {
             double[] tm = toTm(lat, lng);
-            String url = NEARBY_STATION_URL + "?serviceKey=" + apiKey
+            String url = NEARBY_STATION_URL + "?serviceKey=" + airStationApiKey
                     + "&returnType=json&numOfRows=1&pageNo=1"
                     + "&tmX=" + tm[0]
                     + "&tmY=" + tm[1]
