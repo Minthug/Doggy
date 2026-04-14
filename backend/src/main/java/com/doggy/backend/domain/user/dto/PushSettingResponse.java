@@ -7,6 +7,7 @@ public record PushSettingResponse(
         int reminderIntervalHours,
         boolean weatherAlertEnabled,
         int weatherAlertHour,
+        int weatherAlertMinute,
         boolean birthdayAlertEnabled,
         boolean healthCheckupAlertEnabled
 ) {
@@ -16,6 +17,7 @@ public record PushSettingResponse(
                 setting.getReminderIntervalHours(),
                 setting.isWeatherAlertEnabled(),
                 setting.getWeatherAlertHour(),
+                setting.getWeatherAlertMinute(),
                 setting.isBirthdayAlertEnabled(),
                 setting.isHealthCheckupAlertEnabled()
         );

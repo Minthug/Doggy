@@ -21,6 +21,7 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
   int _reminderIntervalHours = 8;
   bool _weatherAlertEnabled = true;
   int _weatherAlertHour = 7;
+  int _weatherAlertMinute = 0;
   bool _birthdayAlertEnabled = true;
   bool _healthCheckupAlertEnabled = true;
   bool _loaded = false;
@@ -40,6 +41,7 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
               _reminderIntervalHours = data['reminderIntervalHours'] ?? 8;
               _weatherAlertEnabled = data['weatherAlertEnabled'] ?? true;
               _weatherAlertHour = data['weatherAlertHour'] ?? 7;
+              _weatherAlertMinute = data['weatherAlertMinute'] ?? 0;
               _birthdayAlertEnabled = data['birthdayAlertEnabled'] ?? true;
               _healthCheckupAlertEnabled = data['healthCheckupAlertEnabled'] ?? true;
               _loaded = true;
@@ -172,7 +174,7 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          '${_weatherAlertHour.toString().padLeft(2, '0')}:00',
+                          '${_weatherAlertHour.toString().padLeft(2, '0')}:${_weatherAlertMinute.toString().padLeft(2, '0')}',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -194,14 +196,17 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
   Future<void> _pickWeatherAlertTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(hour: _weatherAlertHour, minute: 0),
+      initialTime: TimeOfDay(hour: _weatherAlertHour, minute: _weatherAlertMinute),
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
         child: child!,
       ),
     );
     if (picked != null && mounted) {
-      setState(() => _weatherAlertHour = picked.hour);
+      setState(() {
+        _weatherAlertHour = picked.hour;
+        _weatherAlertMinute = picked.minute;
+      });
     }
   }
 
@@ -213,6 +218,7 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
         'reminderIntervalHours': _reminderIntervalHours,
         'weatherAlertEnabled': _weatherAlertEnabled,
         'weatherAlertHour': _weatherAlertHour,
+        'weatherAlertMinute': _weatherAlertMinute,
         'birthdayAlertEnabled': _birthdayAlertEnabled,
         'healthCheckupAlertEnabled': _healthCheckupAlertEnabled,
       });

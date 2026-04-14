@@ -111,7 +111,7 @@ public class UserService {
         PushSetting setting = pushSettingRepository.findByUserId(userId)
                 .orElseGet(() -> createDefaultPushSetting(userId));
         setting.update(request.walkReminderEnabled(), request.reminderIntervalHours(),
-                request.weatherAlertEnabled(), request.weatherAlertHour(),
+                request.weatherAlertEnabled(), request.weatherAlertHour(), request.weatherAlertMinute(),
                 request.birthdayAlertEnabled(), request.healthCheckupAlertEnabled());
         return PushSettingResponse.from(setting);
     }

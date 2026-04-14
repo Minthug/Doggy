@@ -5,6 +5,7 @@ public record UpdatePushSettingRequest(
         int reminderIntervalHours,
         boolean weatherAlertEnabled,
         int weatherAlertHour,
+        int weatherAlertMinute,
         boolean birthdayAlertEnabled,
         boolean healthCheckupAlertEnabled
 ) {}
