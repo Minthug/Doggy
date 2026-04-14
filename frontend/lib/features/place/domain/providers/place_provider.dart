@@ -13,7 +13,7 @@ final nearbyPlacesProvider =
   return ref.watch(placeRepositoryProvider).findNearby(
         lat: location.lat,
         lng: location.lng,
-        radiusMeters: 2000,
+        radiusMeters: 5000,
         category: category,
       );
 });
