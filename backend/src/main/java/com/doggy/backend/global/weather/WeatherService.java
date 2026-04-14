@@ -174,7 +174,7 @@ public class WeatherService {
             String url = AIR_STATION_URL + "?serviceKey=" + apiKey
                     + "&returnType=json&numOfRows=1&pageNo=1"
                     + "&stationName=" + encodedStation
-                    + "&dataTerm=DAILY&ver=1.0";
+                    + "&dataTerm=HOUR&ver=1.0";
 
             Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
             return parseAir(stationName, response);

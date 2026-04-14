@@ -99,6 +99,7 @@ public class UserService {
         user.updateFcmToken(fcmToken);
     }
 
+    @Transactional
     public PushSettingResponse getPushSetting(Long userId) {
         PushSetting setting = pushSettingRepository.findByUserId(userId)
                 .orElseGet(() -> createDefaultPushSetting(userId));
@@ -115,7 +116,6 @@ public class UserService {
         return PushSettingResponse.from(setting);
     }
 
-    @Transactional
     private PushSetting createDefaultPushSetting(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
