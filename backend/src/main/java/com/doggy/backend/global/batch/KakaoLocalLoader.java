@@ -28,6 +28,9 @@ public class KakaoLocalLoader {
 
     // 검색할 키워드와 카테고리 매핑
     private static final List<KeywordCategory> TARGETS = List.of(
+            new KeywordCategory("동물병원", Place.Category.HOSPITAL),
+            new KeywordCategory("반려견 공원", Place.Category.PARK),
+            new KeywordCategory("펫샵", Place.Category.PET_SHOP),
             new KeywordCategory("편의점", Place.Category.CONVENIENCE),
             new KeywordCategory("무인편의점", Place.Category.UNMANNED_STORE),
             new KeywordCategory("반려견 동반 식당", Place.Category.RESTAURANT),
@@ -227,7 +230,8 @@ public class KakaoLocalLoader {
 
                         batch.add(new Object[]{
                                 name, category.name(), address,
-                                placeLat, placeLng, placeLng, placeLat,
+                                placeLat, placeLng,
+                                placeLng, placeLat, // ST_SetSRID(ST_MakePoint(lng, lat), 4326)
                                 phone != null ? phone : ""
                         });
                     } catch (Exception e) {
@@ -260,7 +264,7 @@ public class KakaoLocalLoader {
         String sql = """
                 INSERT INTO places (name, category, address, lat, lng, location, source, phone,
                                     is_verified, is_open24h, is_emergency, allows_dogs, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ST_MakePoint(?, ?), 'KAKAO', ?, false, false, false, true, now(), now())
+                VALUES (?, ?, ?, ?, ?, ST_SetSRID(ST_MakePoint(?, ?), 4326), 'KAKAO', ?, false, false, false, true, now(), now())
                 ON CONFLICT DO NOTHING
                 """;
         jdbcTemplate.batchUpdate(sql, batch);
