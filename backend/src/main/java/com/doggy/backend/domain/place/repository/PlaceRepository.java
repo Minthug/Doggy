@@ -11,8 +11,8 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
 
     @Query(value = """
             SELECT * FROM places
-            WHERE ST_DWithin(location, ST_MakePoint(:lng, :lat)::geography, :radiusMeters)
-            ORDER BY ST_Distance(location, ST_MakePoint(:lng, :lat)::geography)
+            WHERE ST_DWithin(location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radiusMeters)
+            ORDER BY ST_Distance(location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography)
             """, nativeQuery = true)
     List<Place> findNearby(@Param("lat") double lat,
                            @Param("lng") double lng,
@@ -20,9 +20,9 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
 
     @Query(value = """
             SELECT * FROM places
-            WHERE ST_DWithin(location, ST_MakePoint(:lng, :lat)::geography, :radiusMeters)
+            WHERE ST_DWithin(location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radiusMeters)
             AND category = :category
-            ORDER BY ST_Distance(location, ST_MakePoint(:lng, :lat)::geography)
+            ORDER BY ST_Distance(location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography)
             """, nativeQuery = true)
     List<Place> findNearbyByCategory(@Param("lat") double lat,
                                      @Param("lng") double lng,

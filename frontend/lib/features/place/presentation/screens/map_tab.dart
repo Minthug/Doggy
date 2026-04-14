@@ -187,9 +187,13 @@ class _MapTabState extends ConsumerState<MapTab> {
     if (location != null) {
       final placesAsync = ref.watch(
           nearbyPlacesProvider((lat: location.latitude, lng: location.longitude)));
-      placesAsync.whenData((places) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _addMarkers(places));
-      });
+      placesAsync.when(
+        data: (places) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _addMarkers(places));
+        },
+        loading: () {},
+        error: (e, _) => debugPrint('[MapTab] 장소 로드 실패: $e'),
+      );
     }
 
     return Scaffold(
