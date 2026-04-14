@@ -30,6 +30,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
 
   @override
   void dispose() {
+    _mapController = null;
     _focusNode.dispose();
     super.dispose();
   }
@@ -70,7 +71,8 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
 
     // 위치 업데이트 시: 폴리라인은 항상 갱신, 카메라는 팔로우 모드일 때만 이동
     ref.listen(walkActiveProvider, (prev, next) {
-      if (next.currentPosition != null && _mapController != null) {
+      if (!mounted || _mapController == null) return;
+      if (next.currentPosition != null) {
         _updateRoute(next);
         if (_followCamera) {
           final pos = next.currentPosition!;
@@ -218,14 +220,16 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
-      _mapController?.updateCamera(
+      if (!mounted || _mapController == null) return;
+      _mapController!.updateCamera(
         NCameraUpdate.scrollAndZoomTo(
           target: NLatLng(position.latitude, position.longitude),
           zoom: 17,
         ),
       );
     } catch (_) {
-      _mapController?.updateCamera(
+      if (!mounted || _mapController == null) return;
+      _mapController!.updateCamera(
         NCameraUpdate.scrollAndZoomTo(
           target: const NLatLng(37.218392, 126.944858),
           zoom: 15,

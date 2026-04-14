@@ -65,9 +65,11 @@ class _MapTabState extends ConsumerState<MapTab> {
         _currentPosition = NLatLng(position.latitude, position.longitude);
         _locationLoading = false;
       });
-      _mapController?.updateCamera(
-        NCameraUpdate.scrollAndZoomTo(target: _currentPosition!, zoom: 15),
-      );
+      if (_mapController != null) {
+        _mapController!.updateCamera(
+          NCameraUpdate.scrollAndZoomTo(target: _currentPosition!, zoom: 15),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
