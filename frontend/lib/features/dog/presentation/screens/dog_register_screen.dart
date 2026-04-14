@@ -38,6 +38,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
       _weightController.text = dog.weightKg?.toString() ?? '';
       _gender = dog.gender ?? 'MALE';
       _isNeutered = dog.isNeutered;
+      _birthDate = dog.birthDate;
     }
   }
 

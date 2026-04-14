@@ -8,6 +8,7 @@ class Dog {
   final String? gender;
   final bool isNeutered;
   final double? weightKg;
+  final DateTime? birthDate;
 
   Dog({
     required this.id,
@@ -17,6 +18,7 @@ class Dog {
     this.gender,
     required this.isNeutered,
     this.weightKg,
+    this.birthDate,
   });
 
   factory Dog.fromJson(Map<String, dynamic> json) => Dog(
@@ -28,6 +30,9 @@ class Dog {
         isNeutered: json['isNeutered'] ?? false,
         weightKg: json['weightKg'] != null
             ? (json['weightKg'] as num).toDouble()
+            : null,
+        birthDate: json['birthDate'] != null
+            ? DateTime.parse(json['birthDate'])
             : null,
       );
 

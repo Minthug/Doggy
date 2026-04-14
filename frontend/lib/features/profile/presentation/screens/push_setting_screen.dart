@@ -217,6 +217,7 @@ class _PushSettingScreenState extends ConsumerState<PushSettingScreen> {
         'healthCheckupAlertEnabled': _healthCheckupAlertEnabled,
       });
       if (mounted) {
+        ref.invalidate(_pushSettingProvider);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('알림 설정이 저장됐습니다')),
         );

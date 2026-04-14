@@ -194,6 +194,12 @@ class _RouteMapState extends State<_RouteMap> {
   NaverMapController? _controller;
 
   @override
+  void dispose() {
+    _controller = null;
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return NaverMap(
       options: const NaverMapViewOptions(
@@ -207,7 +213,7 @@ class _RouteMapState extends State<_RouteMap> {
     );
   }
 
-  void _drawRoute() {
+  Future<void> _drawRoute() async {
     if (widget.geoJson == null || _controller == null) return;
 
     try {
@@ -247,7 +253,8 @@ class _RouteMapState extends State<_RouteMap> {
       ));
 
       // 경로 전체가 보이도록 카메라 조정
-      _controller!.updateCamera(
+      if (!mounted || _controller == null) return;
+      await _controller!.updateCamera(
         NCameraUpdate.fitBounds(
           NLatLngBounds(
             southWest: NLatLng(
