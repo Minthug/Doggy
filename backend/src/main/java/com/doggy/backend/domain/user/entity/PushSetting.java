@@ -31,7 +31,7 @@ public class PushSetting {
     @Column(nullable = false)
     private int weatherAlertHour = 7; // 날씨 알림 수신 시각 (0~23)
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "INTEGER DEFAULT 0")
     private int weatherAlertMinute = 0; // 날씨 알림 수신 분 (0~59)
 
     @Column(nullable = false)
