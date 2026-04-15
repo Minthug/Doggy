@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -36,7 +36,7 @@ public class WalkReminderScheduler {
         for (PushSetting setting : settings) {
             try {
                 int intervalHours = setting.getReminderIntervalHours();
-                OffsetDateTime since = OffsetDateTime.now().minusHours(intervalHours);
+                LocalDateTime since = LocalDateTime.now().minusHours(intervalHours);
 
                 // 해당 유저가 intervalHours 이내에 산책했는지 확인
                 List<Long> inactiveUserIds =

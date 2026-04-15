@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,7 +37,7 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> 
                 AND w2.startedAt >= :since
             )
             """)
-    List<Long> findUserIdsNotWalkedSince(@Param("since") OffsetDateTime since);
+    List<Long> findUserIdsNotWalkedSince(@Param("since") LocalDateTime since);
 
     // 특정 월의 완료된 산책 거리 합계 (미터) - PostgreSQL EXTRACT 사용
     @Query(value = """
