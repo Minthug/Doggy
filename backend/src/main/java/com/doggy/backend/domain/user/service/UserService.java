@@ -15,10 +15,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class UserService {
+
+    private static final List<AuthType> SOCIAL_AUTH_TYPES =
+            List.of(AuthType.KAKAO, AuthType.GOOGLE, AuthType.NAVER, AuthType.APPLE);
 
     private final UserRepository userRepository;
     private final UserAuthRepository userAuthRepository;
@@ -120,6 +125,39 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
         return pushSettingRepository.save(PushSetting.builder().user(user).build());
+    }
+
+    public LinkedSocialResponse getLinkedSocial(Long userId) {
+        return userAuthRepository.findByUser_IdAndAuthTypeIn(userId, SOCIAL_AUTH_TYPES)
+                .map(LinkedSocialResponse::from)
+                .orElseThrow(() -> BusinessException.notFound("연결된 소셜 계정이 없습니다"));
+    }
+
+    @Transactional
+    public void linkSocialAccount(Long userId, LinkSocialRequest request) {
+        if (userAuthRepository.existsByUser_IdAndAuthTypeIn(userId, SOCIAL_AUTH_TYPES)) {
+            throw BusinessException.badRequest("이미 연결된 소셜 계정이 있습니다");
+        }
+        if (userAuthRepository.findByAuthTypeAndProviderId(request.authType(), request.providerId()).isPresent()) {
+            throw BusinessException.badRequest("이미 다른 계정에 연결된 소셜 계정입니다");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
+        userAuthRepository.save(
+                UserAuth.builder()
+                        .user(user)
+                        .authType(request.authType())
+                        .providerId(request.providerId())
+                        .email(request.email())
+                        .build()
+        );
+    }
+
+    @Transactional
+    public void unlinkSocialAccount(Long userId) {
+        UserAuth socialAuth = userAuthRepository.findByUser_IdAndAuthTypeIn(userId, SOCIAL_AUTH_TYPES)
+                .orElseThrow(() -> BusinessException.notFound("연결된 소셜 계정이 없습니다"));
+        userAuthRepository.delete(socialAuth);
     }
 
     private TokenResponse issueTokens(Long userId) {

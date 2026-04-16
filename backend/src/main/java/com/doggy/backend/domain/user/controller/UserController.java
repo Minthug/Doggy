@@ -51,6 +51,25 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/api/users/me/social")
+    public ResponseEntity<LinkedSocialResponse> getLinkedSocial(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(userService.getLinkedSocial(principal.getId()));
+    }
+
+    @PostMapping("/api/users/me/social")
+    public ResponseEntity<Void> linkSocial(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody LinkSocialRequest request) {
+        userService.linkSocialAccount(principal.getId(), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/api/users/me/social")
+    public ResponseEntity<Void> unlinkSocial(@AuthenticationPrincipal UserPrincipal principal) {
+        userService.unlinkSocialAccount(principal.getId());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/api/users/me/push-settings")
     public ResponseEntity<PushSettingResponse> getPushSetting(
             @AuthenticationPrincipal UserPrincipal principal) {

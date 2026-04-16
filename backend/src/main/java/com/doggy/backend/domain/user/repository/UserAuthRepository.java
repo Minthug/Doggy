@@ -4,6 +4,7 @@ import com.doggy.backend.domain.user.entity.UserAuth;
 import com.doggy.backend.domain.user.entity.UserAuth.AuthType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserAuthRepository extends JpaRepository<UserAuth, Long> {
@@ -13,4 +14,8 @@ public interface UserAuthRepository extends JpaRepository<UserAuth, Long> {
     Optional<UserAuth> findByAuthTypeAndProviderId(AuthType authType, String providerId);
 
     boolean existsByAuthTypeAndEmail(AuthType authType, String email);
+
+    Optional<UserAuth> findByUser_IdAndAuthTypeIn(Long userId, List<AuthType> authTypes);
+
+    boolean existsByUser_IdAndAuthTypeIn(Long userId, List<AuthType> authTypes);
 }
