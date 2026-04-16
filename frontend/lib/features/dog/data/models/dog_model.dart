@@ -9,6 +9,7 @@ class Dog {
   final bool isNeutered;
   final double? weightKg;
   final DateTime? birthDate;
+  final List<String> warnings;
 
   Dog({
     required this.id,
@@ -19,6 +20,7 @@ class Dog {
     required this.isNeutered,
     this.weightKg,
     this.birthDate,
+    this.warnings = const [],
   });
 
   factory Dog.fromJson(Map<String, dynamic> json) => Dog(
@@ -34,6 +36,10 @@ class Dog {
         birthDate: json['birthDate'] != null
             ? DateTime.parse(json['birthDate'])
             : null,
+        warnings: (json['warnings'] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [],
       );
 
   /// RER = 70 × (체중kg ^ 0.75)

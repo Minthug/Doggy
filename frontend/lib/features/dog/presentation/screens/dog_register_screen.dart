@@ -25,6 +25,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
   DateTime? _birthDate;
   bool _isLoading = false;
   File? _imageFile;
+  final Set<String> _warnings = {};
 
   bool get _isEditMode => widget.dog != null;
 
@@ -39,6 +40,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
       _gender = dog.gender ?? 'MALE';
       _isNeutered = dog.isNeutered;
       _birthDate = dog.birthDate;
+      _warnings.addAll(dog.warnings);
     }
   }
 
@@ -100,6 +102,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
                   : null,
               gender: _gender,
               isNeutered: _isNeutered,
+              warnings: _warnings.toList(),
             );
       } else {
         await ref.read(dogRepositoryProvider).create(
@@ -111,6 +114,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
                   : null,
               gender: _gender,
               isNeutered: _isNeutered,
+              warnings: _warnings.toList(),
             );
       }
       ref.invalidate(myDogsProvider);
@@ -299,6 +303,11 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
                 activeThumbColor: const Color(0xFF4CAF50),
               ),
             ),
+            const SizedBox(height: 24),
+
+            _sectionTitle('주의사항'),
+            const SizedBox(height: 8),
+            _warningsSection(),
             const SizedBox(height: 32),
 
             SizedBox(
@@ -434,6 +443,59 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
           borderSide: const BorderSide(color: Color(0xFF4CAF50)),
         ),
       ),
+    );
+  }
+
+  static const _warningOptions = [
+    ('AGGRESSIVE', '사나움', '😤'),
+    ('BITING', '물림 주의', '🦷'),
+    ('JUMPING', '달려듦', '🐾'),
+    ('ESCAPING', '도주 주의', '🏃'),
+    ('BARKING', '짖음 주의', '📢'),
+  ];
+
+  Widget _warningsSection() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _warningOptions.map((option) {
+        final (value, label, emoji) = option;
+        final selected = _warnings.contains(value);
+        return GestureDetector(
+          onTap: () => setState(() {
+            if (selected) {
+              _warnings.remove(value);
+            } else {
+              _warnings.add(value);
+            }
+          }),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? const Color(0xFFFFEBEE) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: selected ? const Color(0xFFE53935) : Colors.grey[300]!,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 16)),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                    color: selected ? const Color(0xFFE53935) : Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
