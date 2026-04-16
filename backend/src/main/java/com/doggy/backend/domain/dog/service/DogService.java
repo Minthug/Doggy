@@ -37,6 +37,7 @@ public class DogService {
                         .gender(request.gender())
                         .isNeutered(request.isNeutered())
                         .profileImage(request.profileImage())
+                        .warnings(request.warnings())
                         .build()
         );
 
@@ -67,7 +68,8 @@ public class DogService {
                 request.weightKg(),
                 request.gender(),
                 request.isNeutered(),
-                request.profileImage()
+                request.profileImage(),
+                request.warnings()
         );
 
         return DogResponse.from(dog);

@@ -1,10 +1,12 @@
 package com.doggy.backend.domain.dog.dto;
 
 import com.doggy.backend.domain.dog.entity.Dog;
+import com.doggy.backend.domain.dog.entity.Dog.DogWarning;
 import com.doggy.backend.domain.dog.entity.Dog.Gender;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Set;
 
 public record DogResponse(
         Long id,
@@ -14,7 +16,8 @@ public record DogResponse(
         BigDecimal weightKg,
         Gender gender,
         boolean isNeutered,
-        String profileImage
+        String profileImage,
+        Set<DogWarning> warnings
 ) {
     public static DogResponse from(Dog dog) {
         return new DogResponse(
@@ -25,7 +28,8 @@ public record DogResponse(
                 dog.getWeightKg(),
                 dog.getGender(),
                 dog.isNeutered(),
-                dog.getProfileImage()
+                dog.getProfileImage(),
+                dog.getWarnings()
         );
     }
 }
