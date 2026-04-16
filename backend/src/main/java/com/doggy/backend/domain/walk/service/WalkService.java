@@ -41,6 +41,7 @@ public class WalkService {
     private final DogRepository dogRepository;
     private final PushSettingRepository pushSettingRepository;
     private final FcmService fcmService;
+    private final WalkPingService walkPingService;
 
     @Transactional
     public WalkSessionResponse start(Long userId) {
@@ -106,6 +107,7 @@ public class WalkService {
                 userId, now.getYear(), now.getMonthValue());
 
         session.complete(request.endedAt(), distanceMeters, durationSeconds);
+        walkPingService.removeLocation(sessionId);
 
         // 완료 후 누적
         int newMonthlyMeters = prevMonthlyMeters + distanceMeters;

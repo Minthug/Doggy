@@ -97,6 +97,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   final WalkRepository _repository;
   Timer? _timer;
   Timer? _simTimer;
+  Timer? _pingTimer;
   StreamSubscription<Position>? _positionSubscription;
   int _simIndex = 0;
 
@@ -143,6 +144,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     );
     _startTimer();
     _startTracking();
+    _startPingTimer();
   }
 
   Future<void> startSimulatedWalk({Dog? dog}) async {
@@ -159,6 +161,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     );
     _startTimer();
     _startSimulation();
+    _startPingTimer();
   }
 
   void _startSimulation() {
@@ -218,6 +221,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     await _repository.pause(state.session!.id);
     state = state.copyWith(status: WalkStatus.paused);
     _timer?.cancel();
+    _pingTimer?.cancel();
     if (state.isSimulating) {
       _simTimer?.cancel();
     } else {
@@ -230,6 +234,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     await _repository.resume(state.session!.id);
     state = state.copyWith(status: WalkStatus.inProgress);
     _startTimer();
+    _startPingTimer();
     if (state.isSimulating) {
       _startSimulation();
     } else {
@@ -241,6 +246,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     if (state.session == null) return;
     _timer?.cancel();
     _simTimer?.cancel();
+    _pingTimer?.cancel();
     _positionSubscription?.cancel();
 
     await _repository.complete(
@@ -267,8 +273,22 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   void resetWalk() {
     _timer?.cancel();
     _simTimer?.cancel();
+    _pingTimer?.cancel();
     _positionSubscription?.cancel();
     state = const WalkState();
+  }
+
+  void _startPingTimer() {
+    _pingTimer?.cancel();
+    _pingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      final pos = state.currentPosition;
+      final session = state.session;
+      if (pos == null || session == null) return;
+      if (state.status != WalkStatus.inProgress) return;
+      _repository
+          .updateLocation(session.id, pos.latitude, pos.longitude)
+          .catchError((_) {}); // 네트워크 오류는 조용히 무시
+    });
   }
 
   void _startTimer() {
@@ -331,6 +351,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   void dispose() {
     _timer?.cancel();
     _simTimer?.cancel();
+    _pingTimer?.cancel();
     _positionSubscription?.cancel();
     super.dispose();
   }

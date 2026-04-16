@@ -1,6 +1,7 @@
 package com.doggy.backend.domain.walk.controller;
 
 import com.doggy.backend.domain.walk.dto.*;
+import com.doggy.backend.domain.walk.service.WalkPingService;
 import com.doggy.backend.domain.walk.service.WalkService;
 import com.doggy.backend.global.security.UserPrincipal;
 import jakarta.validation.Valid;
@@ -18,6 +19,7 @@ import java.util.List;
 public class WalkController {
 
     private final WalkService walkService;
+    private final WalkPingService walkPingService;
 
     @PostMapping
     public ResponseEntity<WalkSessionResponse> start(@AuthenticationPrincipal UserPrincipal principal) {
@@ -85,6 +87,15 @@ public class WalkController {
             @RequestParam(defaultValue = "20") int size) {
         Long userId = principal != null ? principal.getId() : null;
         return ResponseEntity.ok(walkService.getPublicRoutes(userId, page, size));
+    }
+
+    @PatchMapping("/{sessionId}/location")
+    public ResponseEntity<Void> updateLocation(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId,
+            @Valid @RequestBody UpdateLocationRequest request) {
+        walkPingService.updateLocationAndPing(principal.getId(), sessionId, request.lat(), request.lng());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{sessionId}/like")

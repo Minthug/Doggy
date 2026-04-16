@@ -85,4 +85,11 @@ class WalkRepository {
   Future<void> toggleBookmark(int sessionId) async {
     await _dio.post('/api/walks/$sessionId/bookmark');
   }
+
+  Future<void> updateLocation(int sessionId, double lat, double lng) async {
+    await _dio.patch('/api/walks/$sessionId/location', data: {
+      'lat': lat,
+      'lng': lng,
+    });
+  }
 }
