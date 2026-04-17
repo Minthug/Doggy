@@ -37,9 +37,9 @@ class FcmService {
       sound: true,
     );
 
-    // iOS: 포그라운드에서도 알림 배너 표시
+    // iOS: 포그라운드에서 badge/sound만 허용, alert는 InAppBanner가 처리
     await _messaging.setForegroundNotificationPresentationOptions(
-      alert: true,
+      alert: false,
       badge: true,
       sound: true,
     );
@@ -134,7 +134,7 @@ class FcmService {
     final channelId = message.data['channel'] as String? ?? 'walk_reminder';
     final bannerType = _toBannerType(channelId);
 
-    // 자체 인앱 배너 표시 (iOS/Android 공통)
+    // 인앱 배너 우선 (iOS/Android 공통)
     final context = _navigatorKey?.currentContext;
     if (context != null && context.mounted) {
       InAppBanner.show(
@@ -143,12 +143,14 @@ class FcmService {
         body: notification.body ?? '',
         type: bannerType,
       );
-      return; // 배너 표시 성공 시 시스템 알림 중복 방지
+      return;
     }
 
-    // context를 못 얻은 경우 Android 폴백
+    // context 없을 때 Android만 로컬 알림으로 폴백
+    // (iOS는 alert:false 설정이므로 별도 처리 불필요)
     if (defaultTargetPlatform != TargetPlatform.android) return;
 
+    debugPrint('[FCM] context 없음 — 로컬 알림으로 폴백 (channelId: $channelId)');
     final androidDetails = AndroidNotificationDetails(
       channelId,
       _channelName(channelId),
