@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Doggy Test">
+  <!--
+    Android 위치: 37.218392, 126.944858
+    iOS 경로: 서쪽 출발 → 동쪽으로 이동 → Android 30m 동쪽(126.945197) 통과 → 북쪽 루프 → 복귀
+    겹침 구간: 37.2183~37.2185 / 126.9450~126.9455 (Android 반경 30~50m)
+  -->
+  <trk>
+    <name>Doggy Test Walk - iOS</name>
+    <trkseg>
+      <!-- 출발: 서쪽 끝 -->
+      <trkpt lat="37.21830" lon="126.94490"><time>2026-04-17T10:00:00Z</time></trkpt>
+      <trkpt lat="37.21832" lon="126.94500"><time>2026-04-17T10:00:08Z</time></trkpt>
+      <trkpt lat="37.21835" lon="126.94510"><time>2026-04-17T10:00:16Z</time></trkpt>
+      <trkpt lat="37.21838" lon="126.94520"><time>2026-04-17T10:00:24Z</time></trkpt>
+
+      <!-- Android 위치(126.944858) 30m 동쪽 접근 구간 -->
+      <trkpt lat="37.21839" lon="126.94500"><time>2026-04-17T10:00:32Z</time></trkpt>
+      <trkpt lat="37.21839" lon="126.94510"><time>2026-04-17T10:00:40Z</time></trkpt>
+      <!-- ★ 핑 기대 지점: Android 기준 동쪽 ~28m -->
+      <trkpt lat="37.21839" lon="126.94515"><time>2026-04-17T10:00:48Z</time></trkpt>
+      <trkpt lat="37.21840" lon="126.94520"><time>2026-04-17T10:00:56Z</time></trkpt>
+
+      <!-- 계속 동쪽으로 -->
+      <trkpt lat="37.21841" lon="126.94530"><time>2026-04-17T10:01:04Z</time></trkpt>
+      <trkpt lat="37.21842" lon="126.94540"><time>2026-04-17T10:01:12Z</time></trkpt>
+      <trkpt lat="37.21843" lon="126.94550"><time>2026-04-17T10:01:20Z</time></trkpt>
+      <trkpt lat="37.21844" lon="126.94560"><time>2026-04-17T10:01:28Z</time></trkpt>
+      <trkpt lat="37.21845" lon="126.94570"><time>2026-04-17T10:01:36Z</time></trkpt>
+
+      <!-- 북쪽으로 꺾기 -->
+      <trkpt lat="37.21855" lon="126.94575"><time>2026-04-17T10:01:50Z</time></trkpt>
+      <trkpt lat="37.21865" lon="126.94572"><time>2026-04-17T10:02:04Z</time></trkpt>
+      <trkpt lat="37.21875" lon="126.94568"><time>2026-04-17T10:02:18Z</time></trkpt>
+      <trkpt lat="37.21885" lon="126.94565"><time>2026-04-17T10:02:32Z</time></trkpt>
+      <trkpt lat="37.21900" lon="126.94560"><time>2026-04-17T10:02:50Z</time></trkpt>
+
+      <!-- 서쪽으로 꺾기 -->
+      <trkpt lat="37.21905" lon="126.94540"><time>2026-04-17T10:03:06Z</time></trkpt>
+      <trkpt lat="37.21908" lon="126.94520"><time>2026-04-17T10:03:22Z</time></trkpt>
+      <trkpt lat="37.21910" lon="126.94500"><time>2026-04-17T10:03:38Z</time></trkpt>
+      <trkpt lat="37.21910" lon="126.94490"><time>2026-04-17T10:03:50Z</time></trkpt>
+
+      <!-- 남쪽으로 복귀 -->
+      <trkpt lat="37.21895" lon="126.94488"><time>2026-04-17T10:04:05Z</time></trkpt>
+      <trkpt lat="37.21880" lon="126.94487"><time>2026-04-17T10:04:20Z</time></trkpt>
+      <trkpt lat="37.21860" lon="126.94486"><time>2026-04-17T10:04:38Z</time></trkpt>
+      <trkpt lat="37.21840" lon="126.94487"><time>2026-04-17T10:04:56Z</time></trkpt>
+      <trkpt lat="37.21830" lon="126.94490"><time>2026-04-17T10:05:10Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

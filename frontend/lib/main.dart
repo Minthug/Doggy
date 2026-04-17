@@ -13,8 +13,9 @@ export 'features/home/presentation/screens/main_screen.dart' show mainScreenKey;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initNaverMap();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // initNaverMap은 네트워크 검증을 하므로 runApp을 막지 않게 비동기로 실행
+  initNaverMap().catchError((e) => debugPrint('[NaverMap init error] $e'));
   runApp(const ProviderScope(child: DoggyApp()));
 }
 

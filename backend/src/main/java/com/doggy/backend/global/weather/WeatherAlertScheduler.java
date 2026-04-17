@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalTime;
 import java.util.List;
@@ -22,6 +23,7 @@ public class WeatherAlertScheduler {
     private final FcmService fcmService;
 
     // 매시간 정각 실행 — 유저별 설정 시각에 맞는 유저에게만 발송
+    @Transactional(readOnly = true)
     @Scheduled(cron = "0 0 * * * *")
     public void sendWeatherAlerts() {
         int currentHour = LocalTime.now().getHour();

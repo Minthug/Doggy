@@ -70,6 +70,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             address: _addressController.text.trim(),
             birthDate: _formatDate(_birthDate),
           );
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+      }
     } catch (e) {
       debugPrint('[SignUp Error] $e');
       if (mounted) {
