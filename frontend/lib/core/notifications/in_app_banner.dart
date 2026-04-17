@@ -6,7 +6,7 @@ class InAppBanner {
   static Timer? _timer;
 
   static void show({
-    required BuildContext context,
+    required OverlayState overlay,
     required String title,
     required String body,
     BannerType type = BannerType.general,
@@ -14,7 +14,6 @@ class InAppBanner {
   }) {
     _dismiss();
 
-    final overlay = Overlay.of(context);
     late OverlayEntry entry;
 
     entry = OverlayEntry(

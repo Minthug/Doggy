@@ -135,10 +135,12 @@ class FcmService {
     final bannerType = _toBannerType(channelId);
 
     // 인앱 배너 우선 (iOS/Android 공통)
-    final context = _navigatorKey?.currentContext;
-    if (context != null && context.mounted) {
+    // navigatorKey.currentContext는 Navigator 자신의 context라 Overlay 위에 있음
+    // → currentState.overlay로 Navigator 내부 Overlay에 직접 접근
+    final overlay = _navigatorKey?.currentState?.overlay;
+    if (overlay != null) {
       InAppBanner.show(
-        context: context,
+        overlay: overlay,
         title: notification.title ?? '',
         body: notification.body ?? '',
         type: bannerType,
