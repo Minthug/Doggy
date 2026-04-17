@@ -57,7 +57,7 @@ public class WeatherAlertScheduler {
             User user = setting.getUser();
             if (user.getFcmToken() == null) continue;
             try {
-                fcmService.sendToToken(user.getFcmToken(), title, body);
+                fcmService.sendToToken(user.getFcmToken(), title, body, FcmService.Channel.WEATHER);
                 sent++;
             } catch (Exception e) {
                 log.warn("날씨 알림 전송 실패 [userId={}]: {}", user.getId(), e.getMessage());

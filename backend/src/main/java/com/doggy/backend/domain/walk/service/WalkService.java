@@ -145,7 +145,8 @@ public class WalkService {
                 fcmService.sendToToken(
                         fcmToken,
                         "🎉 월간 산책 목표 달성!",
-                        dogName + "의 꾸준한 산책으로 " + dogName + "이(가) 기뻐해요!"
+                        dogName + "의 꾸준한 산책으로 " + dogName + "이(가) 기뻐해요!",
+                        FcmService.Channel.ACHIEVEMENT
                 );
                 log.info("월간 산책 목표 달성 알림 전송: userId={}, dog={}, {}m 달성",
                         userId, dogName, newMeters);

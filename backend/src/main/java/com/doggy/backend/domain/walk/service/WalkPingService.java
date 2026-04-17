@@ -121,7 +121,7 @@ public class WalkPingService {
             body = "50m 내에 다른 강아지가 있어요.";
         }
 
-        fcmService.sendToToken(fcmToken, title, body);
+        fcmService.sendToToken(fcmToken, title, body, FcmService.Channel.PING);
     }
 
     private Set<DogWarning> collectWarnings(List<Dog> dogs) {
