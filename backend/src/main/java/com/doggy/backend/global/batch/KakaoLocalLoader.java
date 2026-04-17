@@ -73,6 +73,7 @@ public class KakaoLocalLoader {
             new double[]{37.3943, 126.9568}, // 안양
             new double[]{37.6360, 127.2162}, // 남양주
             new double[]{37.1999, 127.0720}, // 화성
+            new double[]{37.2183, 126.9449}, // 봉담 (화성시 북서부)
             new double[]{37.0637, 127.0674}, // 평택
             new double[]{37.7415, 127.0474}, // 의정부
             new double[]{37.3943, 127.2516}, // 광주(경기)
@@ -165,19 +166,28 @@ public class KakaoLocalLoader {
 
     @EventListener(ApplicationReadyEvent.class)
     public void load() {
-        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM places", Integer.class);
-        if (count != null && count > 0) {
-            log.info("장소 데이터 {}건 존재 - 카카오 로컬 적재 스킵", count);
+        // 데이터가 없는 지역만 선별해서 로드 (신규 지역 추가 시 자동 적재)
+        List<double[]> unloadedLocations = SEARCH_LOCATIONS.stream()
+                .filter(loc -> {
+                    Integer nearby = jdbcTemplate.queryForObject(
+                            "SELECT COUNT(*) FROM places WHERE ST_DWithin(location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, 3000)",
+                            Integer.class, loc[1], loc[0]);
+                    return nearby == null || nearby == 0;
+                })
+                .toList();
+
+        if (unloadedLocations.isEmpty()) {
+            log.info("모든 지역 장소 데이터 존재 - 카카오 로컬 적재 스킵");
             return;
         }
 
-        log.info("카카오 로컬 데이터 적재 시작 - {} 키워드 × {} 지역",
-                TARGETS.size(), SEARCH_LOCATIONS.size());
+        log.info("카카오 로컬 데이터 적재 시작 - {} 키워드 × {} 신규 지역",
+                TARGETS.size(), unloadedLocations.size());
         int total = 0;
 
         for (KeywordCategory target : TARGETS) {
             int keywordTotal = 0;
-            for (double[] loc : SEARCH_LOCATIONS) {
+            for (double[] loc : unloadedLocations) {
                 keywordTotal += searchAndSave(target.keyword(), target.category(), loc[0], loc[1]);
             }
             log.info("키워드 [{}] 완료 - {}건", target.keyword(), keywordTotal);
