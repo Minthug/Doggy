@@ -112,32 +112,49 @@ class FcmService {
         if (apnsToken != null) break;
         await Future.delayed(const Duration(seconds: 1));
       }
-      if (apnsToken == null) return;
+      if (apnsToken == null) {
+        debugPrint('[FCM] APNs 토큰 발급 실패 (시뮬레이터이거나 APNs 미지원)');
+        return;
+      }
+      debugPrint('[FCM] APNs 토큰 획득 성공');
     }
 
     final token = await _messaging.getToken();
     if (token != null) {
+      debugPrint('[FCM] FCM 토큰 발급: ${token.substring(0, 20)}...');
       await _sendTokenToServer(token);
+    } else {
+      debugPrint('[FCM] FCM 토큰 발급 실패');
     }
   }
 
   Future<void> _sendTokenToServer(String token) async {
     try {
-      await _dio.patch('/api/users/me/fcm-token', data: token);
-    } catch (_) {}
+      // @RequestBody String은 text/plain 필요 — application/json으로 보내면 Spring이 거부
+      await _dio.patch(
+        '/api/users/me/fcm-token',
+        data: token,
+        options: Options(contentType: 'text/plain'),
+      );
+      debugPrint('[FCM] 토큰 서버 등록 성공: ${token.substring(0, 20)}...');
+    } catch (e) {
+      debugPrint('[FCM] 토큰 서버 등록 실패: $e');
+    }
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    debugPrint('[FCM] 포그라운드 메시지 수신: ${message.notification?.title}');
     final notification = message.notification;
-    if (notification == null) return;
+    if (notification == null) {
+      debugPrint('[FCM] notification 페이로드 없음 — 무시');
+      return;
+    }
 
     final channelId = message.data['channel'] as String? ?? 'walk_reminder';
     final bannerType = _toBannerType(channelId);
 
-    // 인앱 배너 우선 (iOS/Android 공통)
-    // navigatorKey.currentContext는 Navigator 자신의 context라 Overlay 위에 있음
-    // → currentState.overlay로 Navigator 내부 Overlay에 직접 접근
     final overlay = _navigatorKey?.currentState?.overlay;
+    debugPrint('[FCM] overlay: ${overlay != null ? "있음" : "null"}, navigatorKey: ${_navigatorKey != null ? "있음" : "null"}');
     if (overlay != null) {
       InAppBanner.show(
         overlay: overlay,

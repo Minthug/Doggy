@@ -22,7 +22,7 @@ public class FcmService {
     public void sendToToken(String fcmToken, String title, String body, Channel channel) {
         if (fcmToken == null || fcmToken.isBlank()) return;
         if (FirebaseApp.getApps().isEmpty()) {
-            log.debug("Firebase 미초기화 - 푸시 전송 생략: {}", title);
+            log.warn("[FCM] Firebase 미초기화 상태 — 푸시 전송 불가: {}", title);
             return;
         }
 
