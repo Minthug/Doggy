@@ -3,15 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/api/api_client.dart';
 import '../models/walk_model.dart';
 
-// LocalDateTime 포맷: "yyyy-MM-ddTHH:mm:ss" (Java LocalDateTime 호환)
+// UTC 포맷: 서버(Railway)가 UTC 기준으로 startedAt을 저장하므로 맞춰야 함
 String _formatDateTime(DateTime dt) {
-  final local = dt.toLocal();
-  return '${local.year.toString().padLeft(4, '0')}'
-      '-${local.month.toString().padLeft(2, '0')}'
-      '-${local.day.toString().padLeft(2, '0')}'
-      'T${local.hour.toString().padLeft(2, '0')}'
-      ':${local.minute.toString().padLeft(2, '0')}'
-      ':${local.second.toString().padLeft(2, '0')}';
+  final utc = dt.toUtc();
+  return '${utc.year.toString().padLeft(4, '0')}'
+      '-${utc.month.toString().padLeft(2, '0')}'
+      '-${utc.day.toString().padLeft(2, '0')}'
+      'T${utc.hour.toString().padLeft(2, '0')}'
+      ':${utc.minute.toString().padLeft(2, '0')}'
+      ':${utc.second.toString().padLeft(2, '0')}';
 }
 
 final walkRepositoryProvider = Provider<WalkRepository>((ref) {
