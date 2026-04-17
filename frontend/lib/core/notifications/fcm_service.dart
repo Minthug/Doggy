@@ -1,8 +1,10 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
+import 'in_app_banner.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -17,8 +19,13 @@ class FcmService {
   final _messaging = FirebaseMessaging.instance;
   final _localNotifications = FlutterLocalNotificationsPlugin();
   final dynamic _dio;
+  GlobalKey<NavigatorState>? _navigatorKey;
 
   FcmService(this._dio);
+
+  void setNavigatorKey(GlobalKey<NavigatorState> key) {
+    _navigatorKey = key;
+  }
 
   Future<void> initialize() async {
     await _initLocalNotifications();
@@ -121,14 +128,26 @@ class FcmService {
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    // iOS는 setForegroundNotificationPresentationOptions으로 처리 → 여기선 Android만
-    if (defaultTargetPlatform != TargetPlatform.android) return;
-
     final notification = message.notification;
     if (notification == null) return;
 
-    // FCM data 페이로드의 channel 값으로 채널 선택 (없으면 walk_reminder)
     final channelId = message.data['channel'] as String? ?? 'walk_reminder';
+    final bannerType = _toBannerType(channelId);
+
+    // 자체 인앱 배너 표시 (iOS/Android 공통)
+    final context = _navigatorKey?.currentContext;
+    if (context != null && context.mounted) {
+      InAppBanner.show(
+        context: context,
+        title: notification.title ?? '',
+        body: notification.body ?? '',
+        type: bannerType,
+      );
+      return; // 배너 표시 성공 시 시스템 알림 중복 방지
+    }
+
+    // context를 못 얻은 경우 Android 폴백
+    if (defaultTargetPlatform != TargetPlatform.android) return;
 
     final androidDetails = AndroidNotificationDetails(
       channelId,
@@ -139,15 +158,23 @@ class FcmService {
         notification.body ?? '',
         contentTitle: notification.title,
       ),
-      ticker: notification.title,
     );
-
     await _localNotifications.show(
       notification.hashCode,
       notification.title,
       notification.body,
       NotificationDetails(android: androidDetails),
     );
+  }
+
+  BannerType _toBannerType(String channelId) {
+    return switch (channelId) {
+      'ping'        => BannerType.ping,
+      'weather'     => BannerType.weather,
+      'achievement' => BannerType.achievement,
+      'walk_reminder' => BannerType.reminder,
+      _             => BannerType.general,
+    };
   }
 
   String _channelName(String channelId) {
