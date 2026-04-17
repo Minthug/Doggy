@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/notifications/fcm_service.dart';
 import '../../../place/presentation/screens/map_tab.dart';
 import '../../../profile/presentation/screens/profile_tab.dart';
 import '../../../walk/presentation/screens/walk_screen.dart';
@@ -7,7 +9,7 @@ import 'home_tab.dart';
 // 탭 인덱스를 홈 탭에서도 제어할 수 있도록 전역 키 사용
 final mainScreenKey = GlobalKey<_MainScreenState>();
 
-class MainScreen extends StatefulWidget {
+class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key}) : super();
 
   static void jumpToTab(BuildContext context, int index) {
@@ -15,11 +17,20 @@ class MainScreen extends StatefulWidget {
   }
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  ConsumerState<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends ConsumerState<MainScreen> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // 로그인 후 FCM 토큰 발급 및 서버 등록
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(fcmServiceProvider).initialize();
+    });
+  }
 
   void jumpTo(int index) {
     setState(() => _currentIndex = index);
