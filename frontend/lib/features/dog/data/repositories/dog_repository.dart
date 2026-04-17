@@ -25,6 +25,7 @@ class DogRepository {
     required String gender,
     required bool isNeutered,
     List<String> warnings = const [],
+    String? profileImage,
   }) async {
     final response = await _dio.post('/api/dogs', data: {
       'name': name,
@@ -34,6 +35,7 @@ class DogRepository {
       'gender': gender,
       'isNeutered': isNeutered,
       'warnings': warnings,
+      'profileImage': profileImage,
     });
     return Dog.fromJson(response.data);
   }
@@ -47,6 +49,7 @@ class DogRepository {
     required String gender,
     required bool isNeutered,
     List<String> warnings = const [],
+    String? profileImage,
   }) async {
     final response = await _dio.patch('/api/dogs/$dogId', data: {
       'name': name,
@@ -56,6 +59,7 @@ class DogRepository {
       'gender': gender,
       'isNeutered': isNeutered,
       'warnings': warnings,
+      'profileImage': profileImage,
     });
     return Dog.fromJson(response.data);
   }

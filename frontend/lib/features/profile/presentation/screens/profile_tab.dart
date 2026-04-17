@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/domain/providers/auth_provider.dart';
@@ -8,6 +9,15 @@ import '../../../dog/presentation/screens/dog_register_screen.dart';
 import '../../../home/domain/providers/home_provider.dart';
 import '../../../walk/data/models/walk_model.dart';
 import '../../../walk/domain/providers/walk_provider.dart';
+
+// base64 또는 URL 이미지를 ImageProvider로 변환
+ImageProvider? _dogImageProvider(String? profileImage) {
+  if (profileImage == null) return null;
+  if (profileImage.startsWith('data:image')) {
+    return MemoryImage(base64Decode(profileImage.split(',').last));
+  }
+  return NetworkImage(profileImage);
+}
 
 class ProfileTab extends ConsumerWidget {
   const ProfileTab({super.key});
@@ -344,9 +354,7 @@ class _DogCard extends StatelessWidget {
           CircleAvatar(
             radius: 28,
             backgroundColor: const Color(0xFFE8F5E9),
-            backgroundImage: dog.profileImage != null
-                ? NetworkImage(dog.profileImage!)
-                : null,
+            backgroundImage: _dogImageProvider(dog.profileImage),
             child: dog.profileImage == null
                 ? const Text('🐶', style: TextStyle(fontSize: 22))
                 : null,

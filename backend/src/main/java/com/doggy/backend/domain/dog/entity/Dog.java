@@ -42,7 +42,7 @@ public class Dog extends BaseEntity {
     @Column(nullable = false)
     private boolean isNeutered = false;
 
-    @Column(length = 500)
+    @Column(columnDefinition = "TEXT")
     private String profileImage;
 
     @ElementCollection(fetch = FetchType.EAGER)

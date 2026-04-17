@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,6 +82,32 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
+  Widget _buildProfileImage() {
+    // 새로 선택한 이미지 우선
+    if (_imageFile != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(50),
+        child: Image.file(_imageFile!, fit: BoxFit.cover),
+      );
+    }
+    // 수정 모드에서 기존 저장된 이미지
+    final existing = widget.dog?.profileImage;
+    if (existing != null && existing.startsWith('data:image')) {
+      final base64Str = existing.split(',').last;
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(50),
+        child: Image.memory(base64Decode(base64Str), fit: BoxFit.cover),
+      );
+    }
+    return const Icon(Icons.pets, color: Color(0xFF4CAF50), size: 48);
+  }
+
+  Future<String?> _encodeImage() async {
+    if (_imageFile == null) return null;
+    final bytes = await _imageFile!.readAsBytes();
+    return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+  }
+
   Future<void> _submit() async {
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -91,6 +118,11 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
+      // 새 이미지가 있으면 base64로 인코딩, 없으면 기존 이미지 유지
+      final profileImage = _imageFile != null
+          ? await _encodeImage()
+          : widget.dog?.profileImage;
+
       if (_isEditMode) {
         await ref.read(dogRepositoryProvider).update(
               dogId: widget.dog!.id,
@@ -103,6 +135,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
               gender: _gender,
               isNeutered: _isNeutered,
               warnings: _warnings.toList(),
+              profileImage: profileImage,
             );
       } else {
         await ref.read(dogRepositoryProvider).create(
@@ -115,6 +148,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
               gender: _gender,
               isNeutered: _isNeutered,
               warnings: _warnings.toList(),
+              profileImage: profileImage,
             );
       }
       ref.invalidate(myDogsProvider);
@@ -199,13 +233,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
                         color: const Color(0xFFE8F5E9),
                         borderRadius: BorderRadius.circular(50),
                       ),
-                      child: _imageFile != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(50),
-                              child: Image.file(_imageFile!, fit: BoxFit.cover),
-                            )
-                          : const Icon(Icons.pets,
-                              color: Color(0xFF4CAF50), size: 48),
+                      child: _buildProfileImage(),
                     ),
                     Positioned(
                       bottom: 0,
