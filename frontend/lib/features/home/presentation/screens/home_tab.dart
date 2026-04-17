@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/domain/providers/auth_provider.dart';
@@ -200,7 +201,7 @@ class _DogListCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    _dogIcon(size: 40),
+                    _dogIcon(size: 40, profileImage: dog.profileImage),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,17 +422,28 @@ Widget _card({required Widget child}) {
   );
 }
 
-Widget _dogIcon({double size = 56}) {
-  return Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      color: const Color(0xFFE8F5E9),
+Widget _dogIcon({double size = 56, String? profileImage}) {
+  Widget child;
+
+  if (profileImage != null && profileImage.startsWith('data:image')) {
+    final bytes = base64Decode(profileImage.split(',').last);
+    child = ClipRRect(
       borderRadius: BorderRadius.circular(size / 2),
-    ),
-    child: Icon(Icons.pets,
-        color: const Color(0xFF4CAF50), size: size * 0.5),
-  );
+      child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover),
+    );
+  } else {
+    child = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(size / 2),
+      ),
+      child: Icon(Icons.pets, color: const Color(0xFF4CAF50), size: size * 0.5),
+    );
+  }
+
+  return child;
 }
 
 class _StatItem extends StatelessWidget {
