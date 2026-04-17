@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
@@ -53,6 +54,17 @@ class FcmService {
   }
 
   Future<void> _registerToken() async {
+    // iOS: APNs 토큰이 준비될 때까지 최대 10초 대기
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      String? apnsToken;
+      for (int i = 0; i < 10; i++) {
+        apnsToken = await _messaging.getAPNSToken();
+        if (apnsToken != null) break;
+        await Future.delayed(const Duration(seconds: 1));
+      }
+      if (apnsToken == null) return; // APNs 미지원 환경(시뮬레이터 등)
+    }
+
     final token = await _messaging.getToken();
     if (token != null) {
       await _sendTokenToServer(token);
