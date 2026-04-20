@@ -27,7 +27,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _loginWithSocial(String provider) async {
     final url = Uri.parse('$_oauthBaseUrl/oauth2/authorization/$provider');
     if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
+      await launchUrl(url, mode: LaunchMode.inAppBrowserView);
+    } else {
+      debugPrint('[OAuth] canLaunchUrl 실패: $url');
     }
   }
 
