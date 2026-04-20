@@ -52,10 +52,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   }
 
   Future<void> _signUp() async {
-    if (!_formKey.currentState!.validate()) return;
+    debugPrint('[SignUp] 가입 버튼 눌림');
+    final isValid = _formKey.currentState!.validate();
+    debugPrint('[SignUp] 폼 유효성: $isValid, 약관동의: $_agreedToTerms');
+    if (!isValid) return;
     if (!_agreedToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이용약관에 동의해주세요')),
+        const SnackBar(content: Text('이용약관에 동의해주세요'), duration: Duration(seconds: 3)),
       );
       return;
     }
