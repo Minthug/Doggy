@@ -96,10 +96,19 @@ public class WalkPingService {
                 log.warn("[핑] 상대방 FCM 토큰 없음 — nearbySession={} nearbyUser={}", nearbySessionId, nearbyUserId);
             }
 
+            // 둘 다 토큰 없으면 쿨다운 소모 없이 스킵
+            boolean canNotifyMe = myFcmToken != null && !myFcmToken.isBlank();
+            boolean canNotifyNearby = nearbyFcmToken != null && !nearbyFcmToken.isBlank();
+            if (!canNotifyMe && !canNotifyNearby) {
+                log.warn("[핑] 양쪽 FCM 토큰 없음 — 스킵 (쿨다운 미소모) session {} ↔ session {}",
+                        sessionId, nearbySessionId);
+                continue;
+            }
+
             log.info("[핑] 알림 발송 시도 — session {} ↔ session {} | 내토큰={} 상대토큰={}",
                     sessionId, nearbySessionId,
-                    myFcmToken != null ? myFcmToken.substring(0, Math.min(10, myFcmToken.length())) + "..." : "null",
-                    nearbyFcmToken != null ? nearbyFcmToken.substring(0, Math.min(10, nearbyFcmToken.length())) + "..." : "null");
+                    canNotifyMe ? myFcmToken.substring(0, Math.min(10, myFcmToken.length())) + "..." : "null",
+                    canNotifyNearby ? nearbyFcmToken.substring(0, Math.min(10, nearbyFcmToken.length())) + "..." : "null");
 
             sendPingNotification(myFcmToken, nearbyWarnings);
             sendPingNotification(nearbyFcmToken, myWarnings);
