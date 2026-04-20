@@ -76,8 +76,17 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     } catch (e) {
       debugPrint('[SignUp Error] $e');
       if (mounted) {
+        String msg = '회원가입에 실패했습니다. 다시 시도해주세요';
+        final body = e.toString();
+        if (body.contains('이미 사용 중인 이메일')) {
+          msg = '이미 사용 중인 이메일입니다';
+        } else if (body.contains('400')) {
+          msg = '입력값을 확인해주세요';
+        } else if (body.contains('SocketException') || body.contains('Connection')) {
+          msg = '서버에 연결할 수 없습니다. 네트워크를 확인해주세요';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('회원가입에 실패했습니다. 다시 시도해주세요')),
+          SnackBar(content: Text(msg), duration: const Duration(seconds: 4)),
         );
       }
     } finally {
