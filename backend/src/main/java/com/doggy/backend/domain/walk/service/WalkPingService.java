@@ -28,8 +28,7 @@ public class WalkPingService {
 
     private static final double PING_RADIUS_METERS = 50.0;
     private static final int COOLDOWN_MINUTES = 5;
-    // 30초 이내에 갱신된 위치만 유효
-    private static final int STALE_SECONDS = 30;
+    private static final int STALE_SECONDS = 60;
 
     private final WalkSessionRepository walkSessionRepository;
     private final WalkLocationRepository walkLocationRepository;
@@ -55,10 +54,15 @@ public class WalkPingService {
         location.update(lat, lng);
         walkLocationRepository.save(location);
 
+        log.info("[핑] 위치 저장 완료 — session={} user={} lat={} lng={}", sessionId, userId, lat, lng);
+
         // 근접 세션 탐색
         LocalDateTime staleThreshold = LocalDateTime.now().minusSeconds(STALE_SECONDS);
         List<WalkLocation> nearbyLocations = walkLocationRepository.findNearby(
                 sessionId, lat, lng, PING_RADIUS_METERS, staleThreshold);
+
+        log.info("[핑] 근접 세션 탐색 — session={} 반경={}m 유효기준={}s 이내 → {}개 발견",
+                sessionId, PING_RADIUS_METERS, STALE_SECONDS, nearbyLocations.size());
 
         if (nearbyLocations.isEmpty()) return;
 
@@ -66,42 +70,53 @@ public class WalkPingService {
         Set<DogWarning> myWarnings = collectWarnings(myDogs);
         String myFcmToken = session.getUser().getFcmToken();
 
+        if (myFcmToken == null || myFcmToken.isBlank()) {
+            log.warn("[핑] 내 FCM 토큰 없음 — session={} user={}", sessionId, userId);
+        }
+
         for (WalkLocation nearby : nearbyLocations) {
             WalkSession nearbySession = nearby.getWalkSession();
             Long nearbySessionId = nearbySession.getId();
+            Long nearbyUserId = nearbySession.getUser().getId();
 
-            // 쿨다운 확인 (쌍을 항상 작은 id → 큰 id 순서로 저장)
             Long a = Math.min(sessionId, nearbySessionId);
             Long b = Math.max(sessionId, nearbySessionId);
             LocalDateTime cooldownThreshold = LocalDateTime.now().minusMinutes(COOLDOWN_MINUTES);
 
             if (walkPingLogRepository.existsBySessionAIdAndSessionBIdAndPingedAtAfter(a, b, cooldownThreshold)) {
+                log.info("[핑] 쿨다운 스킵 — session {} ↔ session {}", sessionId, nearbySessionId);
                 continue;
             }
 
-            Long nearbyUserId = nearbySession.getUser().getId();
             List<Dog> nearbyDogs = dogRepository.findAllByUserId(nearbyUserId);
             Set<DogWarning> nearbyWarnings = collectWarnings(nearbyDogs);
             String nearbyFcmToken = nearbySession.getUser().getFcmToken();
 
-            // 나에게: 상대방 경고 정보 포함
+            if (nearbyFcmToken == null || nearbyFcmToken.isBlank()) {
+                log.warn("[핑] 상대방 FCM 토큰 없음 — nearbySession={} nearbyUser={}", nearbySessionId, nearbyUserId);
+            }
+
+            log.info("[핑] 알림 발송 시도 — session {} ↔ session {} | 내토큰={} 상대토큰={}",
+                    sessionId, nearbySessionId,
+                    myFcmToken != null ? myFcmToken.substring(0, Math.min(10, myFcmToken.length())) + "..." : "null",
+                    nearbyFcmToken != null ? nearbyFcmToken.substring(0, Math.min(10, nearbyFcmToken.length())) + "..." : "null");
+
             sendPingNotification(myFcmToken, nearbyWarnings);
-            // 상대방에게: 내 경고 정보 포함
             sendPingNotification(nearbyFcmToken, myWarnings);
 
-            // 핑 로그 저장/갱신
             WalkPingLog pingLog = walkPingLogRepository.findBySessionAIdAndSessionBId(a, b)
                     .orElseGet(() -> WalkPingLog.builder().sessionAId(a).sessionBId(b).build());
             pingLog.refresh();
             walkPingLogRepository.save(pingLog);
 
-            log.debug("산책 핑 발송: session {} ↔ session {}", sessionId, nearbySessionId);
+            log.info("[핑] 발송 완료 — session {} ↔ session {}", sessionId, nearbySessionId);
         }
     }
 
     @Transactional
     public void removeLocation(Long sessionId) {
         walkLocationRepository.deleteByWalkSession_Id(sessionId);
+        log.info("[핑] 위치 제거 — session={}", sessionId);
     }
 
     private void sendPingNotification(String fcmToken, Set<DogWarning> nearbyWarnings) {
