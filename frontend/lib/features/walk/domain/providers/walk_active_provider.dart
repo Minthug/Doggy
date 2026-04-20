@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../dog/data/models/dog_model.dart';
@@ -16,7 +17,6 @@ String _formatDateTime(DateTime dt) {
       ':${utc.second.toString().padLeft(2, '0')}';
 }
 
-// 산책 상태
 enum WalkStatus { idle, inProgress, paused, completed }
 
 class WalkState {
@@ -98,16 +98,20 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   final WalkRepository _repository;
   Timer? _timer;
   Timer? _simTimer;
-  Timer? _pingTimer;
+  Timer? _simPingTimer; // 시뮬레이션 전용 핑 타이머 (실제 GPS 없으므로 별도 유지)
   StreamSubscription<Position>? _positionSubscription;
   int _simIndex = 0;
 
-  // 백그라운드 복귀 시 실제 경과 시간 계산을 위해 시작/일시정지 시각 추적
+  // wall-clock 기반 경과 시간
   DateTime? _walkStartedAt;
   int _pausedSeconds = 0;
   DateTime? _pausedAt;
 
-  // 기본 위치(37.218392, 126.944858) 기준 루프 경로
+  // 위치 스트림 기반 핑 — 마지막 서버 전송 시각
+  DateTime? _lastPingAt;
+  static const _pingIntervalSeconds = 10;
+
+  // 시뮬레이션 경로 (봉담 기준)
   static const _simRoute = <({double lat, double lng})>[
     (lat: 37.218392, lng: 126.944858),
     (lat: 37.218600, lng: 126.945100),
@@ -142,6 +146,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _walkStartedAt = DateTime.now();
     _pausedSeconds = 0;
     _pausedAt = null;
+    _lastPingAt = null;
     state = state.copyWith(
       status: WalkStatus.inProgress,
       session: session,
@@ -153,7 +158,6 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     );
     _startTimer();
     _startTracking();
-    _startPingTimer();
   }
 
   Future<void> startSimulatedWalk({Dog? dog}) async {
@@ -162,6 +166,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _walkStartedAt = DateTime.now();
     _pausedSeconds = 0;
     _pausedAt = null;
+    _lastPingAt = null;
     state = state.copyWith(
       status: WalkStatus.inProgress,
       session: session,
@@ -173,12 +178,11 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     );
     _startTimer();
     _startSimulation();
-    _startPingTimer();
+    _startSimPingTimer();
   }
 
   void _startSimulation() {
     _simTimer?.cancel();
-    // 3초마다 다음 좌표로 이동 (빠른 테스트용)
     _simTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (_simIndex >= _simRoute.length) {
         _simTimer?.cancel();
@@ -187,24 +191,31 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       final coord = _simRoute[_simIndex++];
       _applyPosition(coord.lat, coord.lng);
     });
-    // 첫 좌표 즉시 적용
     _applyPosition(_simRoute[0].lat, _simRoute[0].lng);
     _simIndex = 1;
   }
 
+  // 시뮬레이션 모드 전용: 실제 GPS가 없으니 타이머로 핑
+  void _startSimPingTimer() {
+    _simPingTimer?.cancel();
+    _simPingTimer = Timer.periodic(const Duration(seconds: _pingIntervalSeconds), (_) {
+      final pos = state.currentPosition;
+      final session = state.session;
+      if (pos == null || session == null) return;
+      if (state.status != WalkStatus.inProgress) return;
+      _repository
+          .updateLocation(session.id, pos.latitude, pos.longitude)
+          .catchError((e) { debugPrint('[핑] 위치 업데이트 실패: $e'); });
+    });
+  }
+
   void _applyPosition(double lat, double lng) {
-    final newPoint = WalkPoint(
-      lat: lat,
-      lng: lng,
-      recordedAt: DateTime.now(),
-    );
+    final newPoint = WalkPoint(lat: lat, lng: lng, recordedAt: DateTime.now());
 
     double addedDistance = 0;
     if (state.points.isNotEmpty) {
       final last = state.points.last;
-      addedDistance = Geolocator.distanceBetween(
-        last.lat, last.lng, lat, lng,
-      );
+      addedDistance = Geolocator.distanceBetween(last.lat, last.lng, lat, lng);
     }
 
     final mockPosition = Position(
@@ -234,7 +245,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _pausedAt = DateTime.now();
     state = state.copyWith(status: WalkStatus.paused);
     _timer?.cancel();
-    _pingTimer?.cancel();
+    _simPingTimer?.cancel();
     if (state.isSimulating) {
       _simTimer?.cancel();
     } else {
@@ -251,9 +262,9 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     }
     state = state.copyWith(status: WalkStatus.inProgress);
     _startTimer();
-    _startPingTimer();
     if (state.isSimulating) {
       _startSimulation();
+      _startSimPingTimer();
     } else {
       _positionSubscription?.resume();
     }
@@ -263,7 +274,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     if (state.session == null) return;
     _timer?.cancel();
     _simTimer?.cancel();
-    _pingTimer?.cancel();
+    _simPingTimer?.cancel();
     _positionSubscription?.cancel();
 
     await _repository.complete(
@@ -275,9 +286,8 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     state = state.copyWith(status: WalkStatus.completed);
   }
 
-  // 방향키 한 번 = 약 10m 이동
-  static const stepLat = 0.00009; // 위/아래 ~10m
-  static const stepLng = 0.00011; // 좌/우 ~10m (37°N 기준)
+  static const stepLat = 0.00009;
+  static const stepLng = 0.00011;
 
   void moveByKey(double dlat, double dlng) {
     if (state.status != WalkStatus.inProgress) return;
@@ -290,29 +300,15 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   void resetWalk() {
     _timer?.cancel();
     _simTimer?.cancel();
-    _pingTimer?.cancel();
+    _simPingTimer?.cancel();
     _positionSubscription?.cancel();
     state = const WalkState();
-  }
-
-  void _startPingTimer() {
-    _pingTimer?.cancel();
-    _pingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      final pos = state.currentPosition;
-      final session = state.session;
-      if (pos == null || session == null) return;
-      if (state.status != WalkStatus.inProgress) return;
-      _repository
-          .updateLocation(session.id, pos.latitude, pos.longitude)
-          .catchError((_) {}); // 네트워크 오류는 조용히 무시
-    });
   }
 
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_walkStartedAt == null) return;
-      // 백그라운드 복귀 시에도 실제 wall-clock 기준으로 계산
       final elapsed = DateTime.now().difference(_walkStartedAt!).inSeconds - _pausedSeconds;
       state = state.copyWith(elapsedSeconds: elapsed < 0 ? 0 : elapsed);
     });
@@ -321,21 +317,22 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   Future<void> _startTracking() async {
     _positionSubscription?.cancel();
 
-    final results = await Future.wait([
-      Geolocator.isLocationServiceEnabled(),
-      Geolocator.checkPermission(),
-    ]);
-
-    final serviceEnabled = results[0] as bool;
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
 
-    LocationPermission permission = results[1] as LocationPermission;
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       return;
+    }
+
+    // iOS: "항상 허용"이 없으면 요청 (백그라운드 추적 안정성)
+    if (Platform.isIOS && permission == LocationPermission.whileInUse) {
+      permission = await Geolocator.requestPermission();
+      debugPrint('[위치] iOS 권한 업그레이드 시도 → $permission');
     }
 
     final locationSettings = Platform.isIOS
@@ -345,11 +342,12 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
             activityType: ActivityType.fitness,
             allowBackgroundLocationUpdates: true,
             pauseLocationUpdatesAutomatically: false,
+            showBackgroundLocationIndicator: true,
           )
         : AndroidSettings(
             accuracy: LocationAccuracy.high,
             distanceFilter: 5,
-            foregroundNotificationConfig: ForegroundNotificationConfig(
+            foregroundNotificationConfig: const ForegroundNotificationConfig(
               notificationTitle: '산책 중',
               notificationText: '경로를 기록하고 있습니다.',
               enableWakeLock: true,
@@ -359,6 +357,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: locationSettings,
     ).listen((position) {
+      // 포인트 기록 + 거리 계산
       final newPoint = WalkPoint(
         lat: position.latitude,
         lng: position.longitude,
@@ -369,10 +368,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       if (state.points.isNotEmpty) {
         final last = state.points.last;
         addedDistance = Geolocator.distanceBetween(
-          last.lat,
-          last.lng,
-          position.latitude,
-          position.longitude,
+          last.lat, last.lng, position.latitude, position.longitude,
         );
       }
 
@@ -381,6 +377,19 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
         distanceMeters: state.distanceMeters + addedDistance,
         currentPosition: position,
       );
+
+      // 위치 콜백에서 직접 서버 핑 — 백그라운드에서도 동작
+      final session = state.session;
+      if (session == null || state.status != WalkStatus.inProgress) return;
+
+      final now = DateTime.now();
+      if (_lastPingAt == null ||
+          now.difference(_lastPingAt!).inSeconds >= _pingIntervalSeconds) {
+        _lastPingAt = now;
+        _repository
+            .updateLocation(session.id, position.latitude, position.longitude)
+            .catchError((e) { debugPrint('[핑] 위치 업데이트 실패: $e'); });
+      }
     });
   }
 
@@ -388,7 +397,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   void dispose() {
     _timer?.cancel();
     _simTimer?.cancel();
-    _pingTimer?.cancel();
+    _simPingTimer?.cancel();
     _positionSubscription?.cancel();
     super.dispose();
   }
