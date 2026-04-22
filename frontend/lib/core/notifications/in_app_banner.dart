@@ -1,45 +1,77 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-class InAppBanner {
-  static OverlayEntry? _current;
-  static Timer? _timer;
+class _BannerEvent {
+  final String title;
+  final String body;
+  final BannerType type;
+  const _BannerEvent({required this.title, required this.body, required this.type});
+}
 
-  static void show({
-    required OverlayState overlay,
+class InAppBanner {
+  static final _controller = StreamController<_BannerEvent>.broadcast();
+
+  static void emit({
     required String title,
     required String body,
     BannerType type = BannerType.general,
-    Duration duration = const Duration(seconds: 4),
   }) {
-    _dismiss();
-
-    late OverlayEntry entry;
-
-    entry = OverlayEntry(
-      builder: (_) => _BannerWidget(
-        title: title,
-        body: body,
-        type: type,
-        onDismiss: () => _dismiss(),
-      ),
-    );
-
-    _current = entry;
-    overlay.insert(entry);
-
-    _timer = Timer(duration, _dismiss);
-  }
-
-  static void _dismiss() {
-    _timer?.cancel();
-    _timer = null;
-    _current?.remove();
-    _current = null;
+    _controller.add(_BannerEvent(title: title, body: body, type: type));
   }
 }
 
 enum BannerType { ping, reminder, weather, achievement, general }
+
+class BannerLayer extends StatefulWidget {
+  const BannerLayer({super.key});
+
+  @override
+  State<BannerLayer> createState() => _BannerLayerState();
+}
+
+class _BannerLayerState extends State<BannerLayer> {
+  _BannerEvent? _current;
+  Timer? _timer;
+  late final StreamSubscription<_BannerEvent> _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = InAppBanner._controller.stream.listen(_onEvent);
+  }
+
+  void _onEvent(_BannerEvent event) {
+    _timer?.cancel();
+    setState(() => _current = event);
+    _timer = Timer(const Duration(seconds: 4), _dismiss);
+  }
+
+  void _dismiss() {
+    _timer?.cancel();
+    _timer = null;
+    if (mounted) setState(() => _current = null);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _sub.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final event = _current;
+    if (event == null) return const SizedBox.shrink();
+    return _BannerWidget(
+      key: ValueKey('${event.title}${event.body}'),
+      title: event.title,
+      body: event.body,
+      type: event.type,
+      onDismiss: _dismiss,
+    );
+  }
+}
 
 class _BannerWidget extends StatefulWidget {
   final String title;
@@ -48,6 +80,7 @@ class _BannerWidget extends StatefulWidget {
   final VoidCallback onDismiss;
 
   const _BannerWidget({
+    super.key,
     required this.title,
     required this.body,
     required this.type,
@@ -75,7 +108,6 @@ class _BannerWidgetState extends State<_BannerWidget>
       begin: const Offset(0, -1),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
     _controller.forward();
   }
@@ -88,7 +120,7 @@ class _BannerWidgetState extends State<_BannerWidget>
 
   Future<void> _animatedDismiss() async {
     await _controller.reverse();
-    widget.onDismiss();
+    if (mounted) widget.onDismiss();
   }
 
   @override
@@ -96,10 +128,9 @@ class _BannerWidgetState extends State<_BannerWidget>
     final topPadding = MediaQuery.of(context).padding.top;
     final config = _BannerConfig.of(widget.type);
 
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
+    // Align 사용: Overlay 없이 Stack 내 최상단에서 동작
+    return Align(
+      alignment: Alignment.topCenter,
       child: SlideTransition(
         position: _slide,
         child: FadeTransition(
@@ -131,10 +162,7 @@ class _BannerWidgetState extends State<_BannerWidget>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // 왼쪽 컬러 바
                       Container(width: 5, color: config.color),
-
-                      // 아이콘
                       Container(
                         width: 56,
                         color: config.color.withValues(alpha: 0.08),
@@ -145,8 +173,6 @@ class _BannerWidgetState extends State<_BannerWidget>
                           ),
                         ),
                       ),
-
-                      // 텍스트
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -169,7 +195,6 @@ class _BannerWidgetState extends State<_BannerWidget>
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  // 앱 이름 태그
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 6, vertical: 2),
@@ -203,8 +228,6 @@ class _BannerWidgetState extends State<_BannerWidget>
                           ),
                         ),
                       ),
-
-                      // 닫기 버튼
                       GestureDetector(
                         onTap: _animatedDismiss,
                         child: Container(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/notifications/fcm_service.dart';
-import '../../../../main.dart' show navigatorKey;
+import '../../../../core/notifications/in_app_banner.dart';
 import '../../../place/presentation/screens/map_tab.dart';
 import '../../../profile/presentation/screens/profile_tab.dart';
 import '../../../walk/presentation/screens/walk_screen.dart';
@@ -28,9 +28,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final fcm = ref.read(fcmServiceProvider);
-      fcm.setNavigatorKey(navigatorKey); // 인앱 배너용 context 전달
-      fcm.initialize();
+      ref.read(fcmServiceProvider).initialize();
     });
   }
 
@@ -48,7 +46,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _tabs[_currentIndex],
+      body: Stack(
+        children: [
+          _tabs[_currentIndex],
+          const BannerLayer(),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
-import 'in_app_banner.dart';
+import 'in_app_banner.dart' show InAppBanner, BannerType;
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -20,13 +20,8 @@ class FcmService {
   final _messaging = FirebaseMessaging.instance;
   final _localNotifications = FlutterLocalNotificationsPlugin();
   final dynamic _dio;
-  GlobalKey<NavigatorState>? _navigatorKey;
 
   FcmService(this._dio);
-
-  void setNavigatorKey(GlobalKey<NavigatorState> key) {
-    _navigatorKey = key;
-  }
 
   Future<void> initialize() async {
     await _initLocalNotifications();
@@ -154,38 +149,11 @@ class FcmService {
     final channelId = message.data['channel'] as String? ?? 'walk_reminder';
     final bannerType = _toBannerType(channelId);
 
-    final overlay = _navigatorKey?.currentState?.overlay;
-    debugPrint('[FCM] overlay: ${overlay != null ? "있음" : "null"}, navigatorKey: ${_navigatorKey != null ? "있음" : "null"}');
-    if (overlay != null) {
-      InAppBanner.show(
-        overlay: overlay,
-        title: notification.title ?? '',
-        body: notification.body ?? '',
-        type: bannerType,
-      );
-      return;
-    }
-
-    // context 없을 때 Android만 로컬 알림으로 폴백
-    // (iOS는 alert:false 설정이므로 별도 처리 불필요)
-    if (defaultTargetPlatform != TargetPlatform.android) return;
-
-    debugPrint('[FCM] context 없음 — 로컬 알림으로 폴백 (channelId: $channelId)');
-    final androidDetails = AndroidNotificationDetails(
-      channelId,
-      _channelName(channelId),
-      importance: channelId == 'ping' ? Importance.max : Importance.high,
-      priority: Priority.high,
-      styleInformation: BigTextStyleInformation(
-        notification.body ?? '',
-        contentTitle: notification.title,
-      ),
-    );
-    await _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      NotificationDetails(android: androidDetails),
+    // BannerLayer(MainScreen Stack)가 Platform View 위에 렌더링되므로 overlay 불필요
+    InAppBanner.emit(
+      title: notification.title ?? '',
+      body: notification.body ?? '',
+      type: bannerType,
     );
   }
 
