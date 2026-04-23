@@ -92,4 +92,9 @@ class WalkRepository {
       'lng': lng,
     });
   }
+
+  Future<List<WalkMeet>> getMeets(int sessionId) async {
+    final response = await _dio.get('/api/walks/$sessionId/meets');
+    return (response.data as List).map((e) => WalkMeet.fromJson(e)).toList();
+  }
 }

@@ -1,6 +1,7 @@
 package com.doggy.backend.domain.walk.controller;
 
 import com.doggy.backend.domain.walk.dto.*;
+import com.doggy.backend.domain.walk.service.WalkMeetService;
 import com.doggy.backend.domain.walk.service.WalkPingService;
 import com.doggy.backend.domain.walk.service.WalkService;
 import com.doggy.backend.global.security.UserPrincipal;
@@ -20,6 +21,7 @@ public class WalkController {
 
     private final WalkService walkService;
     private final WalkPingService walkPingService;
+    private final WalkMeetService walkMeetService;
 
     @PostMapping
     public ResponseEntity<WalkSessionResponse> start(@AuthenticationPrincipal UserPrincipal principal) {
@@ -96,6 +98,13 @@ public class WalkController {
             @Valid @RequestBody UpdateLocationRequest request) {
         walkPingService.updateLocationAndPing(principal.getId(), sessionId, request.lat(), request.lng());
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{sessionId}/meets")
+    public ResponseEntity<List<WalkMeetResponse>> getMeets(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId) {
+        return ResponseEntity.ok(walkMeetService.getMeets(principal.getId(), sessionId));
     }
 
     @PostMapping("/{sessionId}/like")

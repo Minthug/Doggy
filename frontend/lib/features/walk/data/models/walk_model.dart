@@ -135,6 +135,62 @@ class PublicRoute {
   }
 }
 
+class WalkMeet {
+  final String metAt;
+  final WalkMeetUser user;
+  final List<WalkMeetDog> dogs;
+
+  WalkMeet({required this.metAt, required this.user, required this.dogs});
+
+  factory WalkMeet.fromJson(Map<String, dynamic> json) => WalkMeet(
+        metAt: json['metAt'] ?? '',
+        user: WalkMeetUser.fromJson(json['user']),
+        dogs: (json['dogs'] as List? ?? [])
+            .map((d) => WalkMeetDog.fromJson(d))
+            .toList(),
+      );
+}
+
+class WalkMeetUser {
+  final int id;
+  final String nickname;
+  final String? profileImage;
+
+  WalkMeetUser(
+      {required this.id, required this.nickname, this.profileImage});
+
+  factory WalkMeetUser.fromJson(Map<String, dynamic> json) => WalkMeetUser(
+        id: json['id'],
+        nickname: json['nickname'] ?? '',
+        profileImage: json['profileImage'],
+      );
+}
+
+class WalkMeetDog {
+  final int id;
+  final String name;
+  final String? breed;
+  final String? profileImage;
+  final List<String> warnings;
+
+  WalkMeetDog(
+      {required this.id,
+      required this.name,
+      this.breed,
+      this.profileImage,
+      required this.warnings});
+
+  factory WalkMeetDog.fromJson(Map<String, dynamic> json) => WalkMeetDog(
+        id: json['id'],
+        name: json['name'] ?? '',
+        breed: json['breed'],
+        profileImage: json['profileImage'],
+        warnings: (json['warnings'] as List? ?? [])
+            .map((w) => w.toString())
+            .toList(),
+      );
+}
+
 class MonthlyWalkStats {
   final int totalDistanceMeters;
   final int totalDurationSeconds;
