@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -74,45 +76,50 @@ public class WalkPingService {
             log.warn("[핑] 내 FCM 토큰 없음 — session={} user={}", sessionId, userId);
         }
 
-        for (WalkLocation nearby : nearbyLocations) {
-            WalkSession nearbySession = nearby.getWalkSession();
-            Long nearbySessionId = nearbySession.getId();
-            Long nearbyUserId = nearbySession.getUser().getId();
+        LocalDateTime cooldownThreshold = LocalDateTime.now().minusMinutes(COOLDOWN_MINUTES);
 
+        // 쿨다운 통과한 세션만 추려서 한 번에 처리
+        List<WalkLocation> validNearby = new ArrayList<>();
+        for (WalkLocation nearby : nearbyLocations) {
+            Long nearbySessionId = nearby.getWalkSession().getId();
             Long a = Math.min(sessionId, nearbySessionId);
             Long b = Math.max(sessionId, nearbySessionId);
-            LocalDateTime cooldownThreshold = LocalDateTime.now().minusMinutes(COOLDOWN_MINUTES);
 
             if (walkPingLogRepository.existsBySessionAIdAndSessionBIdAndPingedAtAfter(a, b, cooldownThreshold)) {
                 log.info("[핑] 쿨다운 스킵 — session {} ↔ session {}", sessionId, nearbySessionId);
-                continue;
+            } else {
+                validNearby.add(nearby);
             }
+        }
 
-            List<Dog> nearbyDogs = dogRepository.findAllByUserId(nearbyUserId);
-            Set<DogWarning> nearbyWarnings = collectWarnings(nearbyDogs);
+        if (validNearby.isEmpty()) return;
+
+        // 근처 강아지 경고 전체 수집 후 나에게 1개 집계 알림
+        Set<DogWarning> allNearbyWarnings = new HashSet<>();
+        for (WalkLocation nearby : validNearby) {
+            List<Dog> nearbyDogs = dogRepository.findAllByUserId(nearby.getWalkSession().getUser().getId());
+            allNearbyWarnings.addAll(collectWarnings(nearbyDogs));
+        }
+
+        if (myFcmToken != null && !myFcmToken.isBlank()) {
+            sendAggregatedPingNotification(myFcmToken, validNearby.size(), allNearbyWarnings);
+            log.info("[핑] 집계 알림 발송 — session={} 근처={}마리 경고={}", sessionId, validNearby.size(), allNearbyWarnings);
+        }
+
+        // 각 근처 유저에게는 내 강아지 정보로 개별 알림 + 쿨다운 갱신
+        for (WalkLocation nearby : validNearby) {
+            WalkSession nearbySession = nearby.getWalkSession();
+            Long nearbySessionId = nearbySession.getId();
             String nearbyFcmToken = nearbySession.getUser().getFcmToken();
 
-            if (nearbyFcmToken == null || nearbyFcmToken.isBlank()) {
-                log.warn("[핑] 상대방 FCM 토큰 없음 — nearbySession={} nearbyUser={}", nearbySessionId, nearbyUserId);
+            if (nearbyFcmToken != null && !nearbyFcmToken.isBlank()) {
+                sendPingNotification(nearbyFcmToken, myWarnings);
+            } else {
+                log.warn("[핑] 상대방 FCM 토큰 없음 — nearbySession={}", nearbySessionId);
             }
 
-            // 둘 다 토큰 없으면 쿨다운 소모 없이 스킵
-            boolean canNotifyMe = myFcmToken != null && !myFcmToken.isBlank();
-            boolean canNotifyNearby = nearbyFcmToken != null && !nearbyFcmToken.isBlank();
-            if (!canNotifyMe && !canNotifyNearby) {
-                log.warn("[핑] 양쪽 FCM 토큰 없음 — 스킵 (쿨다운 미소모) session {} ↔ session {}",
-                        sessionId, nearbySessionId);
-                continue;
-            }
-
-            log.info("[핑] 알림 발송 시도 — session {} ↔ session {} | 내토큰={} 상대토큰={}",
-                    sessionId, nearbySessionId,
-                    canNotifyMe ? myFcmToken.substring(0, Math.min(10, myFcmToken.length())) + "..." : "null",
-                    canNotifyNearby ? nearbyFcmToken.substring(0, Math.min(10, nearbyFcmToken.length())) + "..." : "null");
-
-            sendPingNotification(myFcmToken, nearbyWarnings);
-            sendPingNotification(nearbyFcmToken, myWarnings);
-
+            Long a = Math.min(sessionId, nearbySessionId);
+            Long b = Math.max(sessionId, nearbySessionId);
             WalkPingLog pingLog = walkPingLogRepository.findBySessionAIdAndSessionBId(a, b)
                     .orElseGet(() -> WalkPingLog.builder().sessionAId(a).sessionBId(b).build());
             pingLog.refresh();
@@ -126,6 +133,20 @@ public class WalkPingService {
     public void removeLocation(Long sessionId) {
         walkLocationRepository.deleteByWalkSession_Id(sessionId);
         log.info("[핑] 위치 제거 — session={}", sessionId);
+    }
+
+    private void sendAggregatedPingNotification(String fcmToken, int count, Set<DogWarning> warnings) {
+        String title = "🐾 근처에 강아지 " + count + "마리가 있어요!";
+        String body;
+        if (!warnings.isEmpty()) {
+            String warningText = warnings.stream()
+                    .map(this::warningLabel)
+                    .collect(Collectors.joining(", "));
+            body = "50m 내에 " + count + "마리가 있어요 (⚠️ " + warningText + " 포함)";
+        } else {
+            body = "50m 내에 " + count + "마리의 강아지가 있어요.";
+        }
+        fcmService.sendToToken(fcmToken, title, body, FcmService.Channel.PING);
     }
 
     private void sendPingNotification(String fcmToken, Set<DogWarning> nearbyWarnings) {
