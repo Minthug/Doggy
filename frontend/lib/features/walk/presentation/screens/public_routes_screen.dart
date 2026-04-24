@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
 
-final _publicRoutesProvider = FutureProvider<List<PublicRoute>>((ref) async {
+final _publicRoutesProvider = FutureProvider.autoDispose<List<PublicRoute>>((ref) async {
   return ref.watch(walkRepositoryProvider).getPublicRoutes();
 });
 
@@ -24,27 +24,33 @@ class PublicRoutesScreen extends ConsumerWidget {
         title: const Text('인기 산책 경로',
             style: TextStyle(fontWeight: FontWeight.bold)),
       ),
-      body: routesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const Center(child: Text('불러오기 실패')),
-        data: (routes) => routes.isEmpty
-            ? const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.route, size: 64, color: Colors.grey),
-                    SizedBox(height: 12),
-                    Text('아직 공개된 경로가 없어요',
-                        style: TextStyle(color: Colors.grey)),
+      body: RefreshIndicator(
+        onRefresh: () => ref.refresh(_publicRoutesProvider.future),
+        child: routesAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, __) => const Center(child: Text('불러오기 실패')),
+          data: (routes) => routes.isEmpty
+              ? ListView(
+                  children: const [
+                    SizedBox(height: 120),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.route, size: 64, color: Colors.grey),
+                        SizedBox(height: 12),
+                        Text('아직 공개된 경로가 없어요',
+                            style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
                   ],
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: routes.length,
+                  itemBuilder: (context, index) =>
+                      _RouteCard(route: routes[index], ref: ref),
                 ),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: routes.length,
-                itemBuilder: (context, index) =>
-                    _RouteCard(route: routes[index], ref: ref),
-              ),
+        ),
       ),
     );
   }
