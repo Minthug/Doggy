@@ -100,6 +100,19 @@ class HomeTab extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
 
+            // 오늘 만난 강아지들
+            Consumer(
+              builder: (context, ref, _) {
+                final meetsAsync = ref.watch(todayMeetsProvider);
+                return meetsAsync.when(
+                  data: (meets) => _TodayMeetsCard(meets: meets),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _e) => const SizedBox.shrink(),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+
             // 산책 시작 버튼
             _StartWalkButton(),
           ],
@@ -464,6 +477,72 @@ class _StatItem extends StatelessWidget {
         Text(label,
             style: const TextStyle(color: Colors.grey, fontSize: 13)),
       ],
+    );
+  }
+}
+
+// 오늘 만난 강아지들 카드
+class _TodayMeetsCard extends StatelessWidget {
+  final List<WalkMeet> meets;
+  const _TodayMeetsCard({required this.meets});
+
+  @override
+  Widget build(BuildContext context) {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('오늘 만난 강아지들',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 12),
+          if (meets.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('오늘은 아직 만난 강아지가 없어요 🐾',
+                    style: TextStyle(color: Colors.grey, fontSize: 14)),
+              ),
+            )
+          else
+            ...meets.map((meet) => _MeetItem(meet: meet)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MeetItem extends StatelessWidget {
+  final WalkMeet meet;
+  const _MeetItem({required this.meet});
+
+  @override
+  Widget build(BuildContext context) {
+    final dogNames = meet.dogs.map((d) => d.name).join(', ');
+    final hasWarnings = meet.dogs.any((d) => d.warnings.isNotEmpty);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          _dogIcon(size: 40, profileImage: meet.user.profileImage),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(meet.user.nickname,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(dogNames.isEmpty ? '강아지 정보 없음' : dogNames,
+                    style: const TextStyle(color: Colors.grey, fontSize: 13)),
+              ],
+            ),
+          ),
+          if (hasWarnings)
+            const Icon(Icons.warning_amber_rounded,
+                color: Colors.orange, size: 18),
+        ],
+      ),
     );
   }
 }

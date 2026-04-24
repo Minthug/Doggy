@@ -29,6 +29,30 @@ final monthlyWalkStatsProvider = FutureProvider<MonthlyWalkStats>((ref) async {
   );
 });
 
+// 오늘 만난 강아지들 (오늘 완료된 모든 세션 집계)
+final todayMeetsProvider = FutureProvider<List<WalkMeet>>((ref) async {
+  final history = await ref.watch(walkHistoryProvider.future);
+  final today = DateTime.now();
+
+  final todaySessions = history.where((s) {
+    if (s.startedAt == null) return false;
+    final started = DateTime.parse(s.startedAt!);
+    return started.year == today.year &&
+        started.month == today.month &&
+        started.day == today.day &&
+        s.status == 'COMPLETED';
+  }).toList();
+
+  if (todaySessions.isEmpty) return [];
+
+  final repo = ref.watch(walkRepositoryProvider);
+  final results = await Future.wait(
+    todaySessions.map((s) => repo.getMeets(s.id)),
+  );
+
+  return results.expand((list) => list).toList();
+});
+
 // 오늘 산책 통계만 추출
 final todayWalkStatsProvider = FutureProvider<TodayWalkStats>((ref) async {
   final history = await ref.watch(walkHistoryProvider.future);

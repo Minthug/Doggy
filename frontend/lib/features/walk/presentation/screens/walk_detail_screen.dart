@@ -189,7 +189,7 @@ class _DetailBody extends ConsumerWidget {
                         ),
                   loading: () => const Center(
                       child: CircularProgressIndicator()),
-                  error: (_, _e) => const SizedBox.shrink(),
+                  error: (_, _e) => const _EmptyMeets(),
                 ),
               ],
             ),
