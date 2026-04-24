@@ -87,7 +87,7 @@ class WalkDetail {
 class PublicRoute {
   final int sessionId;
   final String title;
-  final String authorNickname;
+  final String dogName;
   final int distanceMeters;
   final int durationSeconds;
   final String? startedAt;
@@ -99,7 +99,7 @@ class PublicRoute {
   PublicRoute({
     required this.sessionId,
     required this.title,
-    required this.authorNickname,
+    required this.dogName,
     required this.distanceMeters,
     required this.durationSeconds,
     this.startedAt,
@@ -112,7 +112,7 @@ class PublicRoute {
   factory PublicRoute.fromJson(Map<String, dynamic> json) => PublicRoute(
         sessionId: json['sessionId'],
         title: json['title'] ?? '',
-        authorNickname: json['authorNickname'] ?? '',
+        dogName: json['dogName'] ?? '댕댕이',
         distanceMeters: json['distanceMeters'] ?? 0,
         durationSeconds: json['durationSeconds'] ?? 0,
         startedAt: json['startedAt'],

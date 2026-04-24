@@ -253,7 +253,9 @@ public class WalkService {
                     boolean likedByMe = userId != null && likeRepository.existsBySessionIdAndUserId(session.getId(), userId);
                     boolean bookmarkedByMe = userId != null && bookmarkRepository.existsBySessionIdAndUserId(session.getId(), userId);
                     String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(session.getId());
-                    return PublicRouteResponse.of(session, likeCount, likedByMe, bookmarkedByMe, routeGeoJson);
+                    String dogName = dogRepository.findAllByUserId(session.getUser().getId())
+                            .stream().findFirst().map(d -> d.getName()).orElse("댕댕이");
+                    return PublicRouteResponse.of(session, dogName, likeCount, likedByMe, bookmarkedByMe, routeGeoJson);
                 })
                 .toList();
     }

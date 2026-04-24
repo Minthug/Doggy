@@ -118,7 +118,7 @@ class _RouteCardState extends State<_RouteCard> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.route.authorNickname,
+                  '${widget.route.dogName}의 산책 경로에요',
                   style: const TextStyle(fontSize: 13, color: Colors.grey),
                 ),
                 const SizedBox(height: 10),

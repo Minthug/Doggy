@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 public record PublicRouteResponse(
         Long sessionId,
         String title,
-        String authorNickname,
+        String dogName,
         int distanceMeters,
         int durationSeconds,
         LocalDateTime startedAt,
@@ -18,6 +18,7 @@ public record PublicRouteResponse(
 ) {
     public static PublicRouteResponse of(
             WalkSession session,
+            String dogName,
             long likeCount,
             boolean likedByMe,
             boolean bookmarkedByMe,
@@ -25,7 +26,7 @@ public record PublicRouteResponse(
         return new PublicRouteResponse(
                 session.getId(),
                 session.getTitle(),
-                session.getUser().getNickname(),
+                dogName,
                 session.getDistanceMeters(),
                 session.getDurationSeconds(),
                 session.getStartedAt(),
