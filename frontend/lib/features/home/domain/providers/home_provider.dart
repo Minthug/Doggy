@@ -23,3 +23,20 @@ final walkIndexProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     return repo.getWalkIndex();
   }
 });
+
+final walkForecastProvider = FutureProvider<List<dynamic>>((ref) async {
+  final repo = ref.watch(homeRepositoryProvider);
+  try {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return repo.getWalkForecast();
+    }
+    final pos = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+    ).timeout(const Duration(seconds: 5));
+    return repo.getWalkForecast(lat: pos.latitude, lng: pos.longitude);
+  } catch (_) {
+    return repo.getWalkForecast();
+  }
+});

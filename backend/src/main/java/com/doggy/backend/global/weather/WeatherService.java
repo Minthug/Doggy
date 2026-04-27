@@ -13,8 +13,11 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -416,8 +419,107 @@ public class WeatherService {
         return "2100";
     }
 
+    // ── 2시간 예보 (30분 간격 5슬롯) ─────────────────────────
+
+    public WalkForecastResponse getWalkForecast() {
+        return getWalkForecast(DEFAULT_LAT, DEFAULT_LNG);
+    }
+
+    public WalkForecastResponse getWalkForecast(double lat, double lng) {
+        int[] grid = KmaGridConverter.toGrid(lat, lng);
+        AirData air = fetchAirQuality(lat, lng);
+        List<HourlyForecast> hourly = fetchNextHourlyForecasts(grid, 3);
+
+        String[] labels = {"지금", "+30분", "+1시간", "+1시간30분", "+2시간"};
+        int[] hourIdx   = {0,     0,      1,      1,           2};
+
+        List<WalkForecastSlot> slots = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            int idx = Math.min(hourIdx[i], hourly.size() - 1);
+            HourlyForecast f = hourly.get(idx);
+            WalkIndex index = calculateIndex(new WeatherData(f.tmp, f.pop, f.pty), air);
+            slots.add(new WalkForecastSlot(
+                    labels[i], index, index.label, index.emoji,
+                    f.tmp, f.pop, precipitationLabel(f.pty), f.pty != 0
+            ));
+        }
+        return new WalkForecastResponse(slots);
+    }
+
+    private static String precipitationLabel(int pty) {
+        return switch (pty) {
+            case 1 -> "비";
+            case 2 -> "비/눈";
+            case 3 -> "눈";
+            case 4 -> "소나기";
+            default -> "없음";
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<HourlyForecast> fetchNextHourlyForecasts(int[] grid, int count) {
+        try {
+            String baseDate = getBaseDate();
+            String baseTime = getBaseTime();
+
+            String url = FORECAST_URL
+                    + "?serviceKey=" + apiKey
+                    + "&pageNo=1&numOfRows=500&dataType=JSON"
+                    + "&base_date=" + baseDate
+                    + "&base_time=" + baseTime
+                    + "&nx=" + grid[0]
+                    + "&ny=" + grid[1];
+
+            Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
+            Map<String, Object> body = (Map<String, Object>)
+                    ((Map<String, Object>) response.get("response")).get("body");
+            List<Map<String, Object>> items = (List<Map<String, Object>>)
+                    ((Map<String, Object>) body.get("items")).get("item");
+
+            ZonedDateTime now = ZonedDateTime.now(KST);
+            String nowKey = now.toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+                    + String.format("%02d00", now.getHour());
+
+            // (fcstDate+fcstTime) → [tmp, pop, pty]
+            Map<String, int[]> hourMap = new LinkedHashMap<>();
+
+            for (Map<String, Object> item : items) {
+                String fcstDate = (String) item.get("fcstDate");
+                String fcstTime = (String) item.get("fcstTime");
+                String category = (String) item.get("category");
+
+                if (!"TMP".equals(category) && !"POP".equals(category) && !"PTY".equals(category)) continue;
+                if ((fcstDate + fcstTime).compareTo(nowKey) < 0) continue;
+
+                String key = fcstDate + fcstTime;
+                hourMap.putIfAbsent(key, new int[]{20, 0, 0});
+                int[] vals = hourMap.get(key);
+                try {
+                    int v = (int) Math.round(Double.parseDouble(item.get("fcstValue").toString()));
+                    if ("TMP".equals(category))      vals[0] = v;
+                    else if ("POP".equals(category)) vals[1] = v;
+                    else if ("PTY".equals(category)) vals[2] = v;
+                } catch (NumberFormatException ignored) {}
+            }
+
+            List<HourlyForecast> result = hourMap.values().stream()
+                    .map(v -> new HourlyForecast(v[0], v[1], v[2]))
+                    .limit(count)
+                    .collect(Collectors.toList());
+
+            return result.isEmpty()
+                    ? List.of(new HourlyForecast(20, 0, 0))
+                    : result;
+
+        } catch (Exception e) {
+            log.warn("시간대별 예보 조회 실패: {}", e.getMessage());
+            return List.of(new HourlyForecast(20, 0, 0), new HourlyForecast(20, 0, 0), new HourlyForecast(20, 0, 0));
+        }
+    }
+
     // ── 내부 데이터 클래스 ────────────────────────────────────
 
     record WeatherData(int tmp, int pop, int pty) {}
     record AirData(int pm10, int pm25, String pm10Grade, String pm25Grade) {}
+    record HourlyForecast(int tmp, int pop, int pty) {}
 }

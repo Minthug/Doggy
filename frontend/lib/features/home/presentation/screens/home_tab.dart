@@ -320,12 +320,12 @@ class _StartWalkButton extends StatelessWidget {
 }
 
 // 산책 지수 카드
-class _WalkIndexCard extends StatelessWidget {
+class _WalkIndexCard extends ConsumerWidget {
   final Map<String, dynamic> data;
   const _WalkIndexCard({required this.data});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final index = data['index'] as String? ?? 'CAUTION';
     final label = data['label'] as String? ?? '산책 주의';
     final emoji = data['emoji'] as String? ?? '🟡';
@@ -341,6 +341,8 @@ class _WalkIndexCard extends StatelessWidget {
       'AVOID' => const Color(0xFFE53935),
       _ => const Color(0xFFFFA726),
     };
+
+    final forecastAsync = ref.watch(walkForecastProvider);
 
     return _card(
       child: Column(
@@ -381,6 +383,97 @@ class _WalkIndexCard extends StatelessWidget {
               _WeatherItem(icon: Icons.air, label: '미세먼지', value: pm10Grade),
               _WeatherItem(icon: Icons.grain, label: '초미세먼지', value: pm25Grade),
             ],
+          ),
+          forecastAsync.when(
+            data: (slots) => slots.isEmpty
+                ? const SizedBox.shrink()
+                : _ForecastTimeline(slots: slots),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForecastTimeline extends StatelessWidget {
+  final List<dynamic> slots;
+  const _ForecastTimeline({required this.slots});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 14, bottom: 10),
+          child: Divider(height: 1, color: Color(0xFFEEEEEE)),
+        ),
+        const Text('앞으로 2시간',
+            style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: slots.map<Widget>((slot) {
+              return _ForecastSlot(slot: slot as Map<String, dynamic>);
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ForecastSlot extends StatelessWidget {
+  final Map<String, dynamic> slot;
+  const _ForecastSlot({required this.slot});
+
+  @override
+  Widget build(BuildContext context) {
+    final timeLabel = slot['timeLabel'] as String? ?? '';
+    final index = slot['index'] as String? ?? 'GOOD';
+    final tmp = slot['temperature'] as int? ?? 0;
+    final isRaining = slot['isRaining'] as bool? ?? false;
+    final precipType = slot['precipitationType'] as String? ?? '없음';
+
+    final Color dotColor = switch (index) {
+      'GOOD' => const Color(0xFF4CAF50),
+      'AVOID' => const Color(0xFFE53935),
+      _ => const Color(0xFFFFA726),
+    };
+
+    final bool isSnow = precipType == '눈' || precipType == '비/눈';
+
+    return Container(
+      width: 64,
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+      decoration: BoxDecoration(
+        color: dotColor.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: dotColor.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Text(timeLabel,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 6),
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          ),
+          const SizedBox(height: 6),
+          Text('$tmp°',
+              style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.bold, color: dotColor)),
+          const SizedBox(height: 4),
+          Text(
+            isRaining ? (isSnow ? '❄️' : '☂️') : '☀️',
+            style: const TextStyle(fontSize: 16),
           ),
         ],
       ),

@@ -26,4 +26,14 @@ class HomeRepository {
     );
     return response.data as Map<String, dynamic>;
   }
+
+  Future<List<dynamic>> getWalkForecast({double? lat, double? lng}) async {
+    final response = await _dio.get(
+      '/api/weather/walk-forecast',
+      queryParameters: (lat != null && lng != null)
+          ? {'lat': lat, 'lng': lng}
+          : null,
+    );
+    return (response.data['slots'] as List);
+  }
 }

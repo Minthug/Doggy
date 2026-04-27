@@ -22,4 +22,14 @@ public class WeatherController {
         }
         return weatherService.getWalkIndex();
     }
+
+    @GetMapping("/walk-forecast")
+    public WalkForecastResponse getWalkForecast(
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lng) {
+        if (lat != null && lng != null) {
+            return weatherService.getWalkForecast(lat, lng);
+        }
+        return weatherService.getWalkForecast();
+    }
 }
