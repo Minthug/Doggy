@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -205,8 +206,21 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       if (state.status != WalkStatus.inProgress) return;
       _repository
           .updateLocation(session.id, pos.latitude, pos.longitude)
-          .catchError((e) { debugPrint('[핑] 위치 업데이트 실패: $e'); });
+          .catchError((e) {
+        debugPrint('[핑] 위치 업데이트 실패: $e');
+        _handlePingError(e);
+      });
     });
+  }
+
+  void _handlePingError(Object e) {
+    if (e is DioException && e.response?.statusCode == 400) {
+      _timer?.cancel();
+      _simTimer?.cancel();
+      _simPingTimer?.cancel();
+      _positionSubscription?.cancel();
+      state = state.copyWith(status: WalkStatus.completed);
+    }
   }
 
   void _applyPosition(double lat, double lng) {
@@ -388,7 +402,10 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
         _lastPingAt = now;
         _repository
             .updateLocation(session.id, position.latitude, position.longitude)
-            .catchError((e) { debugPrint('[핑] 위치 업데이트 실패: $e'); });
+            .catchError((e) {
+          debugPrint('[핑] 위치 업데이트 실패: $e');
+          _handlePingError(e);
+        });
       }
     });
   }
