@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../storage/token_storage.dart';
 
@@ -11,6 +12,34 @@ final dioProvider = Provider<Dio>((ref) {
     receiveTimeout: const Duration(seconds: 10),
     headers: {'Content-Type': 'application/json'},
   ));
+
+  // TODO(debug): 응답 시간 측정 — 필요없으면 이 블록 전체 삭제
+  if (kDebugMode) {
+    dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        options.extra['_startTime'] = DateTime.now().millisecondsSinceEpoch;
+        handler.next(options);
+      },
+      onResponse: (response, handler) {
+        final start = response.requestOptions.extra['_startTime'] as int?;
+        if (start != null) {
+          final ms = DateTime.now().millisecondsSinceEpoch - start;
+          debugPrint('[API] ${response.requestOptions.method} '
+              '${response.requestOptions.path} → ${response.statusCode} (${ms}ms)');
+        }
+        handler.next(response);
+      },
+      onError: (error, handler) {
+        final start = error.requestOptions.extra['_startTime'] as int?;
+        if (start != null) {
+          final ms = DateTime.now().millisecondsSinceEpoch - start;
+          debugPrint('[API] ${error.requestOptions.method} '
+              '${error.requestOptions.path} → ERROR (${ms}ms)');
+        }
+        handler.next(error);
+      },
+    ));
+  }
 
   // 요청마다 저장된 토큰을 자동으로 헤더에 붙임
   dio.interceptors.add(InterceptorsWrapper(
