@@ -7,7 +7,7 @@ final userProfileProvider = FutureProvider<UserProfile>((ref) async {
   return ref.watch(homeRepositoryProvider).getMyProfile();
 });
 
-final walkIndexProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+final walkIndexProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   final repo = ref.watch(homeRepositoryProvider);
   try {
     final permission = await Geolocator.checkPermission();
@@ -24,7 +24,7 @@ final walkIndexProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   }
 });
 
-final walkForecastProvider = FutureProvider<List<dynamic>>((ref) async {
+final walkForecastProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
   final repo = ref.watch(homeRepositoryProvider);
   try {
     final permission = await Geolocator.checkPermission();

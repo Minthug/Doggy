@@ -40,6 +40,8 @@ class HomeTab extends ConsumerWidget {
           ref.invalidate(myDogsProvider);
           ref.invalidate(todayWalkStatsProvider);
           ref.invalidate(walkIndexProvider);
+          ref.invalidate(walkForecastProvider);
+          ref.invalidate(todayMeetsProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
