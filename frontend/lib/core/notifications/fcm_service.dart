@@ -149,7 +149,24 @@ class FcmService {
     final channelId = message.data['channel'] as String? ?? 'walk_reminder';
     final bannerType = _toBannerType(channelId);
 
-    // BannerLayer(MainScreen Stack)가 Platform View 위에 렌더링되므로 overlay 불필요
+    // 시스템 알림함에 영구 표시 (카카오톡처럼 남아있음)
+    await _localNotifications.show(
+      message.hashCode,
+      notification.title,
+      notification.body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          _channelName(channelId),
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+        ),
+      ),
+    );
+
+    // 인앱 배너도 함께 표시
     InAppBanner.emit(
       title: notification.title ?? '',
       body: notification.body ?? '',
