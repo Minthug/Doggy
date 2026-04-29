@@ -437,6 +437,7 @@ class _ForecastSlot extends StatelessWidget {
     final tmp = slot['temperature'] as int? ?? 0;
     final isRaining = slot['isRaining'] as bool? ?? false;
     final precipType = slot['precipitationType'] as String? ?? '없음';
+    final isNight = slot['isNight'] as bool? ?? false;
 
     final Color dotColor = switch (index) {
       'GOOD' => const Color(0xFF4CAF50),
@@ -475,7 +476,7 @@ class _ForecastSlot extends StatelessWidget {
                   fontSize: 14, fontWeight: FontWeight.bold, color: dotColor)),
           const SizedBox(height: 4),
           Text(
-            isRaining ? (isSnow ? '❄️' : '☂️') : '☀️',
+            isRaining ? (isSnow ? '❄️' : '☂️') : (isNight ? '🌙' : '☀️'),
             style: const TextStyle(fontSize: 16),
           ),
         ],

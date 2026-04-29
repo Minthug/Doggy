@@ -8,5 +8,6 @@ public record WalkForecastSlot(
         int temperature,
         int precipitationProbability,
         String precipitationType,
-        boolean isRaining
+        boolean isRaining,
+        boolean isNight
 ) {}

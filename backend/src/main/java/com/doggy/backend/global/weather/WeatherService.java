@@ -121,7 +121,10 @@ public class WeatherService {
         WeatherData nowWeather = safeGet(nowFuture, null);
 
         String[] labels = {"지금", "+30분", "+1시간", "+1시간30분", "+2시간"};
-        int[] hourIdx   = {0,      0,       1,       1,            2};
+        int[] hourIdx         = {0,  0,   1,   1,   2};
+        int[] offsetMinutes   = {0, 30,  60,  90, 120};
+
+        ZonedDateTime now = ZonedDateTime.now(KST);
 
         List<WalkForecastSlot> slots = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
@@ -132,10 +135,13 @@ public class WeatherService {
             int tmp = (i < 2 && nowWeather != null) ? nowWeather.tmp() : f.tmp();
             int pty = (i < 2 && nowWeather != null) ? nowWeather.pty() : f.pty();
 
+            ZonedDateTime slotTime = now.plusMinutes(offsetMinutes[i]);
+            boolean isNight = isNight(lat, slotTime);
+
             WalkIndex index = calculateIndex(new WeatherData(tmp, f.pop(), pty), air);
             slots.add(new WalkForecastSlot(
                     labels[i], index, index.label, index.emoji,
-                    tmp, f.pop(), precipitationLabel(pty), pty != 0));
+                    tmp, f.pop(), precipitationLabel(pty), pty != 0, isNight));
         }
 
         WalkForecastResponse result = new WalkForecastResponse(slots);
@@ -512,6 +518,29 @@ public class WeatherService {
         if (now.isBefore(LocalTime.of(18, 0))) return "1500";
         if (now.isBefore(LocalTime.of(21, 0))) return "1800";
         return "2100";
+    }
+
+    /**
+     * 위도·슬롯 시각 기준으로 야간 여부를 반환한다.
+     * 태양 적위 공식(Spencer): 일출/일몰 시각을 ±15분 이내 정확도로 계산.
+     */
+    private boolean isNight(double lat, ZonedDateTime slotTime) {
+        int N = slotTime.getDayOfYear();
+        // 태양 적위 (라디안)
+        double decl = Math.toRadians(
+                -23.45 * Math.cos(Math.toRadians(360.0 / 365.0 * (N + 10))));
+        double latRad = Math.toRadians(lat);
+
+        double cosH = -Math.tan(latRad) * Math.tan(decl);
+        if (cosH >= 1)  return true;   // 극야
+        if (cosH <= -1) return false;  // 백야
+
+        double H = Math.toDegrees(Math.acos(cosH)); // 시간각 (도)
+        double sunriseHour = 12.0 - H / 15.0;
+        double sunsetHour  = 12.0 + H / 15.0;
+
+        double slotHour = slotTime.getHour() + slotTime.getMinute() / 60.0;
+        return slotHour < sunriseHour || slotHour >= sunsetHour;
     }
 
     // ── 내부 데이터 클래스 ────────────────────────────────────
