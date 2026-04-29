@@ -449,7 +449,7 @@ class _ForecastSlot extends StatelessWidget {
     final bool isSnow = precipType == '눈' || precipType == '비/눈';
 
     return Container(
-      width: 64,
+      width: 72,
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
       decoration: BoxDecoration(
@@ -459,9 +459,12 @@ class _ForecastSlot extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(timeLabel,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-              textAlign: TextAlign.center),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(timeLabel,
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                textAlign: TextAlign.center),
+          ),
           const SizedBox(height: 6),
           Container(
             width: 10,

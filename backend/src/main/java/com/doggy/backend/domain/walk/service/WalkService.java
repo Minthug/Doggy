@@ -19,7 +19,6 @@ import com.doggy.backend.global.exception.BusinessException;
 import com.doggy.backend.global.fcm.FcmService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -245,9 +244,15 @@ public class WalkService {
         session.makePrivate();
     }
 
+    private static final double PUBLIC_ROUTE_RADIUS_METERS = 50_000.0; // 50km
+
     // 공개 경로 피드
-    public List<PublicRouteResponse> getPublicRoutes(Long userId, int page, int size) {
-        return walkSessionRepository.findPublicRoutes(PageRequest.of(page, size)).stream()
+    public List<PublicRouteResponse> getPublicRoutes(Long userId, Double lat, Double lng, int page, int size) {
+        List<WalkSession> sessions = (lat != null && lng != null)
+                ? walkSessionRepository.findPublicRoutesNearby(lat, lng, PUBLIC_ROUTE_RADIUS_METERS, size, page * size)
+                : walkSessionRepository.findPublicRoutesByLikes(size, page * size);
+
+        return sessions.stream()
                 .map(session -> {
                     long likeCount = likeRepository.countBySessionId(session.getId());
                     boolean likedByMe = userId != null && likeRepository.existsBySessionIdAndUserId(session.getId(), userId);

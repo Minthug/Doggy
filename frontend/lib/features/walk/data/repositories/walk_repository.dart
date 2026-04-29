@@ -70,10 +70,17 @@ class WalkRepository {
     await _dio.patch('/api/walks/$sessionId/unpublish');
   }
 
-  Future<List<PublicRoute>> getPublicRoutes({int page = 0, int size = 20}) async {
+  Future<List<PublicRoute>> getPublicRoutes({
+    int page = 0,
+    int size = 20,
+    double? lat,
+    double? lng,
+  }) async {
     final response = await _dio.get('/api/walks/public', queryParameters: {
       'page': page,
       'size': size,
+      if (lat != null) 'lat': lat,
+      if (lng != null) 'lng': lng,
     });
     return (response.data as List).map((e) => PublicRoute.fromJson(e)).toList();
   }

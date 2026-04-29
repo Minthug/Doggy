@@ -86,9 +86,11 @@ public class WalkController {
     public ResponseEntity<List<PublicRouteResponse>> getPublicRoutes(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lng) {
         Long userId = principal != null ? principal.getId() : null;
-        return ResponseEntity.ok(walkService.getPublicRoutes(userId, page, size));
+        return ResponseEntity.ok(walkService.getPublicRoutes(userId, lat, lng, page, size));
     }
 
     @PatchMapping("/{sessionId}/location")

@@ -2,11 +2,27 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
 
 final _publicRoutesProvider = FutureProvider.autoDispose<List<PublicRoute>>((ref) async {
-  return ref.watch(walkRepositoryProvider).getPublicRoutes();
+  double? lat, lng;
+  try {
+    final permission = await Geolocator.checkPermission();
+    if (permission != LocationPermission.denied &&
+        permission != LocationPermission.deniedForever) {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+      lat = position.latitude;
+      lng = position.longitude;
+    }
+  } catch (_) {}
+  return ref.read(walkRepositoryProvider).getPublicRoutes(lat: lat, lng: lng);
 });
 
 class PublicRoutesScreen extends ConsumerWidget {
