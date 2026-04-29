@@ -150,22 +150,14 @@ public class WeatherService {
         return WalkIndex.GOOD;
     }
 
-    // ── 기상청 날씨 (기온 + 강수 병렬) ────────────────────────
+    // ── 기상청 초단기실황 (기온 + 강수형태 한 번에) ────────────
 
     private WeatherData fetchWeather(int[] grid) {
-        // 초단기실황(기온)과 단기예보(강수)를 병렬 호출
-        CompletableFuture<Integer> tmpFuture =
-                CompletableFuture.supplyAsync(() -> fetchObservedTemperature(grid), executor);
-        CompletableFuture<int[]> precipFuture =
-                CompletableFuture.supplyAsync(() -> fetchPrecipitation(grid), executor);
-
-        int tmp    = safeGet(tmpFuture, 20);
-        int[] popPty = safeGet(precipFuture, new int[]{0, 0});
-        return new WeatherData(tmp, popPty[0], popPty[1]);
+        return fetchObservation(grid);
     }
 
     @SuppressWarnings("unchecked")
-    private int fetchObservedTemperature(int[] grid) {
+    private WeatherData fetchObservation(int[] grid) {
         try {
             String baseDate = getBaseDate();
             String baseTime = getObsBaseTime();
@@ -184,60 +176,21 @@ public class WeatherService {
             List<Map<String, Object>> items = (List<Map<String, Object>>)
                     ((Map<String, Object>) body.get("items")).get("item");
 
+            int tmp = 20, pty = 0;
             for (Map<String, Object> item : items) {
-                if ("T1H".equals(item.get("category"))) {
-                    double val = Double.parseDouble(item.get("obsrValue").toString());
-                    log.info("초단기실황 기온 ({}{}) - {}도", baseDate, baseTime, val);
-                    return (int) Math.round(val);
-                }
-            }
-        } catch (Exception e) {
-            log.warn("초단기실황 API 호출 실패: {}", e.getMessage());
-        }
-        return 20;
-    }
-
-    @SuppressWarnings("unchecked")
-    private int[] fetchPrecipitation(int[] grid) {
-        try {
-            String baseDate = getBaseDate();
-            String baseTime = getBaseTime();
-
-            String url = FORECAST_URL
-                    + "?serviceKey=" + apiKey
-                    + "&pageNo=1&numOfRows=300&dataType=JSON"
-                    + "&base_date=" + baseDate
-                    + "&base_time=" + baseTime
-                    + "&nx=" + grid[0]
-                    + "&ny=" + grid[1];
-
-            Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
-            Map<String, Object> body = (Map<String, Object>)
-                    ((Map<String, Object>) response.get("response")).get("body");
-            List<Map<String, Object>> items = (List<Map<String, Object>>)
-                    ((Map<String, Object>) body.get("items")).get("item");
-
-            String targetDate = getTargetFcstDate();
-            String targetTime = getTargetFcstTime();
-            int pop = 0, pty = 0;
-
-            for (Map<String, Object> item : items) {
-                if (!targetDate.equals(item.get("fcstDate"))) continue;
-                if (!targetTime.equals(item.get("fcstTime"))) continue;
                 String category = (String) item.get("category");
-                if (!"POP".equals(category) && !"PTY".equals(category)) continue;
                 try {
-                    int value = (int) Math.round(Double.parseDouble(item.get("fcstValue").toString()));
-                    if ("POP".equals(category)) pop = value;
-                    else pty = value;
+                    double val = Double.parseDouble(item.get("obsrValue").toString());
+                    if ("T1H".equals(category)) tmp = (int) Math.round(val);
+                    else if ("PTY".equals(category)) pty = (int) val;
                 } catch (NumberFormatException ignored) {}
             }
-            log.info("단기예보 ({}{}) - 강수확률:{}%, 강수형태:{}", targetDate, targetTime, pop, pty);
-            return new int[]{pop, pty};
+            log.info("초단기실황 ({}{}) - 기온:{}도 강수형태:{}", baseDate, baseTime, tmp, pty);
+            return new WeatherData(tmp, 0, pty);
 
         } catch (Exception e) {
-            log.warn("단기예보 API 호출 실패: {}", e.getMessage());
-            return new int[]{0, 0};
+            log.warn("초단기실황 API 호출 실패: {}", e.getMessage());
+            return new WeatherData(20, 0, 0);
         }
     }
 
@@ -245,11 +198,8 @@ public class WeatherService {
 
     private AirData fetchAirQuality(double lat, double lng) {
         try {
-            String stationName = fetchNearestStation(lat, lng);
-            if (stationName == null) {
-                log.warn("근처 측정소를 찾지 못했습니다. 기본값 사용");
-                return new AirData(30, 10, "보통", "보통");
-            }
+            // 측정소 조회 API 대신 좌표 기반 fallback으로 즉시 결정 (API 호출 1개 절약)
+            String stationName = fallbackStation(lat, lng);
             String encodedStation = URLEncoder.encode(stationName, StandardCharsets.UTF_8);
             String url = AIR_STATION_URL + "?serviceKey=" + airStationApiKey
                     + "&returnType=json&numOfRows=1&pageNo=1"

@@ -333,7 +333,6 @@ class _WalkIndexCard extends ConsumerWidget {
     final emoji = data['emoji'] as String? ?? '🟡';
     final description = data['description'] as String? ?? '';
     final tmp = data['temperature'] as int? ?? 0;
-    final pop = data['precipitationProbability'] as int? ?? 0;
     final pm10Grade = data['pm10Grade'] as String? ?? '보통';
     final pm25Grade = data['pm25Grade'] as String? ?? '보통';
     final precipitation = data['precipitationType'] as String? ?? '없음';
@@ -380,7 +379,6 @@ class _WalkIndexCard extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _WeatherItem(icon: Icons.thermostat, label: '기온', value: '$tmp°C'),
-              _WeatherItem(icon: Icons.umbrella, label: '강수확률', value: '$pop%'),
               _WeatherItem(icon: Icons.water_drop_outlined, label: '날씨', value: precipitation),
               _WeatherItem(icon: Icons.air, label: '미세먼지', value: pm10Grade),
               _WeatherItem(icon: Icons.grain, label: '초미세먼지', value: pm25Grade),
