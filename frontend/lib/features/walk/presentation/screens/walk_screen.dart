@@ -283,10 +283,30 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       try {
         await notifier.completeWalk();
       } catch (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('산책 저장에 실패했습니다. 다시 시도해주세요.')),
-          );
+        if (!mounted) return;
+        // ignore: use_build_context_synchronously
+        final retry = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Text('저장 실패'),
+            content: const Text('네트워크 문제로 산책 기록 저장에 실패했습니다.\n다시 시도하시겠어요?\n(경로 데이터는 유지됩니다)'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('취소'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50)),
+                child: const Text('재시도', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+        if (retry == true && mounted) {
+          // ignore: use_build_context_synchronously
+          _confirmComplete(context);
         }
         return;
       }

@@ -291,13 +291,27 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _simPingTimer?.cancel();
     _positionSubscription?.cancel();
 
-    await _repository.complete(
-      sessionId: state.session!.id,
-      points: state.points.map((p) => p.toJson()).toList(),
-      endedAt: DateTime.now(),
-    );
+    final endedAt = DateTime.now();
+    final points = state.points.map((p) => p.toJson()).toList();
+    final sessionId = state.session!.id;
 
-    state = state.copyWith(status: WalkStatus.completed);
+    Object? lastError;
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        await _repository.complete(
+          sessionId: sessionId,
+          points: points,
+          endedAt: endedAt,
+        );
+        state = state.copyWith(status: WalkStatus.completed);
+        return;
+      } catch (e) {
+        lastError = e;
+        debugPrint('[산책완료] 저장 실패 (시도 ${attempt + 1}/3): $e');
+        if (attempt < 2) await Future.delayed(const Duration(seconds: 2));
+      }
+    }
+    throw lastError!;
   }
 
   static const stepLat = 0.00009;
