@@ -280,12 +280,25 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     if (confirm == true) {
       final notifier = ref.read(walkActiveProvider.notifier);
       final walkState = ref.read(walkActiveProvider);
-      await notifier.completeWalk();
+      try {
+        await notifier.completeWalk();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('산책 저장에 실패했습니다. 다시 시도해주세요.')),
+          );
+        }
+        return;
+      }
       if (!mounted) return;
       // ignore: use_build_context_synchronously
       await _showWalkResult(context, walkState);
       notifier.resetWalk();
-      ref.invalidate(walkHistoryProvider); // 서버 재조회 → todayWalkStats 자동 갱신
+      // walkHistoryProvider + 파생 프로바이더 모두 명시적으로 무효화
+      // (홈 탭이 트리에 없을 때 cascade가 동작 안 할 수 있으므로 직접 지정)
+      ref.invalidate(walkHistoryProvider);
+      ref.invalidate(todayWalkStatsProvider);
+      ref.invalidate(todayMeetsProvider);
     }
   }
 
