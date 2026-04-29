@@ -107,15 +107,18 @@ public class WeatherService {
 
         int[] grid = KmaGridConverter.toGrid(lat, lng);
 
-        // 에어코리아와 시간대별 예보를 병렬 호출
+        // 3개 병렬 호출: 에어코리아 + 시간대별 예보 + 초단기실황(지금/+30분 온도 실측 보정)
         CompletableFuture<AirData> airFuture =
                 CompletableFuture.supplyAsync(() -> fetchAirQuality(lat, lng), executor);
         CompletableFuture<List<HourlyForecast>> hourlyFuture =
                 CompletableFuture.supplyAsync(() -> fetchNextHourlyForecasts(grid, 3), executor);
+        CompletableFuture<WeatherData> nowFuture =
+                CompletableFuture.supplyAsync(() -> fetchObservation(grid), executor);
 
-        AirData air              = safeGet(airFuture,     new AirData(30, 10, "보통", "보통"));
+        AirData air = safeGet(airFuture, new AirData(30, 10, "보통", "보통"));
         List<HourlyForecast> hourly = safeGet(hourlyFuture,
                 List.of(new HourlyForecast(20, 0, 0), new HourlyForecast(20, 0, 0), new HourlyForecast(20, 0, 0)));
+        WeatherData nowWeather = safeGet(nowFuture, null);
 
         String[] labels = {"지금", "+30분", "+1시간", "+1시간30분", "+2시간"};
         int[] hourIdx   = {0,      0,       1,       1,            2};
@@ -124,10 +127,15 @@ public class WeatherService {
         for (int i = 0; i < 5; i++) {
             int idx = Math.min(hourIdx[i], hourly.size() - 1);
             HourlyForecast f = hourly.get(idx);
-            WalkIndex index = calculateIndex(new WeatherData(f.tmp(), f.pop(), f.pty()), air);
+
+            // "지금"·"+30분"은 초단기실황 실측 온도·강수형태로 보정
+            int tmp = (i < 2 && nowWeather != null) ? nowWeather.tmp() : f.tmp();
+            int pty = (i < 2 && nowWeather != null) ? nowWeather.pty() : f.pty();
+
+            WalkIndex index = calculateIndex(new WeatherData(tmp, f.pop(), pty), air);
             slots.add(new WalkForecastSlot(
                     labels[i], index, index.label, index.emoji,
-                    f.tmp(), f.pop(), precipitationLabel(f.pty()), f.pty() != 0));
+                    tmp, f.pop(), precipitationLabel(pty), pty != 0));
         }
 
         WalkForecastResponse result = new WalkForecastResponse(slots);
