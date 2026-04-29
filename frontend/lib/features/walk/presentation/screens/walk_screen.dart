@@ -489,23 +489,24 @@ class _ControlButtons extends StatelessWidget {
               color: const Color(0xFF4CAF50),
               onTap: onStart,
             ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: OutlinedButton.icon(
-                onPressed: onSimulate,
-                icon: const Icon(Icons.route, size: 18),
-                label: const Text('시뮬레이션 테스트',
-                    style: TextStyle(fontSize: 14)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey[600],
-                  side: BorderSide(color: Colors.grey[350]!),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
+            // TODO(test): 시뮬레이션 버튼 — 필요 시 주석 해제
+            // const SizedBox(height: 8),
+            // SizedBox(
+            //   width: double.infinity,
+            //   height: 44,
+            //   child: OutlinedButton.icon(
+            //     onPressed: onSimulate,
+            //     icon: const Icon(Icons.route, size: 18),
+            //     label: const Text('시뮬레이션 테스트',
+            //         style: TextStyle(fontSize: 14)),
+            //     style: OutlinedButton.styleFrom(
+            //       foregroundColor: Colors.grey[600],
+            //       side: BorderSide(color: Colors.grey[350]!),
+            //       shape: RoundedRectangleBorder(
+            //           borderRadius: BorderRadius.circular(12)),
+            //     ),
+            //   ),
+            // ),
           ],
         );
 
@@ -513,22 +514,22 @@ class _ControlButtons extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (walkState.isSimulating)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.route, size: 14, color: Colors.orange[700]),
-                    const SizedBox(width: 4),
-                    Text('시뮬레이션 모드',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.orange[700],
-                            fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
+            // if (walkState.isSimulating)
+            //   Padding(
+            //     padding: const EdgeInsets.only(bottom: 8),
+            //     child: Row(
+            //       mainAxisAlignment: MainAxisAlignment.center,
+            //       children: [
+            //         Icon(Icons.route, size: 14, color: Colors.orange[700]),
+            //         const SizedBox(width: 4),
+            //         Text('시뮬레이션 모드',
+            //             style: TextStyle(
+            //                 fontSize: 12,
+            //                 color: Colors.orange[700],
+            //                 fontWeight: FontWeight.bold)),
+            //       ],
+            //     ),
+            //   ),
             Row(
               children: [
                 Expanded(
