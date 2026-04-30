@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface PlaceVoteRepository extends JpaRepository<PlaceVote, Long> {
@@ -19,4 +20,12 @@ public interface PlaceVoteRepository extends JpaRepository<PlaceVote, Long> {
             WHERE v.place.id = :placeId AND v.voteType = 'HELPFUL'
             """)
     long countHelpfulByPlaceId(@Param("placeId") Long placeId);
+
+    // 여러 장소의 HELPFUL 카운트를 한 번에 조회 (N+1 방지)
+    @Query(value = """
+            SELECT place_id, COUNT(*) FROM place_votes
+            WHERE vote_type = 'HELPFUL' AND place_id IN (:placeIds)
+            GROUP BY place_id
+            """, nativeQuery = true)
+    List<Object[]> countHelpfulByPlaceIds(@Param("placeIds") List<Long> placeIds);
 }

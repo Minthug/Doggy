@@ -18,6 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +28,8 @@ import java.util.List;
 public class PlaceService {
 
     private static final double DEFAULT_RADIUS_METERS = 1000;
+    private static final long CACHE_TTL_MS = 3 * 60 * 1000L; // 3분
+    private final ConcurrentHashMap<String, Object[]> cache = new ConcurrentHashMap<>();
 
     private final PlaceRepository placeRepository;
     private final PlaceVoteRepository placeVoteRepository;
@@ -33,16 +38,41 @@ public class PlaceService {
     // 반경 내 전체 장소 검색
     public List<PlaceResponse> findNearby(double lat, double lng, Double radiusMeters) {
         double radius = radiusMeters != null ? radiusMeters : DEFAULT_RADIUS_METERS;
-        return placeRepository.findNearby(lat, lng, radius).stream()
-                .map(place -> PlaceResponse.of(place, countHelpful(place.getId())))
-                .toList();
+        String key = cacheKey(lat, lng, radius, null);
+        List<PlaceResponse> cached = fromCache(key);
+        if (cached != null) return cached;
+
+        List<Place> places = placeRepository.findNearby(lat, lng, radius);
+        List<PlaceResponse> result = toResponses(places);
+        toCache(key, result);
+        return result;
     }
 
     // 반경 내 카테고리별 장소 검색
     public List<PlaceResponse> findNearbyByCategory(double lat, double lng, Double radiusMeters, Category category) {
         double radius = radiusMeters != null ? radiusMeters : DEFAULT_RADIUS_METERS;
-        return placeRepository.findNearbyByCategory(lat, lng, radius, category.name()).stream()
-                .map(place -> PlaceResponse.of(place, countHelpful(place.getId())))
+        String key = cacheKey(lat, lng, radius, category.name());
+        List<PlaceResponse> cached = fromCache(key);
+        if (cached != null) return cached;
+
+        List<Place> places = placeRepository.findNearbyByCategory(lat, lng, radius, category.name());
+        List<PlaceResponse> result = toResponses(places);
+        toCache(key, result);
+        return result;
+    }
+
+    // N+1 없이 한 번에 vote count 조회
+    private List<PlaceResponse> toResponses(List<Place> places) {
+        if (places.isEmpty()) return List.of();
+        List<Long> ids = places.stream().map(Place::getId).toList();
+        Map<Long, Long> helpfulCounts = placeVoteRepository.countHelpfulByPlaceIds(ids)
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).longValue(),
+                        row -> ((Number) row[1]).longValue()
+                ));
+        return places.stream()
+                .map(p -> PlaceResponse.of(p, helpfulCounts.getOrDefault(p.getId(), 0L)))
                 .toList();
     }
 
@@ -107,5 +137,21 @@ public class PlaceService {
 
     private long countHelpful(Long placeId) {
         return placeVoteRepository.countHelpfulByPlaceId(placeId);
+    }
+
+    private String cacheKey(double lat, double lng, double radius, String category) {
+        return Math.round(lat * 100) + ":" + Math.round(lng * 100) + ":" + (int) radius + ":" + category;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T fromCache(String key) {
+        Object[] entry = cache.get(key);
+        if (entry == null) return null;
+        if (System.currentTimeMillis() > (long) entry[1]) { cache.remove(key); return null; }
+        return (T) entry[0];
+    }
+
+    private void toCache(String key, Object value) {
+        cache.put(key, new Object[]{value, System.currentTimeMillis() + CACHE_TTL_MS});
     }
 }

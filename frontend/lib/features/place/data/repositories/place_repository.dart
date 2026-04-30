@@ -50,7 +50,11 @@ class PlaceRepository {
     };
     if (category != null) params['category'] = category;
 
-    final response = await _dio.get('/api/places', queryParameters: params);
+    final response = await _dio.get(
+      '/api/places',
+      queryParameters: params,
+      options: Options(receiveTimeout: const Duration(seconds: 20)),
+    );
     return (response.data as List).map((e) => Place.fromJson(e)).toList();
   }
 }
