@@ -78,30 +78,8 @@ public class WalkService {
         return WalkSessionResponse.from(session);
     }
 
+    @Transactional
     public WalkDetailResponse complete(Long userId, Long sessionId, CompleteWalkRequest request) {
-        WalkSession session = completeInTransaction(userId, sessionId, request);
-
-        // GeoJSON 생성 후 세션에 저장 (나중에 points 삭제돼도 경로 보존)
-        String routeGeoJson = null;
-        try {
-            routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
-            if (routeGeoJson != null) {
-                persistGeoJson(sessionId, routeGeoJson);
-            }
-        } catch (Exception e) {
-            log.warn("경로 GeoJSON 생성 실패: {}", e.getMessage());
-        }
-        return WalkDetailResponse.of(session, routeGeoJson);
-    }
-
-    @Transactional
-    protected void persistGeoJson(Long sessionId, String geoJson) {
-        walkSessionRepository.findById(sessionId)
-                .ifPresent(s -> s.saveRouteGeoJson(geoJson));
-    }
-
-    @Transactional
-    protected WalkSession completeInTransaction(Long userId, Long sessionId, CompleteWalkRequest request) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
 
@@ -109,7 +87,6 @@ public class WalkService {
             throw BusinessException.badRequest("이미 완료된 산책입니다");
         }
 
-        // JdbcTemplate 벌크 INSERT — IDENTITY 전략 우회, N번 왕복 → 1번 배치
         if (!request.points().isEmpty()) {
             String sql = "INSERT INTO walk_points (session_id, recorded_at, lat, lng, accuracy) VALUES (?, ?, ?, ?, ?)";
             jdbcTemplate.batchUpdate(sql, request.points(), request.points().size(), (ps, p) -> {
@@ -133,10 +110,17 @@ public class WalkService {
         session.complete(request.endedAt(), distanceMeters, durationSeconds);
         walkPingService.removeLocation(sessionId);
 
-        int newMonthlyMeters = prevMonthlyMeters + distanceMeters;
-        sendGoalAchievedNotificationIfNeeded(userId, prevMonthlyMeters, newMonthlyMeters);
+        sendGoalAchievedNotificationIfNeeded(userId, prevMonthlyMeters, prevMonthlyMeters + distanceMeters);
 
-        return session;
+        // GeoJSON 생성 후 세션에 저장 (트랜잭션 내 — 방금 INSERT한 points 바로 읽음)
+        try {
+            String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+            if (routeGeoJson != null) session.saveRouteGeoJson(routeGeoJson);
+            return WalkDetailResponse.of(session, routeGeoJson);
+        } catch (Exception e) {
+            log.warn("경로 GeoJSON 생성 실패: {}", e.getMessage());
+            return WalkDetailResponse.of(session, null);
+        }
     }
 
     private void sendGoalAchievedNotificationIfNeeded(Long userId, int prevMeters, int newMeters) {
