@@ -366,7 +366,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     final locationSettings = Platform.isIOS
         ? AppleSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
+            distanceFilter: 15,
             activityType: ActivityType.fitness,
             allowBackgroundLocationUpdates: true,
             pauseLocationUpdatesAutomatically: false,
@@ -374,7 +374,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
           )
         : AndroidSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
+            distanceFilter: 15,
             foregroundNotificationConfig: const ForegroundNotificationConfig(
               notificationTitle: '산책 중',
               notificationText: '경로를 기록하고 있습니다.',
