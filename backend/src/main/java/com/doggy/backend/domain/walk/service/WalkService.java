@@ -6,7 +6,6 @@ import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.PushSettingRepository;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.domain.walk.dto.*;
-import com.doggy.backend.domain.walk.entity.WalkPoint;
 import com.doggy.backend.domain.walk.entity.WalkRouteBookmark;
 import com.doggy.backend.domain.walk.entity.WalkRouteLike;
 import com.doggy.backend.domain.walk.entity.WalkSession;
@@ -20,10 +19,12 @@ import com.doggy.backend.global.fcm.FcmService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -42,6 +43,7 @@ public class WalkService {
     private final PushSettingRepository pushSettingRepository;
     private final FcmService fcmService;
     private final WalkPingService walkPingService;
+    private final JdbcTemplate jdbcTemplate;
 
     @Transactional
     public WalkSessionResponse start(Long userId) {
@@ -76,45 +78,11 @@ public class WalkService {
         return WalkSessionResponse.from(session);
     }
 
-    @Transactional
     public WalkDetailResponse complete(Long userId, Long sessionId, CompleteWalkRequest request) {
-        WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
-                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+        // 1단계: 트랜잭션 내 쓰기 작업 (벌크 INSERT 포함)
+        WalkSession session = completeInTransaction(userId, sessionId, request);
 
-        if (session.getStatus() == Status.COMPLETED) {
-            throw BusinessException.badRequest("이미 완료된 산책입니다");
-        }
-
-        List<WalkPoint> points = request.points().stream()
-                .map(p -> WalkPoint.builder()
-                        .session(session)
-                        .recordedAt(p.recordedAt())
-                        .lat(p.lat())
-                        .lng(p.lng())
-                        .accuracy(p.accuracy())
-                        .build())
-                .toList();
-
-        walkPointRepository.saveAll(points);
-
-        int distanceMeters = calculateDistance(request.points());
-        int durationSeconds = (int) java.time.Duration.between(
-                session.getStartedAt(), request.endedAt()).getSeconds();
-
-        // 완료 전 이번 달 누적 거리 (이 세션 제외)
-        LocalDateTime now = request.endedAt();
-        int prevMonthlyMeters = walkSessionRepository.sumDistanceByUserAndMonth(
-                userId, now.getYear(), now.getMonthValue());
-
-        session.complete(request.endedAt(), distanceMeters, durationSeconds);
-        walkPingService.removeLocation(sessionId);
-
-        // 완료 후 누적
-        int newMonthlyMeters = prevMonthlyMeters + distanceMeters;
-
-        // 달성 알림: 이번 완료로 처음 목표를 넘었을 때만 전송
-        sendGoalAchievedNotificationIfNeeded(userId, prevMonthlyMeters, newMonthlyMeters);
-
+        // 2단계: 트랜잭션 밖에서 GeoJSON 생성 (느린 PostGIS 쿼리 분리)
         String routeGeoJson = null;
         try {
             routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
@@ -122,6 +90,45 @@ public class WalkService {
             log.warn("경로 GeoJSON 생성 실패: {}", e.getMessage());
         }
         return WalkDetailResponse.of(session, routeGeoJson);
+    }
+
+    @Transactional
+    protected WalkSession completeInTransaction(Long userId, Long sessionId, CompleteWalkRequest request) {
+        WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+
+        if (session.getStatus() == Status.COMPLETED) {
+            throw BusinessException.badRequest("이미 완료된 산책입니다");
+        }
+
+        // JdbcTemplate 벌크 INSERT — IDENTITY 전략 우회, N번 왕복 → 1번 배치
+        if (!request.points().isEmpty()) {
+            String sql = "INSERT INTO walk_points (session_id, recorded_at, lat, lng, accuracy) VALUES (?, ?, ?, ?, ?)";
+            jdbcTemplate.batchUpdate(sql, request.points(), request.points().size(), (ps, p) -> {
+                ps.setLong(1, sessionId);
+                ps.setTimestamp(2, Timestamp.valueOf(p.recordedAt()));
+                ps.setDouble(3, p.lat());
+                ps.setDouble(4, p.lng());
+                if (p.accuracy() != null) ps.setFloat(5, p.accuracy());
+                else ps.setNull(5, java.sql.Types.FLOAT);
+            });
+        }
+
+        int distanceMeters = calculateDistance(request.points());
+        int durationSeconds = (int) java.time.Duration.between(
+                session.getStartedAt(), request.endedAt()).getSeconds();
+
+        LocalDateTime now = request.endedAt();
+        int prevMonthlyMeters = walkSessionRepository.sumDistanceByUserAndMonth(
+                userId, now.getYear(), now.getMonthValue());
+
+        session.complete(request.endedAt(), distanceMeters, durationSeconds);
+        walkPingService.removeLocation(sessionId);
+
+        int newMonthlyMeters = prevMonthlyMeters + distanceMeters;
+        sendGoalAchievedNotificationIfNeeded(userId, prevMonthlyMeters, newMonthlyMeters);
+
+        return session;
     }
 
     private void sendGoalAchievedNotificationIfNeeded(Long userId, int prevMeters, int newMeters) {

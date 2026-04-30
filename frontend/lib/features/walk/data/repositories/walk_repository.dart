@@ -43,10 +43,11 @@ class WalkRepository {
     required List<Map<String, dynamic>> points,
     required DateTime endedAt,
   }) async {
-    await _dio.post('/api/walks/$sessionId/complete', data: {
-      'endedAt': _formatDateTime(endedAt),
-      'points': points,
-    });
+    await _dio.post(
+      '/api/walks/$sessionId/complete',
+      data: {'endedAt': _formatDateTime(endedAt), 'points': points},
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
   }
 
   Future<List<WalkSession>> getHistory({int page = 0, int size = 20}) async {
