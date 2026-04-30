@@ -70,24 +70,7 @@ class WalkHistoryScreen extends ConsumerWidget {
                     ),
                   ),
                 ] else ...[
-                  ...completed.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final session = entry.value;
-                    return Padding(
-                      padding: EdgeInsets.only(
-                          bottom: index < completed.length - 1 ? 12 : 0),
-                      child: _WalkHistoryItem(
-                        session: session,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                WalkDetailScreen(sessionId: session.id),
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
+                  ..._buildMonthlyGroups(context, completed),
                 ],
               ],
             ),
@@ -95,6 +78,82 @@ class WalkHistoryScreen extends ConsumerWidget {
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => const Center(child: Text('불러오기 실패')),
+      ),
+    );
+  }
+}
+
+List<Widget> _buildMonthlyGroups(
+    BuildContext context, List<WalkSession> sessions) {
+  // 년월 기준으로 그룹핑 (최신순)
+  final Map<String, List<WalkSession>> grouped = {};
+  for (final s in sessions) {
+    if (s.startedAt == null) continue;
+    final d = DateTime.parse(s.startedAt!);
+    final key = '${d.year}년 ${d.month}월';
+    grouped.putIfAbsent(key, () => []).add(s);
+  }
+
+  final widgets = <Widget>[];
+  for (final entry in grouped.entries) {
+    widgets.add(_MonthHeader(label: entry.key, count: entry.value.length));
+    for (int i = 0; i < entry.value.length; i++) {
+      final session = entry.value[i];
+      widgets.add(Padding(
+        padding: EdgeInsets.only(
+            bottom: i < entry.value.length - 1 ? 12 : 20),
+        child: _WalkHistoryItem(
+          session: session,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => WalkDetailScreen(sessionId: session.id)),
+          ),
+        ),
+      ));
+    }
+  }
+  return widgets;
+}
+
+class _MonthHeader extends StatelessWidget {
+  final String label;
+  final int count;
+  const _MonthHeader({required this.label, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF212121)),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4CAF50).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$count회',
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF4CAF50),
+                  fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Expanded(
+              child: Divider(color: Color(0xFFEEEEEE), thickness: 1)),
+        ],
       ),
     );
   }

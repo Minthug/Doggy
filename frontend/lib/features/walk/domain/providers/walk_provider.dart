@@ -3,7 +3,7 @@ import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
 
 final walkHistoryProvider = FutureProvider<List<WalkSession>>((ref) async {
-  return ref.watch(walkRepositoryProvider).getHistory();
+  return ref.watch(walkRepositoryProvider).getHistory(size: 100);
 });
 
 // 이번 달 산책 통계

@@ -79,17 +79,25 @@ public class WalkService {
     }
 
     public WalkDetailResponse complete(Long userId, Long sessionId, CompleteWalkRequest request) {
-        // 1단계: 트랜잭션 내 쓰기 작업 (벌크 INSERT 포함)
         WalkSession session = completeInTransaction(userId, sessionId, request);
 
-        // 2단계: 트랜잭션 밖에서 GeoJSON 생성 (느린 PostGIS 쿼리 분리)
+        // GeoJSON 생성 후 세션에 저장 (나중에 points 삭제돼도 경로 보존)
         String routeGeoJson = null;
         try {
             routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+            if (routeGeoJson != null) {
+                persistGeoJson(sessionId, routeGeoJson);
+            }
         } catch (Exception e) {
             log.warn("경로 GeoJSON 생성 실패: {}", e.getMessage());
         }
         return WalkDetailResponse.of(session, routeGeoJson);
+    }
+
+    @Transactional
+    protected void persistGeoJson(Long sessionId, String geoJson) {
+        walkSessionRepository.findById(sessionId)
+                .ifPresent(s -> s.saveRouteGeoJson(geoJson));
     }
 
     @Transactional
@@ -217,11 +225,14 @@ public class WalkService {
     public WalkDetailResponse getDetail(Long userId, Long sessionId) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
-        String routeGeoJson = null;
-        try {
-            routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
-        } catch (Exception e) {
-            log.warn("경로 GeoJSON 생성 실패 (getDetail): {}", e.getMessage());
+        // 압축 후 points 없어도 세션에 저장된 GeoJSON 사용
+        String routeGeoJson = session.getRouteGeoJson();
+        if (routeGeoJson == null) {
+            try {
+                routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+            } catch (Exception e) {
+                log.warn("경로 GeoJSON 생성 실패 (getDetail): {}", e.getMessage());
+            }
         }
         return WalkDetailResponse.of(session, routeGeoJson);
     }
@@ -235,11 +246,13 @@ public class WalkService {
             throw BusinessException.badRequest("완료된 산책만 공개할 수 있습니다");
         }
         session.makePublic(request.title());
-        String routeGeoJson = null;
-        try {
-            routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
-        } catch (Exception e) {
-            log.warn("경로 GeoJSON 생성 실패 (publish): {}", e.getMessage());
+        String routeGeoJson = session.getRouteGeoJson();
+        if (routeGeoJson == null) {
+            try {
+                routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+            } catch (Exception e) {
+                log.warn("경로 GeoJSON 생성 실패 (publish): {}", e.getMessage());
+            }
         }
         return WalkDetailResponse.of(session, routeGeoJson);
     }

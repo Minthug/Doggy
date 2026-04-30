@@ -42,6 +42,9 @@ public class WalkSession extends BaseEntity {
     @Column(length = 100)
     private String title;
 
+    @Column(columnDefinition = "TEXT")
+    private String routeGeoJson;
+
     @Builder
     public WalkSession(User user, LocalDateTime startedAt) {
         this.user = user;
@@ -63,6 +66,10 @@ public class WalkSession extends BaseEntity {
         this.distanceMeters = distanceMeters;
         this.durationSeconds = durationSeconds;
         this.status = Status.COMPLETED;
+    }
+
+    public void saveRouteGeoJson(String geoJson) {
+        this.routeGeoJson = geoJson;
     }
 
     public void abandon() {

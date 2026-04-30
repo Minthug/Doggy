@@ -2,6 +2,7 @@ package com.doggy.backend.domain.walk.repository;
 
 import com.doggy.backend.domain.walk.entity.WalkPoint;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -22,4 +23,10 @@ public interface WalkPointRepository extends JpaRepository<WalkPoint, Long> {
     String findRouteGeoJsonBySessionId(@Param("sessionId") Long sessionId);
 
     void deleteAllBySessionId(Long sessionId);
+
+    @Modifying
+    @Query("DELETE FROM WalkPoint wp WHERE wp.session.id IN :sessionIds")
+    void deleteAllBySessionIdIn(@Param("sessionIds") List<Long> sessionIds);
+
+    boolean existsBySessionId(Long sessionId);
 }

@@ -62,6 +62,19 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> 
             @Param("offset") int offset
     );
 
+    // 압축/삭제 대상: N개월 이전 완료 세션 중 walk_points 남아있는 것
+    @Query(value = """
+            SELECT ws.* FROM walk_sessions ws
+            WHERE ws.status = 'COMPLETED'
+              AND ws.started_at < :before
+              AND EXISTS (SELECT 1 FROM walk_points wp WHERE wp.session_id = ws.id)
+            ORDER BY ws.started_at ASC
+            LIMIT :lim
+            """, nativeQuery = true)
+    List<WalkSession> findSessionsWithPointsBefore(
+            @Param("before") LocalDateTime before,
+            @Param("lim") int lim);
+
     // 마지막 산책이 since 이전인 유저 ID 목록 (fcmToken 있는 유저만)
     @Query("""
             SELECT DISTINCT w.user.id FROM WalkSession w
