@@ -3,11 +3,13 @@ import 'package:geolocator/geolocator.dart';
 import '../../data/models/user_profile_model.dart';
 import '../../data/repositories/home_repository.dart';
 
-final userProfileProvider = FutureProvider<UserProfile>((ref) async {
+final userProfileProvider = FutureProvider.autoDispose<UserProfile>((ref) async {
+  ref.keepAlive();
   return ref.watch(homeRepositoryProvider).getMyProfile();
 });
 
 final walkIndexProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  ref.keepAlive();
   final repo = ref.watch(homeRepositoryProvider);
   try {
     final permission = await Geolocator.checkPermission();
@@ -25,6 +27,7 @@ final walkIndexProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref)
 });
 
 final walkForecastProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
+  ref.keepAlive();
   final repo = ref.watch(homeRepositoryProvider);
   try {
     final permission = await Geolocator.checkPermission();

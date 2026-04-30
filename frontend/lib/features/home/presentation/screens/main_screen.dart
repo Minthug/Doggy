@@ -46,7 +46,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          _tabs[_currentIndex],
+          IndexedStack(
+            index: _currentIndex,
+            children: _tabs,
+          ),
           const BannerLayer(),
         ],
       ),
