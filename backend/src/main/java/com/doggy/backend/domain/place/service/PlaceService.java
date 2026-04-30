@@ -84,7 +84,7 @@ public class PlaceService {
     }
 
     // 유저가 직접 장소 등록 (크라우드소싱)
-    @Transactional
+    @Transactional(readOnly = false)
     public PlaceResponse create(Long userId, CreatePlaceRequest request) {
         userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
@@ -109,7 +109,7 @@ public class PlaceService {
     }
 
     // 도움이 됐어요 투표 (이미 투표했으면 변경, 같은 값이면 취소)
-    @Transactional
+    @Transactional(readOnly = false)
     public void vote(Long userId, Long placeId, VoteRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));

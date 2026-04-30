@@ -45,7 +45,7 @@ public class WalkService {
     private final WalkPingService walkPingService;
     private final JdbcTemplate jdbcTemplate;
 
-    @Transactional
+    @Transactional(readOnly = false)
     public WalkSessionResponse start(Long userId) {
         // 비정상 종료로 남은 세션이 있으면 자동 abandon 처리
         try {
@@ -78,7 +78,7 @@ public class WalkService {
         return WalkSessionResponse.from(session);
     }
 
-    @Transactional
+    @Transactional(readOnly = false)
     public WalkDetailResponse complete(Long userId, Long sessionId, CompleteWalkRequest request) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
@@ -182,7 +182,7 @@ public class WalkService {
         return 150_000;                // 대형견: 5km/일 × 30
     }
 
-    @Transactional
+    @Transactional(readOnly = false)
     public WalkSessionResponse pause(Long userId, Long sessionId) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
@@ -190,7 +190,7 @@ public class WalkService {
         return WalkSessionResponse.from(session);
     }
 
-    @Transactional
+    @Transactional(readOnly = false)
     public WalkSessionResponse resume(Long userId, Long sessionId) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
@@ -222,7 +222,7 @@ public class WalkService {
     }
 
     // 경로 공개
-    @Transactional
+    @Transactional(readOnly = false)
     public WalkDetailResponse publish(Long userId, Long sessionId, PublishRouteRequest request) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
@@ -242,7 +242,7 @@ public class WalkService {
     }
 
     // 경로 비공개
-    @Transactional
+    @Transactional(readOnly = false)
     public void unpublish(Long userId, Long sessionId) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
@@ -271,7 +271,7 @@ public class WalkService {
     }
 
     // 좋아요 토글
-    @Transactional
+    @Transactional(readOnly = false)
     public boolean toggleLike(Long userId, Long sessionId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
@@ -284,7 +284,7 @@ public class WalkService {
     }
 
     // 북마크 토글
-    @Transactional
+    @Transactional(readOnly = false)
     public boolean toggleBookmark(Long userId, Long sessionId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
