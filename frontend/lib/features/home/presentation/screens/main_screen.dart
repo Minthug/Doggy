@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/notifications/fcm_service.dart';
 import '../../../../core/notifications/in_app_banner.dart';
-import '../../../place/presentation/screens/map_tab.dart';
 import '../../../profile/presentation/screens/profile_tab.dart';
-import '../../../walk/presentation/screens/walk_screen.dart';
 import 'home_tab.dart';
+import 'walk_place_tab.dart';
 
 // 탭 인덱스를 홈 탭에서도 제어할 수 있도록 전역 키 사용
 final mainScreenKey = GlobalKey<_MainScreenState>();
@@ -38,8 +37,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   final _tabs = const [
     HomeTab(),
-    WalkScreen(),
-    MapTab(),
+    WalkPlaceTab(),
     ProfileTab(),
   ];
 
@@ -60,9 +58,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.directions_walk), label: '산책'),
-          BottomNavigationBarItem(icon: Icon(Icons.place), label: '장소'),
+          BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: '지도'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
         ],
       ),

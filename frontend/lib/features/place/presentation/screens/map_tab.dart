@@ -183,6 +183,7 @@ class _MapTabState extends ConsumerState<MapTab> {
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
     final selectedCategory = ref.watch(selectedCategoryProvider);
     final location = _currentPosition;
 
@@ -199,34 +200,6 @@ class _MapTabState extends ConsumerState<MapTab> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('주변 장소',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _pinMode ? Icons.close : Icons.add_location_alt_outlined,
-              color: _pinMode ? Colors.red : const Color(0xFF4CAF50),
-            ),
-            onPressed: () {
-              setState(() {
-                _pinMode = !_pinMode;
-                _pinnedPosition = null;
-              });
-              if (_pinMode) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('등록할 장소 위치를 지도에서 탭해주세요'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          ),
-        ],
-      ),
       body: Stack(
         children: [
           // 지도
@@ -268,9 +241,49 @@ class _MapTabState extends ConsumerState<MapTab> {
           if (_locationLoading)
             const Center(child: CircularProgressIndicator()),
 
+          // 장소 등록 버튼 (AppBar 제거 후 Positioned로 이동)
+          Positioned(
+            top: topPadding + 12,
+            right: 16,
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _pinMode = !_pinMode;
+                  _pinnedPosition = null;
+                });
+                if (_pinMode) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('등록할 장소 위치를 지도에서 탭해주세요'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _pinMode ? Icons.close : Icons.add_location_alt_outlined,
+                  color: _pinMode ? Colors.red : const Color(0xFF4CAF50),
+                  size: 22,
+                ),
+              ),
+            ),
+          ),
+
           // 카테고리 필터
           Positioned(
-            top: 12,
+            top: topPadding + 60,
             left: 0,
             right: 0,
             child: SingleChildScrollView(
@@ -321,7 +334,7 @@ class _MapTabState extends ConsumerState<MapTab> {
           // 핀 모드 안내 배너
           if (_pinMode)
             Positioned(
-              top: 60,
+              top: topPadding + 108,
               left: 16,
               right: 16,
               child: Container(

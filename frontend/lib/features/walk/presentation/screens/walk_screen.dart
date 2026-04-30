@@ -112,9 +112,9 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
             },
           ),
 
-          // 상단 통계
+          // 상단 통계 (상단 pill 스위처 아래에 배치)
           Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
+            top: MediaQuery.of(context).padding.top + 60,
             left: 16,
             right: 16,
             child: _StatsCard(walkState: walkState),
