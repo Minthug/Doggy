@@ -199,11 +199,7 @@ public class WalkService {
     }
 
     public List<WalkSessionResponse> getHistory(Long userId, int page, int size) {
-        return walkSessionRepository
-                .findAllByUserIdOrderByStartedAtDesc(userId, PageRequest.of(page, size))
-                .stream()
-                .map(WalkSessionResponse::from)
-                .toList();
+        return walkSessionRepository.findHistoryByUserId(userId, PageRequest.of(page, size));
     }
 
     public WalkDetailResponse getDetail(Long userId, Long sessionId) {

@@ -74,7 +74,7 @@ public class WalkSession extends BaseEntity {
 
     public void abandon() {
         this.endedAt = LocalDateTime.now();
-        this.status = Status.COMPLETED;
+        this.status = Status.ABANDONED;
     }
 
     public void pause() {
@@ -86,6 +86,6 @@ public class WalkSession extends BaseEntity {
     }
 
     public enum Status {
-        IN_PROGRESS, PAUSED, COMPLETED
+        IN_PROGRESS, PAUSED, COMPLETED, ABANDONED
     }
 }
