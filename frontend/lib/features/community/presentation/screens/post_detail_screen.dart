@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../home/domain/providers/home_provider.dart';
 import '../../data/models/community_post_model.dart';
 import '../../data/repositories/community_repository.dart';
+import 'create_post_screen.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   final int postId;
