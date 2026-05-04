@@ -126,6 +126,27 @@ CREATE TABLE walk_route_tags (
     PRIMARY KEY (session_id, tag)
 );
 
+-- community_posts
+CREATE TABLE community_posts (
+    id             BIGSERIAL PRIMARY KEY,
+    user_id        BIGINT       NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    type           VARCHAR(20)  NOT NULL, -- LOST / FOUND / GENERAL
+    title          VARCHAR(100) NOT NULL,
+    content        TEXT         NOT NULL,
+    dog_name       VARCHAR(50),
+    breed          VARCHAR(100),
+    last_seen_area VARCHAR(200),
+    lat            DOUBLE PRECISION,
+    lng            DOUBLE PRECISION,
+    contact_info   VARCHAR(100),
+    status         VARCHAR(20)  NOT NULL DEFAULT 'OPEN', -- OPEN / RESOLVED
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_community_posts_type ON community_posts (type);
+CREATE INDEX idx_community_posts_created ON community_posts (created_at DESC);
+
 -- push_settings
 CREATE TABLE push_settings (
     id                      BIGSERIAL PRIMARY KEY,

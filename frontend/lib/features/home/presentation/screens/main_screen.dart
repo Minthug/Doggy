@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/notifications/fcm_service.dart';
 import '../../../../core/notifications/in_app_banner.dart';
+import '../../../community/presentation/screens/community_tab.dart';
 import '../../../profile/presentation/screens/profile_tab.dart';
 import 'home_tab.dart';
 import 'walk_place_tab.dart';
@@ -38,6 +39,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   final _tabs = const [
     HomeTab(),
     WalkPlaceTab(),
+    CommunityTab(),
     ProfileTab(),
   ];
 
@@ -62,6 +64,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
           BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: '지도'),
+          BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: '커뮤니티'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
         ],
       ),
