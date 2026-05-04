@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../../dog/data/models/dog_model.dart';
 import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
+import 'walk_provider.dart';
 
 String _formatDateTime(DateTime dt) {
   final utc = dt.toUtc();
@@ -92,11 +93,12 @@ class WalkPoint {
 
 final walkActiveProvider =
     StateNotifierProvider<WalkActiveNotifier, WalkState>((ref) {
-  return WalkActiveNotifier(ref.watch(walkRepositoryProvider));
+  return WalkActiveNotifier(ref.watch(walkRepositoryProvider), ref);
 });
 
 class WalkActiveNotifier extends StateNotifier<WalkState> {
   final WalkRepository _repository;
+  final Ref _ref;
   Timer? _timer;
   Timer? _simTimer;
   Timer? _simPingTimer; // 시뮬레이션 전용 핑 타이머 (실제 GPS 없으므로 별도 유지)
@@ -140,7 +142,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     (lat: 37.218392, lng: 126.944858),
   ];
 
-  WalkActiveNotifier(this._repository) : super(const WalkState());
+  WalkActiveNotifier(this._repository, this._ref) : super(const WalkState());
 
   Future<void> startWalk({Dog? dog}) async {
     final session = await _repository.start();
@@ -304,6 +306,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
           endedAt: endedAt,
         );
         state = state.copyWith(status: WalkStatus.completed);
+        _ref.invalidate(walkHistoryProvider);
         return;
       } catch (e) {
         lastError = e;
