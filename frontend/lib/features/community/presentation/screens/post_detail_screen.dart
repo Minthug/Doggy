@@ -169,33 +169,35 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             const Divider(),
             const SizedBox(height: 16),
             Text(post.content, style: const TextStyle(fontSize: 15, height: 1.6)),
-            if (post.dogName != null || post.lastSeenArea != null ||
-                post.lastSeenAt != null || post.contactInfo != null) ...[
+            if (post.type == PostType.LOST || post.type == PostType.FOUND) ...[
               const SizedBox(height: 24),
               const Divider(),
               const SizedBox(height: 16),
               const Text('상세 정보',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
               const SizedBox(height: 12),
-              if (post.dogName != null)
-                _InfoRow(icon: Icons.pets, label: '이름', value: post.dogName!),
-              if (post.breed != null)
-                _InfoRow(icon: Icons.info_outline, label: '견종', value: post.breed!),
-              if (post.lastSeenAt != null)
-                _InfoRow(
-                    icon: Icons.access_time,
-                    label: '시간',
-                    value: _formatDateTime(post.lastSeenAt!)),
-              if (post.lastSeenArea != null)
-                _InfoRow(
-                    icon: Icons.location_on_outlined,
-                    label: '장소',
-                    value: post.lastSeenArea!),
-              if (post.contactInfo != null)
-                _InfoRow(
-                    icon: Icons.phone_outlined,
-                    label: '연락처',
-                    value: post.contactInfo!),
+              _InfoRow(
+                  icon: Icons.pets,
+                  label: '이름',
+                  value: post.dogName ?? '-'),
+              _InfoRow(
+                  icon: Icons.info_outline,
+                  label: '견종',
+                  value: post.breed ?? '-'),
+              _InfoRow(
+                  icon: Icons.access_time,
+                  label: '시간',
+                  value: post.lastSeenAt != null
+                      ? _formatDateTime(post.lastSeenAt!)
+                      : '-'),
+              _InfoRow(
+                  icon: Icons.location_on_outlined,
+                  label: '장소',
+                  value: post.lastSeenArea ?? '-'),
+              _InfoRow(
+                  icon: Icons.phone_outlined,
+                  label: '연락처',
+                  value: post.contactInfo ?? '-'),
             ],
             // 목격 제보 목록 (실종 게시글에만)
             if (post.type == PostType.LOST) ...[
