@@ -202,14 +202,16 @@ public class WalkService {
         return walkSessionRepository.findHistoryByUserId(userId, PageRequest.of(page, size));
     }
 
+    @Transactional(readOnly = false)
     public WalkDetailResponse getDetail(Long userId, Long sessionId) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
-        // 압축 후 points 없어도 세션에 저장된 GeoJSON 사용
         String routeGeoJson = session.getRouteGeoJson();
         if (routeGeoJson == null) {
             try {
                 routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+                // 다음 조회부터 즉시 반환되도록 세션에 저장 (lazy-save)
+                if (routeGeoJson != null) session.saveRouteGeoJson(routeGeoJson);
             } catch (Exception e) {
                 log.warn("경로 GeoJSON 생성 실패 (getDetail): {}", e.getMessage());
             }
@@ -230,6 +232,7 @@ public class WalkService {
         if (routeGeoJson == null) {
             try {
                 routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+                if (routeGeoJson != null) session.saveRouteGeoJson(routeGeoJson);
             } catch (Exception e) {
                 log.warn("경로 GeoJSON 생성 실패 (publish): {}", e.getMessage());
             }

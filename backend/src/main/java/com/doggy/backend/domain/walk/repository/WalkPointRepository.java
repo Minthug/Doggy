@@ -15,7 +15,12 @@ public interface WalkPointRepository extends JpaRepository<WalkPoint, Long> {
     @Query(value = """
             SELECT CASE
                 WHEN COUNT(*) < 2 THEN NULL
-                ELSE ST_AsGeoJSON(ST_MakeLine(ST_MakePoint(wp.lng, wp.lat) ORDER BY wp.recorded_at))
+                ELSE ST_AsGeoJSON(
+                    ST_SimplifyPreserveTopology(
+                        ST_MakeLine(ST_MakePoint(wp.lng, wp.lat) ORDER BY wp.recorded_at),
+                        0.00005
+                    )
+                )
             END
             FROM walk_points wp
             WHERE wp.session_id = :sessionId
