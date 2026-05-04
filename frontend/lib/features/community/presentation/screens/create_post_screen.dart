@@ -60,7 +60,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       initialDate: DateTime.now(),
       firstDate: DateTime.now().subtract(const Duration(days: 30)),
       lastDate: DateTime.now(),
-      locale: const Locale('ko'),
     );
     if (date == null || !mounted) return;
 
