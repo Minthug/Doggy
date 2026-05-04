@@ -136,6 +136,7 @@ CREATE TABLE community_posts (
     dog_name       VARCHAR(50),
     breed          VARCHAR(100),
     last_seen_area VARCHAR(200),
+    last_seen_at   TIMESTAMPTZ,
     lat            DOUBLE PRECISION,
     lng            DOUBLE PRECISION,
     contact_info   VARCHAR(100),

@@ -5,6 +5,8 @@ import com.doggy.backend.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "community_posts")
 @Getter
@@ -38,6 +40,8 @@ public class CommunityPost extends BaseEntity {
     @Column(length = 200)
     private String lastSeenArea;
 
+    private LocalDateTime lastSeenAt;
+
     private Double lat;
     private Double lng;
 
@@ -51,7 +55,7 @@ public class CommunityPost extends BaseEntity {
     @Builder
     public CommunityPost(User user, PostType type, String title, String content,
                          String dogName, String breed, String lastSeenArea,
-                         Double lat, Double lng, String contactInfo) {
+                         LocalDateTime lastSeenAt, Double lat, Double lng, String contactInfo) {
         this.user = user;
         this.type = type;
         this.title = title;
@@ -59,6 +63,7 @@ public class CommunityPost extends BaseEntity {
         this.dogName = dogName;
         this.breed = breed;
         this.lastSeenArea = lastSeenArea;
+        this.lastSeenAt = lastSeenAt;
         this.lat = lat;
         this.lng = lng;
         this.contactInfo = contactInfo;

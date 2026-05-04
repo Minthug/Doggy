@@ -9,6 +9,7 @@ class CommunityPost {
   final String? dogName;
   final String? breed;
   final String? lastSeenArea;
+  final DateTime? lastSeenAt;
   final double? lat;
   final double? lng;
   final String? contactInfo;
@@ -26,6 +27,7 @@ class CommunityPost {
     this.dogName,
     this.breed,
     this.lastSeenArea,
+    this.lastSeenAt,
     this.lat,
     this.lng,
     this.contactInfo,
@@ -44,6 +46,7 @@ class CommunityPost {
         dogName: json['dogName'],
         breed: json['breed'],
         lastSeenArea: json['lastSeenArea'],
+        lastSeenAt: json['lastSeenAt'] != null ? DateTime.parse(json['lastSeenAt']) : null,
         lat: (json['lat'] as num?)?.toDouble(),
         lng: (json['lng'] as num?)?.toDouble(),
         contactInfo: json['contactInfo'],

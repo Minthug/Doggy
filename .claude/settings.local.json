@@ -10,7 +10,12 @@
       "Bash(git push:*)",
       "Bash(git commit:*)",
       "Bash(flutter pub:*)",
-      "Bash(flutter analyze:*)"
+      "Bash(flutter analyze:*)",
+      "Bash(git pull *)",
+      "Bash(dart analyze *)",
+      "Bash(git *)",
+      "Bash(claude *)",
+      "Bash(psql *)"
     ]
   }
 }

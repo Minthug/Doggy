@@ -50,6 +50,7 @@ public class CommunityService {
                         .dogName(request.dogName())
                         .breed(request.breed())
                         .lastSeenArea(request.lastSeenArea())
+                        .lastSeenAt(request.lastSeenAt())
                         .lat(request.lat())
                         .lng(request.lng())
                         .contactInfo(request.contactInfo())

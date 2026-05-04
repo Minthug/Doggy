@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../home/domain/providers/home_provider.dart';
 import '../../data/models/community_post_model.dart';
@@ -161,7 +162,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             const Divider(),
             const SizedBox(height: 16),
             Text(post.content, style: const TextStyle(fontSize: 15, height: 1.6)),
-            if (post.dogName != null || post.lastSeenArea != null || post.contactInfo != null) ...[
+            if (post.dogName != null || post.lastSeenArea != null ||
+                post.lastSeenAt != null || post.contactInfo != null) ...[
               const SizedBox(height: 24),
               const Divider(),
               const SizedBox(height: 16),
@@ -172,10 +174,53 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 _InfoRow(icon: Icons.pets, label: '이름', value: post.dogName!),
               if (post.breed != null)
                 _InfoRow(icon: Icons.info_outline, label: '견종', value: post.breed!),
+              if (post.lastSeenAt != null)
+                _InfoRow(
+                    icon: Icons.access_time,
+                    label: '시간',
+                    value: _formatDateTime(post.lastSeenAt!)),
               if (post.lastSeenArea != null)
-                _InfoRow(icon: Icons.location_on_outlined, label: '장소', value: post.lastSeenArea!),
+                _InfoRow(
+                    icon: Icons.location_on_outlined,
+                    label: '장소',
+                    value: post.lastSeenArea!),
               if (post.contactInfo != null)
-                _InfoRow(icon: Icons.phone_outlined, label: '연락처', value: post.contactInfo!),
+                _InfoRow(
+                    icon: Icons.phone_outlined,
+                    label: '연락처',
+                    value: post.contactInfo!),
+            ],
+            // 지도 (lat/lng 있을 때만)
+            if (post.lat != null && post.lng != null) ...[
+              const SizedBox(height: 20),
+              const Text('마지막 목격 위치',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  height: 220,
+                  child: NaverMap(
+                    options: NaverMapViewOptions(
+                      initialCameraPosition: NCameraPosition(
+                        target: NLatLng(post.lat!, post.lng!),
+                        zoom: 15,
+                      ),
+                      scrollGesturesEnable: false,
+                      zoomGesturesEnable: false,
+                      tiltGesturesEnable: false,
+                      rotationGesturesEnable: false,
+                      locationButtonEnable: false,
+                    ),
+                    onMapReady: (ctrl) {
+                      ctrl.addOverlay(NMarker(
+                        id: 'location',
+                        position: NLatLng(post.lat!, post.lng!),
+                      ));
+                    },
+                  ),
+                ),
+              ),
             ],
           ],
         ),
@@ -190,6 +235,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     if (diff.inDays < 1) return '${diff.inHours}시간 전';
     if (diff.inDays < 7) return '${diff.inDays}일 전';
     return '${dt.year}.${dt.month}.${dt.day}';
+  }
+
+  String _formatDateTime(DateTime dt) {
+    return '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}'
+        ' ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
 
