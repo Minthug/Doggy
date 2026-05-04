@@ -18,7 +18,7 @@ public interface WalkPointRepository extends JpaRepository<WalkPoint, Long> {
                 ELSE ST_AsGeoJSON(
                     ST_SimplifyPreserveTopology(
                         ST_MakeLine(ST_MakePoint(wp.lng, wp.lat) ORDER BY wp.recorded_at),
-                        0.00005
+                        0.00013
                     )
                 )
             END
