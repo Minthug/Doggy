@@ -48,6 +48,9 @@ public class CommunityPost extends BaseEntity {
     @Column(length = 100)
     private String contactInfo;
 
+    // 목격 제보가 연결된 실종 게시글 ID (FOUND 게시글에서 사용)
+    private Long relatedPostId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private PostStatus status = PostStatus.OPEN;
@@ -55,7 +58,8 @@ public class CommunityPost extends BaseEntity {
     @Builder
     public CommunityPost(User user, PostType type, String title, String content,
                          String dogName, String breed, String lastSeenArea,
-                         LocalDateTime lastSeenAt, Double lat, Double lng, String contactInfo) {
+                         LocalDateTime lastSeenAt, Double lat, Double lng,
+                         String contactInfo, Long relatedPostId) {
         this.user = user;
         this.type = type;
         this.title = title;
@@ -67,6 +71,7 @@ public class CommunityPost extends BaseEntity {
         this.lat = lat;
         this.lng = lng;
         this.contactInfo = contactInfo;
+        this.relatedPostId = relatedPostId;
     }
 
     public void resolve() {

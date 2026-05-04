@@ -14,6 +14,7 @@ class CommunityPost {
   final double? lng;
   final String? contactInfo;
   final PostStatus status;
+  final int? relatedPostId;
   final DateTime createdAt;
 
   const CommunityPost({
@@ -32,6 +33,7 @@ class CommunityPost {
     this.lng,
     this.contactInfo,
     required this.status,
+    this.relatedPostId,
     required this.createdAt,
   });
 
@@ -51,6 +53,7 @@ class CommunityPost {
         lng: (json['lng'] as num?)?.toDouble(),
         contactInfo: json['contactInfo'],
         status: PostStatus.values.byName(json['status']),
+        relatedPostId: json['relatedPostId'],
         createdAt: DateTime.parse(json['createdAt']),
       );
 }

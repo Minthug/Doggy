@@ -17,5 +17,6 @@ public record CreatePostRequest(
         LocalDateTime lastSeenAt,
         Double lat,
         Double lng,
-        String contactInfo
+        String contactInfo,
+        Long relatedPostId
 ) {}

@@ -6,7 +6,8 @@ import '../../data/models/community_post_model.dart';
 import '../../data/repositories/community_repository.dart';
 
 class CreatePostScreen extends ConsumerStatefulWidget {
-  const CreatePostScreen({super.key});
+  final CommunityPost? relatedLostPost;
+  const CreatePostScreen({super.key, this.relatedLostPost});
 
   @override
   ConsumerState<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -25,6 +26,20 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   double? _lat;
   double? _lng;
   bool _loading = false;
+  int? _relatedPostId;
+
+  @override
+  void initState() {
+    super.initState();
+    final related = widget.relatedLostPost;
+    if (related != null) {
+      _type = PostType.FOUND;
+      _relatedPostId = related.id;
+      _dogNameCtrl.text = related.dogName ?? '';
+      _breedCtrl.text = related.breed ?? '';
+      _titleCtrl.text = '${related.dogName ?? '강아지'}를 목격했습니다';
+    }
+  }
 
   @override
   void dispose() {
@@ -90,6 +105,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             lat: _lat,
             lng: _lng,
             contactInfo: _contactCtrl.text.trim().isEmpty ? null : _contactCtrl.text.trim(),
+            relatedPostId: _relatedPostId,
           );
       if (mounted) Navigator.pop(context);
     } catch (e) {

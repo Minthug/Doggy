@@ -22,6 +22,7 @@ public record CommunityPostResponse(
         Double lng,
         String contactInfo,
         PostStatus status,
+        Long relatedPostId,
         LocalDateTime createdAt
 ) {
     public static CommunityPostResponse from(CommunityPost post) {
@@ -41,6 +42,7 @@ public record CommunityPostResponse(
                 post.getLng(),
                 post.getContactInfo(),
                 post.getStatus(),
+                post.getRelatedPostId(),
                 post.getCreatedAt()
         );
     }

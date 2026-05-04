@@ -15,6 +15,7 @@ class PostDetailScreen extends ConsumerStatefulWidget {
 
 class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   CommunityPost? _post;
+  List<CommunityPost> _sightings = [];
   bool _loading = true;
 
   @override
@@ -25,8 +26,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
   Future<void> _load() async {
     try {
-      final post = await ref.read(communityRepositoryProvider).getPost(widget.postId);
-      if (mounted) setState(() { _post = post; _loading = false; });
+      final repo = ref.read(communityRepositoryProvider);
+      final post = await repo.getPost(widget.postId);
+      List<CommunityPost> sightings = [];
+      if (post.type == PostType.LOST) {
+        sightings = await repo.getSightings(widget.postId);
+      }
+      if (mounted) setState(() { _post = post; _sightings = sightings; _loading = false; });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -190,6 +196,66 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     label: '연락처',
                     value: post.contactInfo!),
             ],
+            // 목격 제보 목록 (실종 게시글에만)
+            if (post.type == PostType.LOST) ...[
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Text(
+                    '목격 제보 ${_sightings.length}건',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CreatePostScreen(relatedLostPost: post),
+                      ),
+                    ).then((_) => _load()),
+                    icon: const Icon(Icons.visibility_outlined, size: 16),
+                    label: const Text('목격 신고'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.orange,
+                      backgroundColor: Colors.orange.withValues(alpha: 0.1),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (_sightings.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Column(
+                    children: [
+                      Text('👀', style: TextStyle(fontSize: 28)),
+                      SizedBox(height: 6),
+                      Text('아직 목격 제보가 없어요',
+                          style: TextStyle(color: Colors.grey, fontSize: 13)),
+                    ],
+                  ),
+                )
+              else
+                ..._sightings.map((s) => _SightingCard(
+                      sighting: s,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => PostDetailScreen(postId: s.id)),
+                      ).then((_) => _load()),
+                    )),
+            ],
+
             // 지도 (lat/lng 있을 때만)
             if (post.lat != null && post.lng != null) ...[
               const SizedBox(height: 20),
@@ -241,6 +307,75 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     return '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}'
         ' ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
+}
+
+class _SightingCard extends StatelessWidget {
+  final CommunityPost sighting;
+  final VoidCallback onTap;
+  const _SightingCard({required this.sighting, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('👀', style: TextStyle(fontSize: 20)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(sighting.nickname,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Spacer(),
+                      if (sighting.lastSeenAt != null)
+                        Text(
+                          _fmt(sighting.lastSeenAt!),
+                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(sighting.content,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                  if (sighting.lastSeenArea != null) ...[
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      const Icon(Icons.location_on_outlined,
+                          size: 12, color: Colors.grey),
+                      const SizedBox(width: 2),
+                      Text(sighting.lastSeenArea!,
+                          style:
+                              const TextStyle(fontSize: 11, color: Colors.grey)),
+                    ]),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmt(DateTime dt) =>
+      '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
 class _TypeBadge extends StatelessWidget {

@@ -139,8 +139,9 @@ CREATE TABLE community_posts (
     last_seen_at   TIMESTAMPTZ,
     lat            DOUBLE PRECISION,
     lng            DOUBLE PRECISION,
-    contact_info   VARCHAR(100),
-    status         VARCHAR(20)  NOT NULL DEFAULT 'OPEN', -- OPEN / RESOLVED
+    contact_info    VARCHAR(100),
+    related_post_id BIGINT REFERENCES community_posts (id) ON DELETE SET NULL,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'OPEN', -- OPEN / RESOLVED
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );

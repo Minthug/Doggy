@@ -49,6 +49,11 @@ public class CommunityController {
         return ResponseEntity.ok(communityService.resolve(principal.getId(), postId));
     }
 
+    @GetMapping("/{postId}/sightings")
+    public ResponseEntity<List<CommunityPostResponse>> getSightings(@PathVariable Long postId) {
+        return ResponseEntity.ok(communityService.getSightings(postId));
+    }
+
     @DeleteMapping("/{postId}")
     public ResponseEntity<Void> delete(
             @AuthenticationPrincipal UserPrincipal principal,

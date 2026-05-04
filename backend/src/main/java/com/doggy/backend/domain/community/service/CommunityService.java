@@ -54,6 +54,7 @@ public class CommunityService {
                         .lat(request.lat())
                         .lng(request.lng())
                         .contactInfo(request.contactInfo())
+                        .relatedPostId(request.relatedPostId())
                         .build()
         );
         return CommunityPostResponse.from(post);
@@ -76,6 +77,11 @@ public class CommunityService {
             throw BusinessException.badRequest("본인 게시글만 삭제할 수 있습니다");
         }
         postRepository.delete(post);
+    }
+
+    public List<CommunityPostResponse> getSightings(Long postId) {
+        return postRepository.findSightingsByRelatedPostId(postId)
+                .stream().map(CommunityPostResponse::from).toList();
     }
 
     private CommunityPost findPost(Long postId) {

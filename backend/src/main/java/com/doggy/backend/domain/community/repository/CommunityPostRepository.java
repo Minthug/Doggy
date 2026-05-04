@@ -16,4 +16,8 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPost, Lo
 
     @Query("SELECT p FROM CommunityPost p JOIN FETCH p.user WHERE p.type = :type ORDER BY p.createdAt DESC")
     List<CommunityPost> findByTypeWithUser(@Param("type") PostType type, Pageable pageable);
+
+    // 특정 실종 게시글에 연결된 목격 제보 목록
+    @Query("SELECT p FROM CommunityPost p JOIN FETCH p.user WHERE p.relatedPostId = :postId ORDER BY p.createdAt DESC")
+    List<CommunityPost> findSightingsByRelatedPostId(@Param("postId") Long postId);
 }
