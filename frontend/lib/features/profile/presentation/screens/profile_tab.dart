@@ -556,71 +556,101 @@ class _SupplyInventoryCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _showEditDialog(
-      BuildContext context, WidgetRef ref, int index, SupplyItem item) async {
-    final totalCtrl =
-        TextEditingController(text: item.isSet ? '${item.totalGrams}' : '');
-    final currentCtrl =
-        TextEditingController(text: item.isSet ? '${item.currentGrams}' : '');
-
-    await showDialog(
+  void _showEditDialog(
+      BuildContext context, WidgetRef ref, int index, SupplyItem item) {
+    showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('${item.emoji} ${item.name} 재고 설정'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: totalCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '총량 (g)',
-                hintText: '예: 5000 (5kg)',
-                border: OutlineInputBorder(),
-              ),
+      builder: (ctx) => _SupplyEditDialog(
+        item: item,
+        onSave: (total, current) {
+          ref.read(supplyInventoryProvider.notifier).update(
+                index,
+                current.clamp(0, total),
+                total,
+              );
+        },
+      ),
+    );
+  }
+}
+
+class _SupplyEditDialog extends StatefulWidget {
+  final SupplyItem item;
+  final void Function(int total, int current) onSave;
+
+  const _SupplyEditDialog({required this.item, required this.onSave});
+
+  @override
+  State<_SupplyEditDialog> createState() => _SupplyEditDialogState();
+}
+
+class _SupplyEditDialogState extends State<_SupplyEditDialog> {
+  late final TextEditingController _totalCtrl;
+  late final TextEditingController _currentCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final item = widget.item;
+    _totalCtrl = TextEditingController(
+        text: item.isSet ? '${item.totalGrams}' : '');
+    _currentCtrl = TextEditingController(
+        text: item.isSet ? '${item.currentGrams}' : '');
+  }
+
+  @override
+  void dispose() {
+    _totalCtrl.dispose();
+    _currentCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    return AlertDialog(
+      title: Text('${item.emoji} ${item.name} 재고 설정'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _totalCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '총량 (g)',
+              hintText: '예: 5000 (5kg)',
+              border: OutlineInputBorder(),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: currentCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '현재 남은 양 (g)',
-                hintText: '예: 2500 (2.5kg)',
-                border: OutlineInputBorder(),
-              ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _currentCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '현재 남은 양 (g)',
+              hintText: '예: 2500 (2.5kg)',
+              border: OutlineInputBorder(),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('취소')),
-          ElevatedButton(
-            onPressed: () {
-              final total = int.tryParse(totalCtrl.text.trim()) ?? 0;
-              final current = int.tryParse(currentCtrl.text.trim()) ?? 0;
-              Navigator.pop(ctx);
-              if (total > 0) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  ref.read(supplyInventoryProvider.notifier).update(
-                        index,
-                        current.clamp(0, total),
-                        total,
-                      );
-                });
-              }
-            },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50)),
-            child:
-                const Text('저장', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소')),
+        ElevatedButton(
+          onPressed: () {
+            final total = int.tryParse(_totalCtrl.text.trim()) ?? 0;
+            final current = int.tryParse(_currentCtrl.text.trim()) ?? 0;
+            Navigator.pop(context);
+            if (total > 0) widget.onSave(total, current);
+          },
+          style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4CAF50)),
+          child: const Text('저장', style: TextStyle(color: Colors.white)),
+        ),
+      ],
     );
-
-    totalCtrl.dispose();
-    currentCtrl.dispose();
   }
 }
 
