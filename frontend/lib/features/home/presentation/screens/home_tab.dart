@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../auth/domain/providers/auth_provider.dart';
 import '../../../dog/data/models/dog_model.dart';
 import '../../../dog/domain/providers/dog_provider.dart';
@@ -113,6 +114,10 @@ class HomeTab extends ConsumerWidget {
                 );
               },
             ),
+            const SizedBox(height: 16),
+
+            // 쇼핑 카테고리 숏컷
+            const _ShoppingShortcutsCard(),
             const SizedBox(height: 16),
 
             // 산책 시작 버튼
@@ -554,6 +559,90 @@ Widget _dogIcon({double size = 56, String? profileImage}) {
   }
 
   return child;
+}
+
+// 쇼핑 카테고리 숏컷 카드
+class _ShoppingShortcutsCard extends StatelessWidget {
+  const _ShoppingShortcutsCard();
+
+  static const _categories = [
+    (emoji: '🍖', label: '사료', query: '강아지 사료'),
+    (emoji: '🦴', label: '간식', query: '강아지 간식'),
+    (emoji: '✂️', label: '미용', query: '강아지 미용 용품'),
+    (emoji: '🎾', label: '장난감', query: '강아지 장난감'),
+    (emoji: '👕', label: '의류', query: '강아지 옷'),
+    (emoji: '💊', label: '건강', query: '강아지 영양제'),
+  ];
+
+  Future<void> _open(String query) async {
+    final encoded = Uri.encodeComponent(query);
+    final uri = Uri.parse(
+        'https://search.shopping.naver.com/search/all?query=$encoded');
+    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Text('반려견 쇼핑',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              SizedBox(width: 6),
+              Text('네이버쇼핑',
+                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: _categories
+                .map((c) => _CategoryItem(
+                      emoji: c.emoji,
+                      label: c.label,
+                      onTap: () => _open(c.query),
+                    ))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryItem extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final VoidCallback onTap;
+  const _CategoryItem({required this.emoji, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F8E9),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Center(
+              child: Text(emoji, style: const TextStyle(fontSize: 22)),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(label,
+              style: const TextStyle(fontSize: 12, color: Colors.black87)),
+        ],
+      ),
+    );
+  }
 }
 
 class _StatItem extends StatelessWidget {

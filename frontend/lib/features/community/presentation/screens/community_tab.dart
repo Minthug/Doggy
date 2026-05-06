@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../data/models/community_post_model.dart';
 import '../../domain/providers/community_provider.dart';
 import 'create_post_screen.dart';
@@ -23,20 +24,23 @@ class CommunityTab extends ConsumerWidget {
               child: postsAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(child: Text('불러오기 실패: $e')),
-                data: (posts) => posts.isEmpty
-                    ? const _EmptyView()
-                    : ListView.builder(
+                data: (posts) => ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
-                        itemCount: posts.length,
-                        itemBuilder: (ctx, i) => _PostCard(
-                          post: posts[i],
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PostDetailScreen(postId: posts[i].id),
-                            ),
-                          ).then((_) => ref.invalidate(communityPostsProvider)),
-                        ),
+                        itemCount: posts.isEmpty ? 2 : posts.length + 1,
+                        itemBuilder: (ctx, i) {
+                          if (i == 0) return const _PromoBanner();
+                          if (posts.isEmpty) return const _EmptyView();
+                          final post = posts[i - 1];
+                          return _PostCard(
+                            post: post,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PostDetailScreen(postId: post.id),
+                              ),
+                            ).then((_) => ref.invalidate(communityPostsProvider)),
+                          );
+                        },
                       ),
               ),
             ),
@@ -322,6 +326,112 @@ class _EmptyView extends StatelessWidget {
           Text('아직 게시글이 없어요', style: TextStyle(color: Colors.grey)),
         ],
       ),
+    );
+  }
+}
+
+// 커뮤니티 상단 배너 광고
+class _PromoBanner extends StatelessWidget {
+  const _PromoBanner();
+
+  static const _banners = [
+    (
+      emoji: '🍖',
+      title: '이달의 추천 사료',
+      subtitle: '수의사가 추천하는 건강 사료 모음',
+      color: Color(0xFF4CAF50),
+      query: '강아지 사료 추천',
+    ),
+    (
+      emoji: '🦴',
+      title: '간식 베스트',
+      subtitle: '강아지가 좋아하는 간식 TOP 20',
+      color: Color(0xFFFFA726),
+      query: '강아지 간식 베스트',
+    ),
+    (
+      emoji: '✂️',
+      title: '미용 용품 특가',
+      subtitle: '집에서 쉽게 하는 셀프 미용 용품',
+      color: Color(0xFF7C4DFF),
+      query: '강아지 미용 용품',
+    ),
+  ];
+
+  Future<void> _open(String query) async {
+    final encoded = Uri.encodeComponent(query);
+    final uri = Uri.parse(
+        'https://search.shopping.naver.com/search/all?query=$encoded');
+    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8, top: 4),
+          child: Row(
+            children: [
+              Text('추천 쇼핑',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              SizedBox(width: 6),
+              Text('AD', style: TextStyle(fontSize: 10, color: Colors.grey)),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 100,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _banners.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, i) {
+              final b = _banners[i];
+              return GestureDetector(
+                onTap: () => _open(b.query),
+                child: Container(
+                  width: 220,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: b.color,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(b.emoji, style: const TextStyle(fontSize: 30)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(b.title,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14)),
+                            const SizedBox(height: 4),
+                            Text(b.subtitle,
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 11),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right,
+                          color: Colors.white54, size: 18),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
     );
   }
 }
