@@ -1,7 +1,11 @@
 import 'dart:convert';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+// main()에서 초기화 후 ProviderScope override로 주입
+final sharedPreferencesProvider = Provider<SharedPreferences>(
+  (_) => throw UnimplementedError('SharedPreferences must be overridden in ProviderScope'),
+);
 
 class SupplyItem {
   final String name;
@@ -22,9 +26,8 @@ class SupplyItem {
   bool get isLow => isSet && percentage < 0.2;
   bool get isEmpty => isSet && currentGrams <= 0;
 
-  String _fmt(int grams) => grams >= 1000
-      ? '${(grams / 1000).toStringAsFixed(1)}kg'
-      : '${grams}g';
+  String _fmt(int grams) =>
+      grams >= 1000 ? '${(grams / 1000).toStringAsFixed(1)}kg' : '${grams}g';
 
   String get displayCurrent => _fmt(currentGrams);
   String get displayTotal => _fmt(totalGrams);
@@ -53,27 +56,29 @@ class SupplyItem {
 
 class SupplyInventoryNotifier extends StateNotifier<List<SupplyItem>> {
   static const _key = 'supply_inventory';
+  final SharedPreferences _prefs;
 
-  SupplyInventoryNotifier()
-      : super(const [
-          SupplyItem(name: '사료', emoji: '🍖'),
-          SupplyItem(name: '간식', emoji: '🦴'),
-        ]) {
-    Future.microtask(_load);
-  }
+  // SharedPreferences가 이미 초기화되어 있으므로 동기 로드 가능 — 타이밍 충돌 없음
+  SupplyInventoryNotifier(this._prefs) : super(_loadSync(_prefs));
 
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
+  static List<SupplyItem> _loadSync(SharedPreferences prefs) {
     final raw = prefs.getString(_key);
-    if (raw == null) return;
+    if (raw == null) {
+      return const [
+        SupplyItem(name: '사료', emoji: '🍖'),
+        SupplyItem(name: '간식', emoji: '🦴'),
+      ];
+    }
     try {
-      final list = (jsonDecode(raw) as List)
+      return (jsonDecode(raw) as List)
           .map((e) => SupplyItem.fromJson(e as Map<String, dynamic>))
           .toList();
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        state = list;
-      });
-    } catch (_) {}
+    } catch (_) {
+      return const [
+        SupplyItem(name: '사료', emoji: '🍖'),
+        SupplyItem(name: '간식', emoji: '🦴'),
+      ];
+    }
   }
 
   Future<void> update(int index, int currentGrams, int totalGrams) async {
@@ -83,13 +88,12 @@ class SupplyInventoryNotifier extends StateNotifier<List<SupplyItem>> {
       totalGrams: totalGrams,
     );
     state = updated;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
+    await _prefs.setString(
         _key, jsonEncode(updated.map((e) => e.toJson()).toList()));
   }
 }
 
 final supplyInventoryProvider =
-    StateNotifierProvider<SupplyInventoryNotifier, List<SupplyItem>>(
-  (_) => SupplyInventoryNotifier(),
-);
+    StateNotifierProvider<SupplyInventoryNotifier, List<SupplyItem>>((ref) {
+  return SupplyInventoryNotifier(ref.watch(sharedPreferencesProvider));
+});

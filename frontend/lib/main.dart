@@ -2,6 +2,7 @@ import 'package:app_links/app_links.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'core/naver_map_init.dart';
 import 'core/notifications/fcm_service.dart';
 import 'core/storage/token_storage.dart';
@@ -9,14 +10,19 @@ import 'firebase_options.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/auth/presentation/screens/signup_screen.dart';
 import 'features/home/presentation/screens/main_screen.dart';
+import 'features/profile/domain/supply_inventory_provider.dart';
 export 'features/home/presentation/screens/main_screen.dart' show mainScreenKey;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  final prefs = await SharedPreferences.getInstance();
   // initNaverMap은 네트워크 검증을 하므로 runApp을 막지 않게 비동기로 실행
   initNaverMap().catchError((e) => debugPrint('[NaverMap init error] $e'));
-  runApp(const ProviderScope(child: DoggyApp()));
+  runApp(ProviderScope(
+    overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    child: const DoggyApp(),
+  ));
 }
 
 class DoggyApp extends StatefulWidget {
