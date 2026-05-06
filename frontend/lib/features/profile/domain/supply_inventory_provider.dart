@@ -58,7 +58,7 @@ class SupplyInventoryNotifier extends StateNotifier<List<SupplyItem>> {
           SupplyItem(name: '사료', emoji: '🍖'),
           SupplyItem(name: '간식', emoji: '🦴'),
         ]) {
-    _load();
+    Future.microtask(_load);
   }
 
   Future<void> _load() async {
