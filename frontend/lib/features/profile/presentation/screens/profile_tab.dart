@@ -599,14 +599,16 @@ class _SupplyInventoryCard extends ConsumerWidget {
             onPressed: () {
               final total = int.tryParse(totalCtrl.text.trim()) ?? 0;
               final current = int.tryParse(currentCtrl.text.trim()) ?? 0;
-              if (total > 0) {
-                ref.read(supplyInventoryProvider.notifier).update(
-                      index,
-                      current.clamp(0, total),
-                      total,
-                    );
-              }
               Navigator.pop(ctx);
+              if (total > 0) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  ref.read(supplyInventoryProvider.notifier).update(
+                        index,
+                        current.clamp(0, total),
+                        total,
+                      );
+                });
+              }
             },
             style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4CAF50)),
