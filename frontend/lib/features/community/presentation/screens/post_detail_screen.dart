@@ -169,7 +169,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             const Divider(),
             const SizedBox(height: 16),
             Text(post.content, style: const TextStyle(fontSize: 15, height: 1.6)),
-            if (post.type == PostType.LOST || post.type == PostType.FOUND) ...[
+            if (post.type == PostType.LOST || post.type == PostType.FOUND || post.type == PostType.ADOPTION) ...[
               const SizedBox(height: 24),
               const Divider(),
               const SizedBox(height: 16),
@@ -184,15 +184,16 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   icon: Icons.info_outline,
                   label: '견종',
                   value: post.breed ?? '-'),
-              _InfoRow(
-                  icon: Icons.access_time,
-                  label: '시간',
-                  value: post.lastSeenAt != null
-                      ? _formatDateTime(post.lastSeenAt!)
-                      : '-'),
+              if (post.type != PostType.ADOPTION)
+                _InfoRow(
+                    icon: Icons.access_time,
+                    label: '시간',
+                    value: post.lastSeenAt != null
+                        ? _formatDateTime(post.lastSeenAt!)
+                        : '-'),
               _InfoRow(
                   icon: Icons.location_on_outlined,
-                  label: '장소',
+                  label: post.type == PostType.ADOPTION ? '지역' : '장소',
                   value: post.lastSeenArea ?? '-'),
               _InfoRow(
                   icon: Icons.phone_outlined,
@@ -389,9 +390,9 @@ class _TypeBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color color;
     switch (type) {
-      case PostType.LOST:    color = Colors.red; break;
-      case PostType.FOUND:   color = Colors.orange; break;
-      case PostType.GENERAL: color = const Color(0xFF4CAF50); break;
+      case PostType.LOST:     color = Colors.red; break;
+      case PostType.FOUND:    color = Colors.orange; break;
+      case PostType.ADOPTION: color = const Color(0xFF7C4DFF); break;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

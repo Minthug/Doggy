@@ -100,17 +100,17 @@ class _Header extends ConsumerWidget {
 
   String _typeIcon(PostType t) {
     switch (t) {
-      case PostType.LOST:    return '🚨';
-      case PostType.FOUND:   return '👀';
-      case PostType.GENERAL: return '💬';
+      case PostType.LOST:     return '🚨';
+      case PostType.FOUND:    return '👀';
+      case PostType.ADOPTION: return '🏠';
     }
   }
 
   Color _typeColor(PostType t) {
     switch (t) {
-      case PostType.LOST:    return Colors.red;
-      case PostType.FOUND:   return Colors.orange;
-      case PostType.GENERAL: return const Color(0xFF4CAF50);
+      case PostType.LOST:     return Colors.red;
+      case PostType.FOUND:    return Colors.orange;
+      case PostType.ADOPTION: return const Color(0xFF7C4DFF);
     }
   }
 }
@@ -272,9 +272,9 @@ class _TypeBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color color;
     switch (type) {
-      case PostType.LOST:    color = Colors.red; break;
-      case PostType.FOUND:   color = Colors.orange; break;
-      case PostType.GENERAL: color = const Color(0xFF4CAF50); break;
+      case PostType.LOST:     color = Colors.red; break;
+      case PostType.FOUND:    color = Colors.orange; break;
+      case PostType.ADOPTION: color = const Color(0xFF7C4DFF); break;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

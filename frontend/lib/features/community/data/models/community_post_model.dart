@@ -61,13 +61,13 @@ class CommunityPost {
 enum PostType {
   LOST,
   FOUND,
-  GENERAL;
+  ADOPTION;
 
   String get label {
     switch (this) {
-      case PostType.LOST:    return '실종';
-      case PostType.FOUND:   return '목격';
-      case PostType.GENERAL: return '일반';
+      case PostType.LOST:     return '실종';
+      case PostType.FOUND:    return '목격';
+      case PostType.ADOPTION: return '분양/입양';
     }
   }
 }

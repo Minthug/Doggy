@@ -52,7 +52,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     super.dispose();
   }
 
-  bool get _isDogPost => _type == PostType.LOST || _type == PostType.FOUND;
+  bool get _isDogPost => _type == PostType.LOST || _type == PostType.FOUND || _type == PostType.ADOPTION;
 
   Future<void> _pickDateTime() async {
     final date = await showDatePicker(
@@ -210,39 +210,45 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               const SizedBox(height: 12),
               _field(
                 controller: _areaCtrl,
-                label: _type == PostType.LOST ? '마지막 목격 장소 (주소)' : '목격 장소 (주소)',
+                label: _type == PostType.LOST
+                    ? '마지막 목격 장소 (주소)'
+                    : _type == PostType.FOUND
+                        ? '목격 장소 (주소)'
+                        : '지역 (주소)',
               ),
               const SizedBox(height: 12),
 
-              // 시간 선택
-              GestureDetector(
-                onTap: _pickDateTime,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[400]!),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.access_time, size: 18, color: Colors.grey),
-                      const SizedBox(width: 10),
-                      Text(
-                        _lastSeenAt == null
-                            ? (_type == PostType.LOST
-                                ? '마지막 목격 시간 선택'
-                                : '목격 시간 선택')
-                            : _formatDateTime(_lastSeenAt!),
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: _lastSeenAt == null ? Colors.grey : Colors.black87,
+              // 시간 선택 (분양/입양 제외)
+              if (_type != PostType.ADOPTION) ...[
+                GestureDetector(
+                  onTap: _pickDateTime,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[400]!),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 18, color: Colors.grey),
+                        const SizedBox(width: 10),
+                        Text(
+                          _lastSeenAt == null
+                              ? (_type == PostType.LOST
+                                  ? '마지막 목격 시간 선택'
+                                  : '목격 시간 선택')
+                              : _formatDateTime(_lastSeenAt!),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _lastSeenAt == null ? Colors.grey : Colors.black87,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
+                const SizedBox(height: 12),
+              ],
 
               // 지도 위치 선택
               GestureDetector(
@@ -309,7 +315,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                             Text(
                               _type == PostType.LOST
                                   ? '마지막 목격 위치 지도에 표시 (선택)'
-                                  : '목격 위치 지도에 표시 (선택)',
+                                  : _type == PostType.FOUND
+                                      ? '목격 위치 지도에 표시 (선택)'
+                                      : '거주 지역 지도에 표시 (선택)',
                               style: const TextStyle(
                                   color: Colors.grey, fontSize: 14),
                             ),
@@ -328,9 +336,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   Color _typeColor(PostType t) {
     switch (t) {
-      case PostType.LOST:    return Colors.red;
-      case PostType.FOUND:   return Colors.orange;
-      case PostType.GENERAL: return const Color(0xFF4CAF50);
+      case PostType.LOST:     return Colors.red;
+      case PostType.FOUND:    return Colors.orange;
+      case PostType.ADOPTION: return const Color(0xFF7C4DFF);
     }
   }
 

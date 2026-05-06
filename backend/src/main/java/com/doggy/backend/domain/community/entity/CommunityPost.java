@@ -79,7 +79,7 @@ public class CommunityPost extends BaseEntity {
     }
 
     public enum PostType {
-        LOST, FOUND, GENERAL
+        LOST, FOUND, ADOPTION
     }
 
     public enum PostStatus {
