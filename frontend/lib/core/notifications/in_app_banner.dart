@@ -91,36 +91,20 @@ class _BannerWidget extends StatefulWidget {
   State<_BannerWidget> createState() => _BannerWidgetState();
 }
 
-class _BannerWidgetState extends State<_BannerWidget>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<Offset> _slide;
-  late final Animation<double> _fade;
+class _BannerWidgetState extends State<_BannerWidget> {
+  bool _visible = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 350),
-    );
-    _slide = Tween<Offset>(
-      begin: const Offset(0, -1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    _controller.forward();
+    // 첫 프레임 이후 등장 애니메이션 시작
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _visible = true);
+    });
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _animatedDismiss() async {
-    await _controller.reverse();
-    if (mounted) widget.onDismiss();
+  void _dismiss() {
+    if (_visible) setState(() => _visible = false);
   }
 
   @override
@@ -128,19 +112,24 @@ class _BannerWidgetState extends State<_BannerWidget>
     final topPadding = MediaQuery.of(context).padding.top;
     final config = _BannerConfig.of(widget.type);
 
-    // Align 사용: Overlay 없이 Stack 내 최상단에서 동작
     return Align(
       alignment: Alignment.topCenter,
-      child: SlideTransition(
-        position: _slide,
-        child: FadeTransition(
-          opacity: _fade,
+      child: AnimatedSlide(
+        offset: _visible ? Offset.zero : const Offset(0, -1.5),
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: _visible ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 300),
+          onEnd: () {
+            if (!_visible && mounted) widget.onDismiss();
+          },
           child: GestureDetector(
-            onTap: _animatedDismiss,
+            onTap: _dismiss,
             onVerticalDragEnd: (details) {
               if (details.primaryVelocity != null &&
                   details.primaryVelocity! < -200) {
-                _animatedDismiss();
+                _dismiss();
               }
             },
             child: Container(
@@ -229,7 +218,7 @@ class _BannerWidgetState extends State<_BannerWidget>
                         ),
                       ),
                       GestureDetector(
-                        onTap: _animatedDismiss,
+                        onTap: _dismiss,
                         child: Container(
                           width: 36,
                           color: Colors.transparent,
