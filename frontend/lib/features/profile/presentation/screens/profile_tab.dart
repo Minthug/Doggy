@@ -9,6 +9,7 @@ import '../../../dog/presentation/screens/dog_register_screen.dart';
 import '../../../home/domain/providers/home_provider.dart';
 import '../../../walk/data/models/walk_model.dart';
 import '../../../walk/domain/providers/walk_provider.dart';
+import '../../domain/supply_inventory_provider.dart';
 
 // base64 또는 URL 이미지를 ImageProvider로 변환
 ImageProvider? _dogImageProvider(String? profileImage) {
@@ -105,6 +106,10 @@ class ProfileTab extends ConsumerWidget {
               error: (_, __) => const SizedBox.shrink(),
             ),
 
+            const SizedBox(height: 12),
+
+            // 용품 재고
+            const _SupplyInventoryCard(),
             const SizedBox(height: 12),
 
             // 알림 설정
@@ -508,6 +513,192 @@ class _LoadingCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
         ),
         child: const Center(child: CircularProgressIndicator()),
+      ),
+    );
+  }
+}
+
+// 용품 재고 카드
+class _SupplyInventoryCard extends ConsumerWidget {
+  const _SupplyInventoryCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(supplyInventoryProvider);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('용품 재고',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 14),
+            ...items.asMap().entries.map(
+                  (e) => _SupplyRow(
+                    item: e.value,
+                    onTap: () => _showEditDialog(context, ref, e.key, e.value),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showEditDialog(
+      BuildContext context, WidgetRef ref, int index, SupplyItem item) async {
+    final totalCtrl =
+        TextEditingController(text: item.isSet ? '${item.totalGrams}' : '');
+    final currentCtrl =
+        TextEditingController(text: item.isSet ? '${item.currentGrams}' : '');
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${item.emoji} ${item.name} 재고 설정'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: totalCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '총량 (g)',
+                hintText: '예: 5000 (5kg)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: currentCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '현재 남은 양 (g)',
+                hintText: '예: 2500 (2.5kg)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('취소')),
+          ElevatedButton(
+            onPressed: () {
+              final total = int.tryParse(totalCtrl.text.trim()) ?? 0;
+              final current = int.tryParse(currentCtrl.text.trim()) ?? 0;
+              if (total > 0) {
+                ref.read(supplyInventoryProvider.notifier).update(
+                      index,
+                      current.clamp(0, total),
+                      total,
+                    );
+              }
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50)),
+            child:
+                const Text('저장', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    totalCtrl.dispose();
+    currentCtrl.dispose();
+  }
+}
+
+class _SupplyRow extends StatelessWidget {
+  final SupplyItem item;
+  final VoidCallback onTap;
+
+  const _SupplyRow({required this.item, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color barColor = item.isEmpty
+        ? Colors.red
+        : item.isLow
+            ? Colors.orange
+            : const Color(0xFF4CAF50);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(item.emoji, style: const TextStyle(fontSize: 18)),
+                const SizedBox(width: 8),
+                Text(item.name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14)),
+                const Spacer(),
+                if (!item.isSet)
+                  const Text('탭해서 설정',
+                      style: TextStyle(fontSize: 12, color: Colors.grey))
+                else ...[
+                  Text(
+                    '${item.displayCurrent} / ${item.displayTotal}',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: barColor,
+                        fontWeight: FontWeight.w500),
+                  ),
+                  if (item.isLow) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: barColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        item.isEmpty ? '소진' : '부족',
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: barColor,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ],
+                const SizedBox(width: 6),
+                const Icon(Icons.edit_outlined, size: 14, color: Colors.grey),
+              ],
+            ),
+            if (item.isSet) ...[
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: item.percentage,
+                  minHeight: 8,
+                  backgroundColor: Colors.grey[200],
+                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
