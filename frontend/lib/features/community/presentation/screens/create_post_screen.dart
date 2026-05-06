@@ -15,7 +15,7 @@ class CreatePostScreen extends ConsumerStatefulWidget {
 
 class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   final _formKey = GlobalKey<FormState>();
-  PostType _type = PostType.GENERAL;
+  PostType _type = PostType.ADOPTION;
   final _titleCtrl = TextEditingController();
   final _contentCtrl = TextEditingController();
   final _dogNameCtrl = TextEditingController();
