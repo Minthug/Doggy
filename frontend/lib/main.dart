@@ -4,14 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/naver_map_init.dart';
-import 'core/notifications/fcm_service.dart';
 import 'core/storage/token_storage.dart';
 import 'firebase_options.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/auth/presentation/screens/signup_screen.dart';
 import 'features/home/presentation/screens/main_screen.dart';
 import 'features/profile/domain/supply_inventory_provider.dart';
-export 'features/home/presentation/screens/main_screen.dart' show mainScreenKey;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -80,7 +78,7 @@ class _DoggyAppState extends State<DoggyApp> {
       routes: {
         '/login': (_) => const LoginScreen(),
         '/signup': (_) => const SignUpScreen(),
-        '/home': (_) => MainScreen(key: mainScreenKey),
+        '/home': (_) => const MainScreen(),
       },
       home: const _AuthGate(),
     );
@@ -151,7 +149,7 @@ class _AuthGateState extends State<_AuthGate> {
       return const _SplashScreen();
     }
     return _isLoggedIn!
-        ? MainScreen(key: mainScreenKey)
+        ? const MainScreen()
         : const LoginScreen();
   }
 }

@@ -7,14 +7,15 @@ import '../../../profile/presentation/screens/profile_tab.dart';
 import 'home_tab.dart';
 import 'walk_place_tab.dart';
 
-// 탭 인덱스를 홈 탭에서도 제어할 수 있도록 전역 키 사용
-final mainScreenKey = GlobalKey<_MainScreenState>();
+final _currentTabIndexProvider = StateProvider<int>((ref) => 0);
 
 class MainScreen extends ConsumerStatefulWidget {
-  const MainScreen({super.key}) : super();
+  const MainScreen({super.key});
 
   static void jumpToTab(BuildContext context, int index) {
-    mainScreenKey.currentState?.jumpTo(index);
+    ProviderScope.containerOf(context)
+        .read(_currentTabIndexProvider.notifier)
+        .state = index;
   }
 
   @override
@@ -22,18 +23,12 @@ class MainScreen extends ConsumerStatefulWidget {
 }
 
 class _MainScreenState extends ConsumerState<MainScreen> {
-  int _currentIndex = 0;
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(fcmServiceProvider).initialize();
     });
-  }
-
-  void jumpTo(int index) {
-    setState(() => _currentIndex = index);
   }
 
   final _tabs = const [
@@ -45,19 +40,21 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = ref.watch(_currentTabIndexProvider);
     return Scaffold(
       body: Stack(
         children: [
           IndexedStack(
-            index: _currentIndex,
+            index: currentIndex,
             children: _tabs,
           ),
           const BannerLayer(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        currentIndex: currentIndex,
+        onTap: (index) =>
+            ref.read(_currentTabIndexProvider.notifier).state = index,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF4CAF50),
         unselectedItemColor: Colors.grey,
