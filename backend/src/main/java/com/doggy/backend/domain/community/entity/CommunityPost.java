@@ -8,7 +8,11 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "community_posts")
+@Table(name = "community_posts", indexes = {
+        @Index(name = "idx_community_posts_created_at", columnList = "created_at DESC"),
+        @Index(name = "idx_community_posts_type_created_at", columnList = "type, created_at DESC"),
+        @Index(name = "idx_community_posts_related_post_id", columnList = "related_post_id")
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CommunityPost extends BaseEntity {
