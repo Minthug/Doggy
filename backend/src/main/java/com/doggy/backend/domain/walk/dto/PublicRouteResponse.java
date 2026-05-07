@@ -18,11 +18,13 @@ public record PublicRouteResponse(
 ) {
     public static PublicRouteResponse of(
             WalkSession session,
-            String dogName,
             long likeCount,
             boolean likedByMe,
             boolean bookmarkedByMe,
             String routeGeoJson) {
+        String dogName = session.getDogs().isEmpty()
+                ? "댕댕이"
+                : session.getDogs().stream().map(d -> d.getName()).reduce((a, b) -> a + ", " + b).orElse("댕댕이");
         return new PublicRouteResponse(
                 session.getId(),
                 session.getTitle(),

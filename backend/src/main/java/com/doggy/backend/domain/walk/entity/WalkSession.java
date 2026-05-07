@@ -1,11 +1,14 @@
 package com.doggy.backend.domain.walk.entity;
 
+import com.doggy.backend.domain.dog.entity.Dog;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "walk_sessions")
@@ -45,6 +48,14 @@ public class WalkSession extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String routeGeoJson;
 
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "walk_session_dogs",
+            joinColumns = @JoinColumn(name = "session_id"),
+            inverseJoinColumns = @JoinColumn(name = "dog_id")
+    )
+    private List<Dog> dogs = new ArrayList<>();
+
     @Builder
     public WalkSession(User user, LocalDateTime startedAt) {
         this.user = user;
@@ -83,6 +94,10 @@ public class WalkSession extends BaseEntity {
 
     public void resume() {
         this.status = Status.IN_PROGRESS;
+    }
+
+    public void setDogs(List<Dog> dogs) {
+        this.dogs = dogs != null ? dogs : new ArrayList<>();
     }
 
     public enum Status {

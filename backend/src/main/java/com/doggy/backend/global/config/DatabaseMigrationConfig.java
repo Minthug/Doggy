@@ -17,6 +17,30 @@ public class DatabaseMigrationConfig implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         alterDogProfileImageToText();
+        createWalkSessionDogsTable();
+    }
+
+    private void createWalkSessionDogsTable() {
+        try {
+            Boolean exists = jdbcTemplate.queryForObject(
+                    "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'walk_session_dogs')",
+                    Boolean.class
+            );
+            if (Boolean.TRUE.equals(exists)) {
+                log.debug("[Migration] walk_session_dogs 테이블 이미 존재, 스킵");
+                return;
+            }
+            jdbcTemplate.execute("""
+                    CREATE TABLE walk_session_dogs (
+                        session_id BIGINT NOT NULL REFERENCES walk_sessions(id) ON DELETE CASCADE,
+                        dog_id     BIGINT NOT NULL REFERENCES dogs(id) ON DELETE CASCADE,
+                        PRIMARY KEY (session_id, dog_id)
+                    )
+                    """);
+            log.info("[Migration] walk_session_dogs 테이블 생성 완료");
+        } catch (Exception e) {
+            log.warn("[Migration] walk_session_dogs 테이블 생성 실패: {}", e.getMessage());
+        }
     }
 
     /**

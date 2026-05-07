@@ -4,6 +4,7 @@ import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.entity.WalkSession.Status;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record WalkDetailResponse(
         Long id,
@@ -12,9 +13,15 @@ public record WalkDetailResponse(
         int distanceMeters,
         int durationSeconds,
         Status status,
-        String routeGeoJson
+        String routeGeoJson,
+        List<DogInfo> dogs
 ) {
+    public record DogInfo(Long id, String name, String breed, String profileImage) {}
+
     public static WalkDetailResponse of(WalkSession session, String routeGeoJson) {
+        List<DogInfo> dogInfos = session.getDogs().stream()
+                .map(d -> new DogInfo(d.getId(), d.getName(), d.getBreed(), d.getProfileImage()))
+                .toList();
         return new WalkDetailResponse(
                 session.getId(),
                 session.getStartedAt(),
@@ -22,7 +29,8 @@ public record WalkDetailResponse(
                 session.getDistanceMeters(),
                 session.getDurationSeconds(),
                 session.getStatus(),
-                routeGeoJson
+                routeGeoJson,
+                dogInfos
         );
     }
 }

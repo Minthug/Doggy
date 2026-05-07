@@ -45,7 +45,9 @@ public class WalkMeetService {
                 .orElseThrow(() -> BusinessException.notFound("상대방 산책 세션을 찾을 수 없습니다"));
 
         var otherUser = otherSession.getUser();
-        List<Dog> dogs = dogRepository.findAllByUserId(otherUser.getId());
+        List<Dog> dogs = otherSession.getDogs().isEmpty()
+                ? dogRepository.findAllByUserId(otherUser.getId())
+                : otherSession.getDogs();
 
         var userInfo = new WalkMeetResponse.UserInfo(
                 otherUser.getId(),

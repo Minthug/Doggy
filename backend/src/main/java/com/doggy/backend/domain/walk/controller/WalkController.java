@@ -24,9 +24,11 @@ public class WalkController {
     private final WalkMeetService walkMeetService;
 
     @PostMapping
-    public ResponseEntity<WalkSessionResponse> start(@AuthenticationPrincipal UserPrincipal principal) {
+    public ResponseEntity<WalkSessionResponse> start(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody(required = false) StartWalkRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(walkService.start(principal.getId()));
+                .body(walkService.start(principal.getId(), request));
     }
 
     @PostMapping("/{sessionId}/complete")

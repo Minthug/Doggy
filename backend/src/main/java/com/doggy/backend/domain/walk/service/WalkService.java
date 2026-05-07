@@ -46,7 +46,7 @@ public class WalkService {
     private final JdbcTemplate jdbcTemplate;
 
     @Transactional(readOnly = false)
-    public WalkSessionResponse start(Long userId) {
+    public WalkSessionResponse start(Long userId, StartWalkRequest request) {
         // 비정상 종료로 남은 세션이 있으면 자동 abandon 처리
         try {
             walkSessionRepository.findActiveSession(userId, Status.IN_PROGRESS)
@@ -68,13 +68,19 @@ public class WalkService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
 
-        WalkSession session = walkSessionRepository.save(
-                WalkSession.builder()
-                        .user(user)
-                        .startedAt(LocalDateTime.now())
-                        .build()
-        );
+        WalkSession session = WalkSession.builder()
+                .user(user)
+                .startedAt(LocalDateTime.now())
+                .build();
 
+        if (request != null && request.dogIds() != null && !request.dogIds().isEmpty()) {
+            List<Dog> dogs = dogRepository.findAllById(request.dogIds()).stream()
+                    .filter(d -> d.getUser().getId().equals(userId))
+                    .toList();
+            session.setDogs(dogs);
+        }
+
+        walkSessionRepository.save(session);
         return WalkSessionResponse.from(session);
     }
 
@@ -110,7 +116,7 @@ public class WalkService {
         session.complete(request.endedAt(), distanceMeters, durationSeconds);
         walkPingService.removeLocation(sessionId);
 
-        sendGoalAchievedNotificationIfNeeded(userId, prevMonthlyMeters, prevMonthlyMeters + distanceMeters);
+        sendGoalAchievedNotificationIfNeeded(userId, session.getDogs(), prevMonthlyMeters, prevMonthlyMeters + distanceMeters);
 
         // GeoJSON 생성 후 세션에 저장 (트랜잭션 내 — 방금 INSERT한 points 바로 읽음)
         try {
@@ -123,9 +129,11 @@ public class WalkService {
         }
     }
 
-    private void sendGoalAchievedNotificationIfNeeded(Long userId, int prevMeters, int newMeters) {
+    private void sendGoalAchievedNotificationIfNeeded(Long userId, List<Dog> sessionDogs, int prevMeters, int newMeters) {
         try {
-            List<Dog> dogs = dogRepository.findAllByUserId(userId);
+            List<Dog> dogs = sessionDogs.isEmpty()
+                    ? dogRepository.findAllByUserId(userId)
+                    : sessionDogs;
             if (dogs.isEmpty()) return;
 
             Dog representativeDog = dogs.get(0);
@@ -262,9 +270,7 @@ public class WalkService {
                     boolean likedByMe = userId != null && likeRepository.existsBySessionIdAndUserId(session.getId(), userId);
                     boolean bookmarkedByMe = userId != null && bookmarkRepository.existsBySessionIdAndUserId(session.getId(), userId);
                     String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(session.getId());
-                    String dogName = dogRepository.findAllByUserId(session.getUser().getId())
-                            .stream().findFirst().map(d -> d.getName()).orElse("댕댕이");
-                    return PublicRouteResponse.of(session, dogName, likeCount, likedByMe, bookmarkedByMe, routeGeoJson);
+                    return PublicRouteResponse.of(session, likeCount, likedByMe, bookmarkedByMe, routeGeoJson);
                 })
                 .toList();
     }
