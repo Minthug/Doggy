@@ -27,6 +27,9 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -265,13 +268,36 @@ public class WalkService {
                 ? walkSessionRepository.findPublicRoutesNearby(lat, lng, PUBLIC_ROUTE_RADIUS_METERS, size, page * size)
                 : walkSessionRepository.findPublicRoutesByLikes(size, page * size);
 
+        if (sessions.isEmpty()) return List.of();
+
+        List<Long> sessionIds = sessions.stream().map(WalkSession::getId).toList();
+
+        // 1 query: 세션별 좋아요 수 일괄 조회
+        Map<Long, Long> likeCounts = likeRepository.countBySessionIdIn(sessionIds).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+
+        // 1 query: 내가 좋아요한 세션 ID 조회
+        Set<Long> likedIds = userId != null
+                ? likeRepository.findLikedSessionIds(sessionIds, userId)
+                : Set.of();
+
+        // 1 query: 내가 북마크한 세션 ID 조회
+        Set<Long> bookmarkedIds = userId != null
+                ? bookmarkRepository.findBookmarkedSessionIds(sessionIds, userId)
+                : Set.of();
+
         return sessions.stream()
                 .map(session -> {
-                    long likeCount = likeRepository.countBySessionId(session.getId());
-                    boolean likedByMe = userId != null && likeRepository.existsBySessionIdAndUserId(session.getId(), userId);
-                    boolean bookmarkedByMe = userId != null && bookmarkRepository.existsBySessionIdAndUserId(session.getId(), userId);
-                    String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(session.getId());
-                    return PublicRouteResponse.of(session, likeCount, likedByMe, bookmarkedByMe, routeGeoJson);
+                    // 세션에 GeoJSON 캐시가 있으면 DB 조회 생략
+                    String routeGeoJson = session.getRouteGeoJson() != null
+                            ? session.getRouteGeoJson()
+                            : walkPointRepository.findRouteGeoJsonBySessionId(session.getId());
+                    return PublicRouteResponse.of(
+                            session,
+                            likeCounts.getOrDefault(session.getId(), 0L),
+                            likedIds.contains(session.getId()),
+                            bookmarkedIds.contains(session.getId()),
+                            routeGeoJson);
                 })
                 .toList();
     }
