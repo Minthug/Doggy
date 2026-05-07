@@ -1,6 +1,5 @@
 package com.doggy.backend.domain.walk.repository;
 
-import com.doggy.backend.domain.walk.dto.WalkSessionResponse;
 import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.entity.WalkSession.Status;
 import org.springframework.data.domain.Pageable;
@@ -14,15 +13,12 @@ import java.util.Optional;
 
 public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> {
 
-    // routeGeoJson 제외한 경량 프로젝션 — 히스토리 목록 전용 (ABANDONED 제외)
     @Query("""
-            SELECT new com.doggy.backend.domain.walk.dto.WalkSessionResponse(
-                w.id, w.startedAt, w.endedAt, w.distanceMeters, w.durationSeconds, w.status
-            ) FROM WalkSession w
+            SELECT w FROM WalkSession w
             WHERE w.user.id = :userId AND w.status <> com.doggy.backend.domain.walk.entity.WalkSession.Status.ABANDONED
             ORDER BY w.startedAt DESC
             """)
-    List<WalkSessionResponse> findHistoryByUserId(@Param("userId") Long userId, Pageable pageable);
+    List<WalkSession> findHistoryByUserId(@Param("userId") Long userId, Pageable pageable);
 
     Optional<WalkSession> findByIdAndUserId(Long id, Long userId);
 

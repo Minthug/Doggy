@@ -207,7 +207,8 @@ public class WalkService {
     }
 
     public List<WalkSessionResponse> getHistory(Long userId, int page, int size) {
-        return walkSessionRepository.findHistoryByUserId(userId, PageRequest.of(page, size));
+        return walkSessionRepository.findHistoryByUserId(userId, PageRequest.of(page, size))
+                .stream().map(WalkSessionResponse::from).toList();
     }
 
     @Transactional(readOnly = false)

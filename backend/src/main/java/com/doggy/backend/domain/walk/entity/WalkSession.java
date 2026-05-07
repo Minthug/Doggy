@@ -5,6 +5,7 @@ import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -54,6 +55,7 @@ public class WalkSession extends BaseEntity {
             joinColumns = @JoinColumn(name = "session_id"),
             inverseJoinColumns = @JoinColumn(name = "dog_id")
     )
+    @BatchSize(size = 30)
     private List<Dog> dogs = new ArrayList<>();
 
     @Builder
