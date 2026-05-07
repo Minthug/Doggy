@@ -10,6 +10,9 @@ import lombok.*;
     uniqueConstraints = {
         @UniqueConstraint(columnNames = {"auth_type", "provider_id"}),
         @UniqueConstraint(columnNames = {"auth_type", "email"})
+    },
+    indexes = {
+        @Index(name = "idx_user_auth_user_id", columnList = "user_id")
     }
 )
 @Getter

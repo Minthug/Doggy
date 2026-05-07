@@ -11,7 +11,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "dogs")
+@Table(name = "dogs", indexes = {
+        @Index(name = "idx_dogs_user_id", columnList = "user_id"),
+        @Index(name = "idx_dogs_birth_date", columnList = "birth_date")
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Dog extends BaseEntity {

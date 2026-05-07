@@ -12,7 +12,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "walk_sessions")
+@Table(name = "walk_sessions", indexes = {
+        @Index(name = "idx_walk_sessions_user_started", columnList = "user_id, started_at DESC"),
+        @Index(name = "idx_walk_sessions_user_status", columnList = "user_id, status"),
+        @Index(name = "idx_walk_sessions_public_status", columnList = "is_public, status")
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WalkSession extends BaseEntity {

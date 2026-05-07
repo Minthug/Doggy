@@ -7,7 +7,10 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "walk_ping_logs",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"session_a_id", "session_b_id"}))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"session_a_id", "session_b_id"}),
+        indexes = {
+                @Index(name = "idx_walk_ping_logs_session_b_id", columnList = "session_b_id")
+        })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WalkPingLog {
