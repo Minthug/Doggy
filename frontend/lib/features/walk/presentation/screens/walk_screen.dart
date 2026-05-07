@@ -318,6 +318,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       ref.invalidate(walkHistoryProvider);
       ref.invalidate(todayWalkStatsProvider);
       ref.invalidate(todayMeetsProvider);
+      ref.invalidate(todayDogCaloriesProvider);
     }
   }
 

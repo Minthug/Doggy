@@ -40,6 +40,7 @@ class HomeTab extends ConsumerWidget {
           ref.invalidate(userProfileProvider);
           ref.invalidate(myDogsProvider);
           ref.invalidate(todayWalkStatsProvider);
+          ref.invalidate(todayDogCaloriesProvider);
           ref.invalidate(walkIndexProvider);
           ref.invalidate(walkForecastProvider);
           ref.invalidate(todayMeetsProvider);
@@ -204,12 +205,15 @@ class _EmptyDogCard extends StatelessWidget {
 }
 
 // 강아지 목록
-class _DogListCard extends StatelessWidget {
+class _DogListCard extends ConsumerWidget {
   final List<Dog> dogs;
   const _DogListCard({required this.dogs});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final caloriesAsync = ref.watch(todayDogCaloriesProvider);
+    final caloriesMap = caloriesAsync.valueOrNull ?? {};
+
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,13 +221,17 @@ class _DogListCard extends StatelessWidget {
           const Text('내 반려견',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 12),
-          ...dogs.map((dog) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    _dogIcon(size: 40, profileImage: dog.profileImage),
-                    const SizedBox(width: 12),
-                    Column(
+          ...dogs.map((dog) {
+            final burned = caloriesMap[dog.id] ?? 0;
+            final recommended = dog.dailyCalories;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  _dogIcon(size: 40, profileImage: dog.profileImage),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(dog.name,
@@ -232,14 +240,75 @@ class _DogListCard extends StatelessWidget {
                         if (dog.breed != null)
                           Text(dog.breed!,
                               style: const TextStyle(
-                                  color: Colors.grey, fontSize: 13)),
+                                  color: Colors.grey, fontSize: 12)),
+                        if (recommended != null) ...[
+                          const SizedBox(height: 6),
+                          _CalorieBar(
+                              burned: burned, recommended: recommended),
+                        ],
                       ],
                     ),
-                  ],
-                ),
-              )),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
+    );
+  }
+}
+
+class _CalorieBar extends StatelessWidget {
+  final int burned;
+  final int recommended;
+  const _CalorieBar({required this.burned, required this.recommended});
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = (burned / recommended).clamp(0.0, 1.0);
+    final isDone = burned >= recommended;
+    final barColor =
+        isDone ? const Color(0xFF4CAF50) : const Color(0xFFFFA726);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              '🔥 ${burned}kcal',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: burned > 0 ? barColor : Colors.grey,
+              ),
+            ),
+            Text(
+              ' / ${recommended}kcal',
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            if (isDone) ...[
+              const SizedBox(width: 4),
+              const Text('✓',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF4CAF50),
+                      fontWeight: FontWeight.bold)),
+            ],
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 5,
+            backgroundColor: const Color(0xFFEEEEEE),
+            valueColor: AlwaysStoppedAnimation<Color>(barColor),
+          ),
+        ),
+      ],
     );
   }
 }
