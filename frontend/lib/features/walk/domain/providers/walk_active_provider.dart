@@ -28,7 +28,7 @@ class WalkState {
   final int elapsedSeconds;
   final double distanceMeters;
   final Position? currentPosition;
-  final Dog? selectedDog;
+  final List<Dog> selectedDogs;
   final bool isSimulating;
 
   const WalkState({
@@ -38,7 +38,7 @@ class WalkState {
     this.elapsedSeconds = 0,
     this.distanceMeters = 0,
     this.currentPosition,
-    this.selectedDog,
+    this.selectedDogs = const [],
     this.isSimulating = false,
   });
 
@@ -49,7 +49,7 @@ class WalkState {
     int? elapsedSeconds,
     double? distanceMeters,
     Position? currentPosition,
-    Dog? selectedDog,
+    List<Dog>? selectedDogs,
     bool? isSimulating,
   }) =>
       WalkState(
@@ -59,7 +59,7 @@ class WalkState {
         elapsedSeconds: elapsedSeconds ?? this.elapsedSeconds,
         distanceMeters: distanceMeters ?? this.distanceMeters,
         currentPosition: currentPosition ?? this.currentPosition,
-        selectedDog: selectedDog ?? this.selectedDog,
+        selectedDogs: selectedDogs ?? this.selectedDogs,
         isSimulating: isSimulating ?? this.isSimulating,
       );
 
@@ -144,8 +144,8 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
 
   WalkActiveNotifier(this._repository, this._ref) : super(const WalkState());
 
-  Future<void> startWalk({Dog? dog}) async {
-    final session = await _repository.start();
+  Future<void> startWalk({List<Dog> dogs = const []}) async {
+    final session = await _repository.start(dogIds: dogs.map((d) => d.id).toList());
     _walkStartedAt = DateTime.now();
     _pausedSeconds = 0;
     _pausedAt = null;
@@ -156,15 +156,15 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       points: [],
       elapsedSeconds: 0,
       distanceMeters: 0,
-      selectedDog: dog,
+      selectedDogs: dogs,
       isSimulating: false,
     );
     _startTimer();
     _startTracking();
   }
 
-  Future<void> startSimulatedWalk({Dog? dog}) async {
-    final session = await _repository.start();
+  Future<void> startSimulatedWalk({List<Dog> dogs = const []}) async {
+    final session = await _repository.start(dogIds: dogs.map((d) => d.id).toList());
     _simIndex = 0;
     _walkStartedAt = DateTime.now();
     _pausedSeconds = 0;
@@ -176,7 +176,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       points: [],
       elapsedSeconds: 0,
       distanceMeters: 0,
-      selectedDog: dog,
+      selectedDogs: dogs,
       isSimulating: true,
     );
     _startTimer();

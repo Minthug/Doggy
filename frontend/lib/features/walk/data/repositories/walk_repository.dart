@@ -23,8 +23,11 @@ class WalkRepository {
 
   WalkRepository(this._dio);
 
-  Future<WalkSession> start() async {
-    final response = await _dio.post('/api/walks');
+  Future<WalkSession> start({List<int> dogIds = const []}) async {
+    final response = await _dio.post(
+      '/api/walks',
+      data: dogIds.isEmpty ? null : {'dogIds': dogIds},
+    );
     return WalkSession.fromJson(response.data);
   }
 

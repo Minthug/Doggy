@@ -157,57 +157,56 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
 
   Future<void> _startWalkWithDogPicker(BuildContext context) async {
     final dogs = await ref.read(myDogsProvider.future).catchError((_) => <Dog>[]);
-
     if (!mounted) return;
 
-    Dog? selected;
+    List<Dog> selected;
     if (dogs.isEmpty) {
-      // 강아지 없으면 바로 시작
       ref.read(walkActiveProvider.notifier).startWalk();
       return;
     } else if (dogs.length == 1) {
-      selected = dogs.first;
+      selected = dogs;
     } else {
-      if (!mounted) return;
       // ignore: use_build_context_synchronously
-      selected = await showModalBottomSheet<Dog>(
+      final picked = await showModalBottomSheet<List<Dog>>(
         context: context,
+        isScrollControlled: true,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         builder: (ctx) => _DogPickerSheet(dogs: dogs),
       );
-      if (selected == null) return; // 취소
+      if (picked == null || picked.isEmpty) return;
+      selected = picked;
     }
 
-    ref.read(walkActiveProvider.notifier).startWalk(dog: selected);
+    ref.read(walkActiveProvider.notifier).startWalk(dogs: selected);
   }
 
   Future<void> _startSimulatedWalkWithDogPicker(BuildContext context) async {
     final dogs = await ref.read(myDogsProvider.future).catchError((_) => <Dog>[]);
-
     if (!mounted) return;
 
-    Dog? selected;
+    List<Dog> selected;
     if (dogs.isEmpty) {
       ref.read(walkActiveProvider.notifier).startSimulatedWalk();
       return;
     } else if (dogs.length == 1) {
-      selected = dogs.first;
+      selected = dogs;
     } else {
-      if (!mounted) return;
       // ignore: use_build_context_synchronously
-      selected = await showModalBottomSheet<Dog>(
+      final picked = await showModalBottomSheet<List<Dog>>(
         context: context,
+        isScrollControlled: true,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         builder: (ctx) => _DogPickerSheet(dogs: dogs),
       );
-      if (selected == null) return;
+      if (picked == null || picked.isEmpty) return;
+      selected = picked;
     }
 
-    ref.read(walkActiveProvider.notifier).startSimulatedWalk(dog: selected);
+    ref.read(walkActiveProvider.notifier).startSimulatedWalk(dogs: selected);
   }
 
   Future<void> _moveToCurrentLocation() async {
@@ -328,15 +327,19 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     final minutes = seconds ~/ 60;
     final distanceKm = distance / 1000;
 
-    final dog = walkState.selectedDog;
-    final guide = getWalkGuide(
-      breed: dog?.breed,
-      weightKg: dog?.weightKg,
-    );
+    final dogs = walkState.selectedDogs;
 
-    // 칼로리: 체중 기반 (없으면 5kg 기준)
-    final weightKg = dog?.weightKg ?? 5.0;
-    final calories = (minutes * weightKg * 0.3).round();
+    // 다견: 가장 운동 제한이 낮은 강아지 기준으로 가이드 (과운동 방지)
+    final guide = dogs.isEmpty
+        ? getWalkGuide()
+        : dogs
+            .map((d) => getWalkGuide(breed: d.breed, weightKg: d.weightKg))
+            .reduce((a, b) => a.maxDistanceKm < b.maxDistanceKm ? a : b);
+
+    // 칼로리: 모든 강아지 합산
+    final calories = dogs.isEmpty
+        ? (minutes * 5.0 * 0.3).round()
+        : dogs.map((d) => (minutes * (d.weightKg ?? 5.0) * 0.3).round()).reduce((a, b) => a + b);
 
     final distanceStr = distance >= 1000
         ? '${distanceKm.toStringAsFixed(2)} km'
@@ -369,10 +372,10 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                 style:
                     const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
-              if (dog != null) ...[
+              if (dogs.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
-                  '${dog.name} · ${guide.sizeLabel}',
+                  '${dogs.map((d) => d.name).join(', ')} · ${guide.sizeLabel} 기준',
                   style: const TextStyle(color: Colors.grey, fontSize: 13),
                 ),
               ],
@@ -692,14 +695,29 @@ class _ResultItem extends StatelessWidget {
   }
 }
 
-class _DogPickerSheet extends StatelessWidget {
+class _DogPickerSheet extends StatefulWidget {
   final List<Dog> dogs;
   const _DogPickerSheet({required this.dogs});
 
   @override
+  State<_DogPickerSheet> createState() => _DogPickerSheetState();
+}
+
+class _DogPickerSheetState extends State<_DogPickerSheet> {
+  late final Set<int> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    // 강아지가 1마리면 기본 선택
+    _selected = widget.dogs.length == 1 ? {widget.dogs.first.id} : {};
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+      padding: EdgeInsets.fromLTRB(24, 20, 24, 32 + bottomPadding),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -710,28 +728,108 @@ class _DogPickerSheet extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           const Text(
-            '강아지를 선택하면 맞춤 권장 거리를 알려드려요',
+            '여러 마리를 동시에 선택할 수 있어요',
             style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
-          const SizedBox(height: 16),
-          ...dogs.map((dog) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.15),
-                  child: Text(
-                    dog.name.isNotEmpty ? dog.name[0] : '🐶',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF4CAF50)),
+          const SizedBox(height: 12),
+          ...widget.dogs.map((dog) {
+            final isSelected = _selected.contains(dog.id);
+            return GestureDetector(
+              onTap: () => setState(() {
+                if (isSelected) {
+                  _selected.remove(dog.id);
+                } else {
+                  _selected.add(dog.id);
+                }
+              }),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFF4CAF50).withValues(alpha: 0.08)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFF4CAF50)
+                        : const Color(0xFFEEEEEE),
+                    width: isSelected ? 1.5 : 1,
                   ),
                 ),
-                title: Text(dog.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(dog.breed ?? '견종 미등록',
-                    style: const TextStyle(fontSize: 12)),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.pop(context, dog),
-              )),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor:
+                          const Color(0xFF4CAF50).withValues(alpha: 0.15),
+                      child: Text(
+                        dog.name.isNotEmpty ? dog.name[0] : '🐶',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF4CAF50)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(dog.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 15)),
+                          Text(dog.breed ?? '견종 미등록',
+                              style: const TextStyle(
+                                  color: Colors.grey, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    Checkbox(
+                      value: isSelected,
+                      activeColor: const Color(0xFF4CAF50),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4)),
+                      onChanged: (_) => setState(() {
+                        if (isSelected) {
+                          _selected.remove(dog.id);
+                        } else {
+                          _selected.add(dog.id);
+                        }
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _selected.isEmpty
+                  ? null
+                  : () {
+                      final picked = widget.dogs
+                          .where((d) => _selected.contains(d.id))
+                          .toList();
+                      Navigator.pop(context, picked);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                disabledBackgroundColor: Colors.grey[300],
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              child: Text(
+                _selected.isEmpty
+                    ? '강아지를 선택하세요'
+                    : '${_selected.length}마리와 산책 시작',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
         ],
       ),
     );

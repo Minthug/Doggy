@@ -1,3 +1,24 @@
+class WalkSessionDog {
+  final int id;
+  final String name;
+  final String? breed;
+  final String? profileImage;
+
+  const WalkSessionDog({
+    required this.id,
+    required this.name,
+    this.breed,
+    this.profileImage,
+  });
+
+  factory WalkSessionDog.fromJson(Map<String, dynamic> json) => WalkSessionDog(
+        id: json['id'],
+        name: json['name'] ?? '',
+        breed: json['breed'],
+        profileImage: json['profileImage'],
+      );
+}
+
 class WalkSession {
   final int id;
   final String? startedAt;
@@ -5,6 +26,7 @@ class WalkSession {
   final int distanceMeters;
   final int durationSeconds;
   final String status;
+  final List<WalkSessionDog> dogs;
 
   WalkSession({
     required this.id,
@@ -13,6 +35,7 @@ class WalkSession {
     required this.distanceMeters,
     required this.durationSeconds,
     required this.status,
+    this.dogs = const [],
   });
 
   factory WalkSession.fromJson(Map<String, dynamic> json) => WalkSession(
@@ -22,6 +45,10 @@ class WalkSession {
         distanceMeters: json['distanceMeters'] ?? 0,
         durationSeconds: json['durationSeconds'] ?? 0,
         status: json['status'] ?? '',
+        dogs: (json['dogs'] as List<dynamic>?)
+                ?.map((e) => WalkSessionDog.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
       );
 
   String get distanceText {
