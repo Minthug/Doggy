@@ -5,12 +5,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface DogRepository extends JpaRepository<Dog, Long> {
 
     List<Dog> findAllByUserId(Long userId);
+
+    @Query("SELECT d FROM Dog d WHERE d.user.id IN :userIds")
+    List<Dog> findAllByUserIdIn(@Param("userIds") Collection<Long> userIds);
 
     Optional<Dog> findByIdAndUserId(Long id, Long userId);
 
