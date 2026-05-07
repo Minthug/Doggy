@@ -81,8 +81,16 @@ public class WeatherService {
         CompletableFuture<AirData> airFuture =
                 CompletableFuture.supplyAsync(() -> fetchAirQuality(lat, lng), executor);
 
-        WeatherData weather = safeGet(weatherFuture, new WeatherData(20, 0, 0));
+        WeatherData weather = safeGet(weatherFuture, null);
         AirData air        = safeGet(airFuture,     new AirData(30, 10, "보통", "보통"));
+
+        if (weather == null) {
+            WalkIndexResponse result = WalkIndexResponse.of(
+                    WalkIndex.CAUTION, 20, 0, 0,
+                    air.pm10(), air.pm25(), air.pm10Grade(), air.pm25Grade());
+            toCache(key, result);
+            return result;
+        }
 
         WalkIndex index = calculateIndex(weather, air);
         WalkIndexResponse result = WalkIndexResponse.of(
@@ -204,7 +212,7 @@ public class WeatherService {
 
         } catch (Exception e) {
             log.warn("초단기실황 API 호출 실패: {}", e.getMessage());
-            return new WeatherData(20, 0, 0);
+            return null;
         }
     }
 
