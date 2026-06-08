@@ -30,8 +30,6 @@ public class WeatherService {
             "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst";
     private static final String AIR_STATION_URL =
             "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesurDnsty";
-    private static final String NEARBY_STATION_URL =
-            "https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getNearbyMsrstnList";
 
     private static final double DEFAULT_LAT = 37.218392;
     private static final double DEFAULT_LNG = 126.944858;
@@ -252,32 +250,6 @@ public class WeatherService {
             "세종", "제주"
     };
 
-    @SuppressWarnings("unchecked")
-    private String fetchNearestStation(double lat, double lng) {
-        try {
-            double[] tm = toTm(lat, lng);
-            String url = NEARBY_STATION_URL + "?serviceKey=" + airStationApiKey
-                    + "&returnType=json&numOfRows=1&pageNo=1"
-                    + "&tmX=" + tm[0]
-                    + "&tmY=" + tm[1]
-                    + "&ver=1.1";
-
-            Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
-            Map<String, Object> res  = (Map<String, Object>) response.get("response");
-            Map<String, Object> body = (Map<String, Object>) res.get("body");
-            List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
-
-            if (items == null || items.isEmpty()) return fallbackStation(lat, lng);
-            String stationName = (String) items.get(0).get("stationName");
-            log.info("가장 가까운 측정소: {}", stationName);
-            return stationName;
-
-        } catch (Exception e) {
-            log.warn("측정소 조회 실패 (fallback 사용): {}", e.getMessage());
-            return fallbackStation(lat, lng);
-        }
-    }
-
     private String fallbackStation(double lat, double lng) {
         int nearest = 0;
         double minDist = Double.MAX_VALUE;
@@ -415,49 +387,6 @@ public class WeatherService {
         }
     }
 
-    // ── 좌표 변환 ────────────────────────────────────────────
-
-    private double[] toTm(double lat, double lng) {
-        double a   = 6378137.0;
-        double f   = 1.0 / 298.257222101;
-        double k0  = 1.0;
-        double lon0 = Math.toRadians(127.0);
-        double lat0 = Math.toRadians(38.0);
-        double E0  = 200000.0;
-        double N0  = 500000.0;
-
-        double e2  = 2 * f - f * f;
-        double ep2 = e2 / (1 - e2);
-
-        double latR = Math.toRadians(lat);
-        double lonR = Math.toRadians(lng);
-
-        double N  = a / Math.sqrt(1 - e2 * Math.sin(latR) * Math.sin(latR));
-        double T  = Math.tan(latR) * Math.tan(latR);
-        double C  = ep2 * Math.cos(latR) * Math.cos(latR);
-        double A  = Math.cos(latR) * (lonR - lon0);
-
-        double e4 = e2 * e2, e6 = e4 * e2;
-        double M  = a * (
-                (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * latR
-                - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * latR)
-                + (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * latR)
-                - (35 * e6 / 3072) * Math.sin(6 * latR));
-        double M0 = a * (
-                (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * lat0
-                - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * lat0)
-                + (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * lat0)
-                - (35 * e6 / 3072) * Math.sin(6 * lat0));
-
-        double A2 = A * A, A3 = A2 * A, A4 = A3 * A, A5 = A4 * A, A6 = A5 * A;
-        double x  = E0 + k0 * N * (A + (1 - T + C) * A3 / 6
-                + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * A5 / 120);
-        double y  = N0 + k0 * (M - M0 + N * Math.tan(latR) * (A2 / 2
-                + (5 - T + 9 * C + 4 * C * C) * A4 / 24
-                + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * A6 / 720));
-
-        return new double[]{x, y};
-    }
 
     // ── 등급 계산 ─────────────────────────────────────────────
 
@@ -510,22 +439,6 @@ public class WeatherService {
         if (now.isBefore(LocalTime.of(17, 10))) return "1400";
         if (now.isBefore(LocalTime.of(20, 10))) return "1700";
         return "2000";
-    }
-
-    private String getTargetFcstDate() {
-        return ZonedDateTime.now(KST).toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-    }
-
-    private String getTargetFcstTime() {
-        LocalTime now = ZonedDateTime.now(KST).toLocalTime();
-        if (now.isBefore(LocalTime.of(3, 0)))  return "0000";
-        if (now.isBefore(LocalTime.of(6, 0)))  return "0300";
-        if (now.isBefore(LocalTime.of(9, 0)))  return "0600";
-        if (now.isBefore(LocalTime.of(12, 0))) return "0900";
-        if (now.isBefore(LocalTime.of(15, 0))) return "1200";
-        if (now.isBefore(LocalTime.of(18, 0))) return "1500";
-        if (now.isBefore(LocalTime.of(21, 0))) return "1800";
-        return "2100";
     }
 
     /**
