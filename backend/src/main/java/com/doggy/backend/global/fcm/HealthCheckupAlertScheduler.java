@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,16 +25,18 @@ public class HealthCheckupAlertScheduler {
     private final FcmService fcmService;
 
     // 매월 1일 오전 9시 실행
+    @Transactional(readOnly = true)
     @Scheduled(cron = "0 0 9 1 * *")
     public void sendHealthCheckupAlerts() {
         LocalDate today = LocalDate.now();
         int month = today.getMonthValue();
 
-        List<PushSetting> settings = pushSettingRepository.findAll().stream()
-                .filter(PushSetting::isHealthCheckupAlertEnabled)
-                .toList();
+        List<PushSetting> settings = pushSettingRepository.findByHealthCheckupAlertEnabledTrue();
 
-        Map<Long, List<Dog>> dogsByUser = dogRepository.findAll().stream()
+        if (settings.isEmpty()) return;
+
+        List<Long> userIds = settings.stream().map(s -> s.getUser().getId()).toList();
+        Map<Long, List<Dog>> dogsByUser = dogRepository.findAllByUserIdIn(userIds).stream()
                 .collect(Collectors.groupingBy(d -> d.getUser().getId()));
 
         for (PushSetting setting : settings) {
