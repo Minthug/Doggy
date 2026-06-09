@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../domain/providers/auth_provider.dart';
 
-const _oauthBaseUrl = 'https://doggy-production-6c3f.up.railway.app';
+const _oauthBaseUrl = 'http://223.130.158.221.nip.io:8080';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
