@@ -1,0 +1,59 @@
+# Uncomment this line to define a global platform for your project
+# platform :ios, '13.0'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  # Firebase pods need modular headers so Swift pods can import them as modules
+  pod 'GoogleUtilities', :modular_headers => true
+  pod 'FirebaseCore', :modular_headers => true
+  pod 'FirebaseMessaging', :modular_headers => true
+  pod 'FirebaseInstallations', :modular_headers => true
+  pod 'FirebaseCoreInternal', :modular_headers => true
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  # Redirect build/ symlink outside iCloud Desktop to avoid com.apple.provenance codesign failures.
+  # Files created in iCloud-synced Desktop get com.apple.provenance which codesign rejects.
+  # By symlinking build/ to ~/Library/Developer/DoggyBuild, all build artifacts go outside iCloud.
+  build_link = File.expand_path(File.join(File.dirname(__FILE__), '..', 'build'))
+  build_target = File.expand_path('~/Library/Developer/DoggyBuild')
+  FileUtils.mkdir_p(build_target)
+  unless File.symlink?(build_link)
+    FileUtils.rm_rf(build_link) if File.exist?(build_link)
+    File.symlink(build_target, build_link)
+    puts "Redirected build/ -> #{build_target} (iCloud workaround)"
+  end
+
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+  end
+end

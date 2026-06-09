@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../storage/token_storage.dart';
 
-const _baseUrl = 'https://doggy-production-6c3f.up.railway.app';
+const _baseUrl = 'http://223.130.158.221.nip.io:8080';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
