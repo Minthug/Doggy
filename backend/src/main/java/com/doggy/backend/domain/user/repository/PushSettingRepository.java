@@ -2,6 +2,7 @@ package com.doggy.backend.domain.user.repository;
 
 import com.doggy.backend.domain.user.entity.PushSetting;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -10,5 +11,6 @@ public interface PushSettingRepository extends JpaRepository<PushSetting, Long> 
 
     Optional<PushSetting> findByUserId(Long userId);
 
+    @Query("SELECT s FROM PushSetting s JOIN FETCH s.user WHERE s.healthCheckupAlertEnabled = true")
     List<PushSetting> findByHealthCheckupAlertEnabledTrue();
 }
