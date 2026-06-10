@@ -272,6 +272,10 @@ public class WalkService {
 
         List<Long> sessionIds = sessions.stream().map(WalkSession::getId).toList();
 
+        // 1 query: dogs fetch join (native query는 JOIN FETCH 불가 → 별도 조회)
+        Map<Long, WalkSession> sessionsWithDogs = walkSessionRepository.findAllByIdWithDogs(sessionIds)
+                .stream().collect(Collectors.toMap(WalkSession::getId, s -> s));
+
         // 1 query: 세션별 좋아요 수 일괄 조회
         Map<Long, Long> likeCounts = likeRepository.countBySessionIdIn(sessionIds).stream()
                 .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
@@ -288,15 +292,15 @@ public class WalkService {
 
         return sessions.stream()
                 .map(session -> {
-                    // 세션에 GeoJSON 캐시가 있으면 DB 조회 생략
-                    String routeGeoJson = session.getRouteGeoJson() != null
-                            ? session.getRouteGeoJson()
-                            : walkPointRepository.findRouteGeoJsonBySessionId(session.getId());
+                    WalkSession s = sessionsWithDogs.getOrDefault(session.getId(), session);
+                    String routeGeoJson = s.getRouteGeoJson() != null
+                            ? s.getRouteGeoJson()
+                            : walkPointRepository.findRouteGeoJsonBySessionId(s.getId());
                     return PublicRouteResponse.of(
-                            session,
-                            likeCounts.getOrDefault(session.getId(), 0L),
-                            likedIds.contains(session.getId()),
-                            bookmarkedIds.contains(session.getId()),
+                            s,
+                            likeCounts.getOrDefault(s.getId(), 0L),
+                            likedIds.contains(s.getId()),
+                            bookmarkedIds.contains(s.getId()),
                             routeGeoJson);
                 })
                 .toList();

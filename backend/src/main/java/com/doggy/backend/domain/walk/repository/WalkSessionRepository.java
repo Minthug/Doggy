@@ -26,6 +26,9 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> 
     @Query("SELECT DISTINCT s FROM WalkSession s JOIN FETCH s.user WHERE s.id IN :ids")
     List<WalkSession> findAllByIdWithUser(@Param("ids") Collection<Long> ids);
 
+    @Query("SELECT DISTINCT s FROM WalkSession s LEFT JOIN FETCH s.dogs WHERE s.id IN :ids")
+    List<WalkSession> findAllByIdWithDogs(@Param("ids") Collection<Long> ids);
+
     Optional<WalkSession> findTopByUserIdOrderByStartedAtDesc(Long userId);
 
     @Query("SELECT w FROM WalkSession w WHERE w.user.id = :userId AND w.status = :status")

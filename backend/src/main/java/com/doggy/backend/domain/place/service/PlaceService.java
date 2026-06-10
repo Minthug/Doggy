@@ -140,7 +140,7 @@ public class PlaceService {
     }
 
     private String cacheKey(double lat, double lng, double radius, String category) {
-        return Math.round(lat * 100) + ":" + Math.round(lng * 100) + ":" + (int) radius + ":" + category;
+        return Math.round(lat * 1000) + ":" + Math.round(lng * 1000) + ":" + (int) radius + ":" + category;
     }
 
     @SuppressWarnings("unchecked")
