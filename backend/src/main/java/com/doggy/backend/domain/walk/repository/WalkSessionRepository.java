@@ -15,7 +15,7 @@ import java.util.Optional;
 public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> {
 
     @Query("""
-            SELECT w FROM WalkSession w
+            SELECT DISTINCT w FROM WalkSession w LEFT JOIN FETCH w.dogs
             WHERE w.user.id = :userId AND w.status <> com.doggy.backend.domain.walk.entity.WalkSession.Status.ABANDONED
             ORDER BY w.startedAt DESC
             """)
