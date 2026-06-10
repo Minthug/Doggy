@@ -94,12 +94,11 @@ public class WalkPingService {
 
         if (validNearby.isEmpty()) return;
 
-        // 근처 강아지 경고 전체 수집 후 나에게 1개 집계 알림
-        Set<DogWarning> allNearbyWarnings = new HashSet<>();
-        for (WalkLocation nearby : validNearby) {
-            List<Dog> nearbyDogs = dogRepository.findAllByUserId(nearby.getWalkSession().getUser().getId());
-            allNearbyWarnings.addAll(collectWarnings(nearbyDogs));
-        }
+        // 근처 강아지 경고 전체 수집 후 나에게 1개 집계 알림 (유저 ID 일괄 조회로 N+1 제거)
+        List<Long> nearbyUserIds = validNearby.stream()
+                .map(nearby -> nearby.getWalkSession().getUser().getId())
+                .toList();
+        Set<DogWarning> allNearbyWarnings = collectWarnings(dogRepository.findAllByUserIdIn(nearbyUserIds));
 
         if (myFcmToken != null && !myFcmToken.isBlank()) {
             sendAggregatedPingNotification(myFcmToken, validNearby.size(), allNearbyWarnings);
