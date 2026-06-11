@@ -13,7 +13,12 @@ import 'features/profile/domain/supply_inventory_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
+        .timeout(const Duration(seconds: 10));
+  } catch (e) {
+    debugPrint('[Firebase init error] $e');
+  }
   final prefs = await SharedPreferences.getInstance();
   // initNaverMap은 네트워크 검증을 하므로 runApp을 막지 않게 비동기로 실행
   initNaverMap().catchError((e) => debugPrint('[NaverMap init error] $e'));

@@ -3,7 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../storage/token_storage.dart';
 
-const _baseUrl = 'http://223.130.158.221.nip.io:8080';
+const _baseUrl = String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'http://223.130.158.221.nip.io:8080',
+);
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
