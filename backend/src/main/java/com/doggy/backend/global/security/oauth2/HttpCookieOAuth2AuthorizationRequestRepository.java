@@ -1,3 +1,4 @@
+// ci-test
 package com.doggy.backend.global.security.oauth2;
 
 import jakarta.servlet.http.Cookie;
@@ -59,7 +60,9 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
         Cookie cookie = new Cookie(name, value);
         cookie.setPath("/");
         cookie.setHttpOnly(true);
-        cookie.setSecure(true);
+        // HTTP(nip.io) 환경에서는 Secure 쿠키가 전송되지 않아 OAuth state가 유실됨.
+        // HTTPS 도메인 적용 시 true로 되돌릴 것.
+        cookie.setSecure(false);
         cookie.setMaxAge(maxAge);
         response.addCookie(cookie);
     }
