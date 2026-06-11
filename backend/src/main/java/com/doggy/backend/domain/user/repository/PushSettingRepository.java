@@ -11,6 +11,9 @@ public interface PushSettingRepository extends JpaRepository<PushSetting, Long> 
 
     Optional<PushSetting> findByUserId(Long userId);
 
+    @Query("SELECT s FROM PushSetting s JOIN FETCH s.user")
+    List<PushSetting> findAllWithUser();
+
     @Query("SELECT s FROM PushSetting s JOIN FETCH s.user WHERE s.healthCheckupAlertEnabled = true")
     List<PushSetting> findByHealthCheckupAlertEnabledTrue();
 }

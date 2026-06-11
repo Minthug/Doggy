@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,6 +25,7 @@ public class BirthdayAlertScheduler {
     private final FcmService fcmService;
 
     // 매일 오전 8시 실행
+    @Transactional(readOnly = true)
     @Scheduled(cron = "0 0 8 * * *")
     public void sendBirthdayAlerts() {
         LocalDate today = LocalDate.now();
@@ -31,7 +33,7 @@ public class BirthdayAlertScheduler {
 
         if (birthdayDogs.isEmpty()) return;
 
-        Map<Long, PushSetting> settingMap = pushSettingRepository.findAll().stream()
+        Map<Long, PushSetting> settingMap = pushSettingRepository.findAllWithUser().stream()
                 .collect(Collectors.toMap(s -> s.getUser().getId(), s -> s));
 
         for (Dog dog : birthdayDogs) {
