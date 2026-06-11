@@ -1,4 +1,3 @@
-// ci-test
 package com.doggy.backend.global.security.oauth2;
 
 import jakarta.servlet.http.Cookie;
