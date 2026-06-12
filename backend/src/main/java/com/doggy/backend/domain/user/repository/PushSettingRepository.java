@@ -21,4 +21,7 @@ public interface PushSettingRepository extends JpaRepository<PushSetting, Long> 
 
     @Query("SELECT s FROM PushSetting s JOIN FETCH s.user WHERE s.weatherAlertEnabled = true AND s.weatherAlertHour = :hour")
     List<PushSetting> findWeatherAlertTargets(@Param("hour") int hour);
+
+    @Query("SELECT s FROM PushSetting s JOIN FETCH s.user WHERE s.walkReminderEnabled = true")
+    List<PushSetting> findWalkReminderTargets();
 }

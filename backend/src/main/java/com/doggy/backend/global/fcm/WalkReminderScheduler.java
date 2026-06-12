@@ -3,7 +3,6 @@ package com.doggy.backend.global.fcm;
 import com.doggy.backend.domain.user.entity.PushSetting;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.PushSettingRepository;
-import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -21,7 +23,6 @@ public class WalkReminderScheduler {
 
     private final WalkSessionRepository walkSessionRepository;
     private final PushSettingRepository pushSettingRepository;
-    private final UserRepository userRepository;
     private final FcmService fcmService;
 
     // 매시간 정각 실행
@@ -30,33 +31,34 @@ public class WalkReminderScheduler {
     public void sendWalkReminders() {
         log.debug("산책 리마인더 스케줄러 실행");
 
-        // 알림 활성화된 유저의 설정 조회
-        List<PushSetting> settings = pushSettingRepository.findAll().stream()
-                .filter(PushSetting::isWalkReminderEnabled)
-                .toList();
+        List<PushSetting> settings = pushSettingRepository.findWalkReminderTargets();
+        if (settings.isEmpty()) return;
 
-        for (PushSetting setting : settings) {
-            try {
-                int intervalHours = setting.getReminderIntervalHours();
-                LocalDateTime since = LocalDateTime.now().minusHours(intervalHours);
+        // intervalHours가 같은 유저끼리 묶어 쿼리 횟수를 고유 interval 수로 줄임
+        Map<Integer, List<PushSetting>> byInterval = settings.stream()
+                .collect(Collectors.groupingBy(PushSetting::getReminderIntervalHours));
 
-                // 해당 유저가 intervalHours 이내에 산책했는지 확인
-                List<Long> inactiveUserIds =
-                        walkSessionRepository.findUserIdsNotWalkedSince(since);
+        LocalDateTime now = LocalDateTime.now();
+        for (Map.Entry<Integer, List<PushSetting>> entry : byInterval.entrySet()) {
+            int intervalHours = entry.getKey();
+            LocalDateTime since = now.minusHours(intervalHours);
 
-                if (!inactiveUserIds.contains(setting.getUser().getId())) continue;
+            Set<Long> inactiveUserIds = new java.util.HashSet<>(
+                    walkSessionRepository.findUserIdsNotWalkedSince(since));
 
+            String body = intervalHours >= 24
+                    ? String.format("오늘 아직 산책을 안 했어요! %s와 함께 산책해볼까요?", getDogEmoji())
+                    : String.format("%d시간 동안 산책을 안 했어요. 잠깐 나가볼까요?", intervalHours);
+
+            for (PushSetting setting : entry.getValue()) {
                 User user = setting.getUser();
+                if (!inactiveUserIds.contains(user.getId())) continue;
                 if (user.getFcmToken() == null) continue;
-
-                String body = intervalHours >= 24
-                        ? String.format("오늘 아직 산책을 안 했어요! %s와 함께 산책해볼까요?", getDogEmoji())
-                        : String.format("%d시간 동안 산책을 안 했어요. 잠깐 나가볼까요?", intervalHours);
-
-                fcmService.sendToToken(user.getFcmToken(), "산책 시간이에요 🐾", body);
-
-            } catch (Exception e) {
-                log.warn("리마인더 전송 실패 [userId={}]: {}", setting.getUser().getId(), e.getMessage());
+                try {
+                    fcmService.sendToToken(user.getFcmToken(), "산책 시간이에요 🐾", body);
+                } catch (Exception e) {
+                    log.warn("리마인더 전송 실패 [userId={}]: {}", user.getId(), e.getMessage());
+                }
             }
         }
     }
