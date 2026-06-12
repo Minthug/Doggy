@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/household_model.dart';
 import '../../data/repositories/household_repository.dart';
 import '../../domain/providers/household_provider.dart';
+import '../../../dog/domain/providers/dog_provider.dart';
 
 class HouseholdScreen extends ConsumerWidget {
   const HouseholdScreen({super.key});
@@ -11,6 +12,11 @@ class HouseholdScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final householdAsync = ref.watch(myHouseholdProvider);
+
+    void refresh() {
+      ref.invalidate(myHouseholdProvider);
+      ref.invalidate(myDogsProvider);
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -21,10 +27,10 @@ class HouseholdScreen extends ConsumerWidget {
       ),
       body: householdAsync.when(
         data: (household) => household == null
-            ? _NoHouseholdView(onRefresh: () => ref.invalidate(myHouseholdProvider))
-            : _HouseholdView(household: household, onRefresh: () => ref.invalidate(myHouseholdProvider)),
+            ? _NoHouseholdView(onRefresh: refresh)
+            : _HouseholdView(household: household, onRefresh: refresh),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => _NoHouseholdView(onRefresh: () => ref.invalidate(myHouseholdProvider)),
+        error: (_, __) => _NoHouseholdView(onRefresh: refresh),
       ),
     );
   }
