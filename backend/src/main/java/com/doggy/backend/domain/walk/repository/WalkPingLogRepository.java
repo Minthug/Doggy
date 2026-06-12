@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,4 +19,10 @@ public interface WalkPingLogRepository extends JpaRepository<WalkPingLog, Long> 
 
     @Query("SELECT w FROM WalkPingLog w WHERE w.sessionAId = :sessionId OR w.sessionBId = :sessionId")
     List<WalkPingLog> findAllBySessionId(@Param("sessionId") Long sessionId);
+
+    @Query("SELECT w FROM WalkPingLog w WHERE (w.sessionAId IN :ids OR w.sessionBId IN :ids) AND w.pingedAt > :threshold")
+    List<WalkPingLog> findRecentBySessionIds(@Param("ids") Collection<Long> ids, @Param("threshold") LocalDateTime threshold);
+
+    @Query("SELECT w FROM WalkPingLog w WHERE w.sessionAId IN :ids OR w.sessionBId IN :ids")
+    List<WalkPingLog> findAllBySessionIds(@Param("ids") Collection<Long> ids);
 }

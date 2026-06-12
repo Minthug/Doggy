@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,6 +15,9 @@ public interface WalkLocationRepository extends JpaRepository<WalkLocation, Long
     Optional<WalkLocation> findByWalkSession_Id(Long sessionId);
 
     void deleteByWalkSession_Id(Long sessionId);
+
+    @Query("SELECT wl FROM WalkLocation wl JOIN FETCH wl.walkSession ws JOIN FETCH ws.user WHERE ws.id IN :sessionIds")
+    List<WalkLocation> findBySessionIdsWithUser(@Param("sessionIds") Collection<Long> sessionIds);
 
     /**
      * Haversine 공식으로 반경 내 활성 산책 세션 위치 조회

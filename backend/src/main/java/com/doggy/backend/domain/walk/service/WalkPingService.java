@@ -18,8 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -68,6 +70,14 @@ public class WalkPingService {
 
         if (nearbyLocations.isEmpty()) return;
 
+        // 근처 세션 ID 추출 후 WalkSession + User 배치 로딩
+        List<Long> nearbySessionIds = nearbyLocations.stream()
+                .map(wl -> wl.getWalkSession().getId())
+                .toList();
+        Map<Long, WalkLocation> nearbyBySessionId = walkLocationRepository
+                .findBySessionIdsWithUser(nearbySessionIds).stream()
+                .collect(Collectors.toMap(wl -> wl.getWalkSession().getId(), wl -> wl));
+
         List<Dog> myDogs = dogRepository.findAllByUserId(userId);
         Set<DogWarning> myWarnings = collectWarnings(myDogs);
         String myFcmToken = session.getUser().getFcmToken();
@@ -78,38 +88,61 @@ public class WalkPingService {
 
         LocalDateTime cooldownThreshold = LocalDateTime.now().minusMinutes(COOLDOWN_MINUTES);
 
-        // 쿨다운 통과한 세션만 추려서 한 번에 처리
-        List<WalkLocation> validNearby = new ArrayList<>();
-        for (WalkLocation nearby : nearbyLocations) {
-            Long nearbySessionId = nearby.getWalkSession().getId();
-            Long a = Math.min(sessionId, nearbySessionId);
-            Long b = Math.max(sessionId, nearbySessionId);
+        // 관련 PingLog 배치 조회 → 메모리에서 쿨다운 체크
+        Collection<Long> allSessionIds = new HashSet<>(nearbySessionIds);
+        allSessionIds.add(sessionId);
+        Set<String> recentPingKeys = walkPingLogRepository
+                .findRecentBySessionIds(allSessionIds, cooldownThreshold).stream()
+                .map(pl -> pl.getSessionAId() + "-" + pl.getSessionBId())
+                .collect(Collectors.toSet());
 
-            if (walkPingLogRepository.existsBySessionAIdAndSessionBIdAndPingedAtAfter(a, b, cooldownThreshold)) {
-                log.info("[핑] 쿨다운 스킵 — session {} ↔ session {}", sessionId, nearbySessionId);
-            } else {
-                validNearby.add(nearby);
-            }
-        }
+        List<WalkLocation> validNearby = nearbyLocations.stream()
+                .filter(nearby -> {
+                    Long nearbySessionId = nearby.getWalkSession().getId();
+                    Long a = Math.min(sessionId, nearbySessionId);
+                    Long b = Math.max(sessionId, nearbySessionId);
+                    if (recentPingKeys.contains(a + "-" + b)) {
+                        log.info("[핑] 쿨다운 스킵 — session {} ↔ session {}", sessionId, nearbySessionId);
+                        return false;
+                    }
+                    return true;
+                })
+                .toList();
 
         if (validNearby.isEmpty()) return;
 
-        // 근처 강아지 경고 전체 수집 후 나에게 1개 집계 알림 (유저 ID 일괄 조회로 N+1 제거)
-        List<Long> nearbyUserIds = validNearby.stream()
-                .map(nearby -> nearby.getWalkSession().getUser().getId())
+        // 근처 유저 경고 배치 수집
+        List<Long> validNearbyUserIds = validNearby.stream()
+                .map(nearby -> nearbyBySessionId.get(nearby.getWalkSession().getId()))
+                .filter(wl -> wl != null)
+                .map(wl -> wl.getWalkSession().getUser().getId())
                 .toList();
-        Set<DogWarning> allNearbyWarnings = collectWarnings(dogRepository.findAllByUserIdIn(nearbyUserIds));
+        Set<DogWarning> allNearbyWarnings = collectWarnings(dogRepository.findAllByUserIdIn(validNearbyUserIds));
 
         if (myFcmToken != null && !myFcmToken.isBlank()) {
             sendAggregatedPingNotification(myFcmToken, validNearby.size(), allNearbyWarnings);
             log.info("[핑] 집계 알림 발송 — session={} 근처={}마리 경고={}", sessionId, validNearby.size(), allNearbyWarnings);
         }
 
-        // 각 근처 유저에게는 내 강아지 정보로 개별 알림 + 쿨다운 갱신
+        // 기존 PingLog 배치 조회 (upsert용)
+        List<Long> validSessionIds = validNearby.stream()
+                .map(wl -> wl.getWalkSession().getId())
+                .toList();
+        Map<String, WalkPingLog> existingLogs = walkPingLogRepository
+                .findAllBySessionIds(validSessionIds).stream()
+                .collect(Collectors.toMap(
+                        pl -> pl.getSessionAId() + "-" + pl.getSessionBId(),
+                        pl -> pl
+                ));
+
+        // 각 근처 유저에게 알림 + PingLog 일괄 저장
+        List<WalkPingLog> logsToSave = new ArrayList<>();
         for (WalkLocation nearby : validNearby) {
-            WalkSession nearbySession = nearby.getWalkSession();
-            Long nearbySessionId = nearbySession.getId();
-            String nearbyFcmToken = nearbySession.getUser().getFcmToken();
+            Long nearbySessionId = nearby.getWalkSession().getId();
+            WalkLocation nearbyWithUser = nearbyBySessionId.get(nearbySessionId);
+            String nearbyFcmToken = nearbyWithUser != null
+                    ? nearbyWithUser.getWalkSession().getUser().getFcmToken()
+                    : null;
 
             if (nearbyFcmToken != null && !nearbyFcmToken.isBlank()) {
                 sendPingNotification(nearbyFcmToken, myWarnings);
@@ -119,13 +152,14 @@ public class WalkPingService {
 
             Long a = Math.min(sessionId, nearbySessionId);
             Long b = Math.max(sessionId, nearbySessionId);
-            WalkPingLog pingLog = walkPingLogRepository.findBySessionAIdAndSessionBId(a, b)
-                    .orElseGet(() -> WalkPingLog.builder().sessionAId(a).sessionBId(b).build());
+            WalkPingLog pingLog = existingLogs.getOrDefault(a + "-" + b,
+                    WalkPingLog.builder().sessionAId(a).sessionBId(b).build());
             pingLog.refresh();
-            walkPingLogRepository.save(pingLog);
+            logsToSave.add(pingLog);
 
             log.info("[핑] 발송 완료 — session {} ↔ session {}", sessionId, nearbySessionId);
         }
+        walkPingLogRepository.saveAll(logsToSave);
     }
 
     @Transactional
