@@ -26,7 +26,7 @@ public interface WalkLocationRepository extends JpaRepository<WalkLocation, Long
     @Query(value = """
             SELECT wl.* FROM walk_locations wl
             JOIN walk_sessions ws ON ws.id = wl.walk_session_id
-            WHERE ws.status IN ('IN_PROGRESS', 'PAUSED')
+            WHERE ws.status = 'IN_PROGRESS'
               AND wl.walk_session_id != :sessionId
               AND (6371000 * acos(
                     LEAST(1.0,
