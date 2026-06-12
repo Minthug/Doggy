@@ -90,4 +90,3 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
                 Base64.getUrlDecoder().decode(cookie));
     }
 }
-// trigger
