@@ -290,12 +290,26 @@ public class WalkService {
                 ? bookmarkRepository.findBookmarkedSessionIds(sessionIds, userId)
                 : Set.of();
 
+        // GeoJSON 미캐시 세션 ID만 추려서 배치 조회
+        List<Long> missingGeoJsonIds = sessions.stream()
+                .map(s -> sessionsWithDogs.getOrDefault(s.getId(), s))
+                .filter(s -> s.getRouteGeoJson() == null)
+                .map(WalkSession::getId)
+                .toList();
+        Map<Long, String> batchGeoJsonMap = missingGeoJsonIds.isEmpty()
+                ? Map.of()
+                : walkPointRepository.findRouteGeoJsonBySessionIds(missingGeoJsonIds).stream()
+                        .collect(Collectors.toMap(
+                                row -> ((Number) row[0]).longValue(),
+                                row -> row[1] != null ? (String) row[1] : ""
+                        ));
+
         return sessions.stream()
                 .map(session -> {
                     WalkSession s = sessionsWithDogs.getOrDefault(session.getId(), session);
                     String routeGeoJson = s.getRouteGeoJson() != null
                             ? s.getRouteGeoJson()
-                            : walkPointRepository.findRouteGeoJsonBySessionId(s.getId());
+                            : batchGeoJsonMap.get(s.getId());
                     return PublicRouteResponse.of(
                             s,
                             likeCounts.getOrDefault(s.getId(), 0L),
