@@ -12,4 +12,6 @@ public interface HouseholdMemberRepository extends JpaRepository<HouseholdMember
     Optional<HouseholdMember> findByHouseholdIdAndUserId(Long householdId, Long userId);
 
     void deleteByHouseholdIdAndUserId(Long householdId, Long userId);
+
+    long countByHouseholdId(Long householdId);
 }

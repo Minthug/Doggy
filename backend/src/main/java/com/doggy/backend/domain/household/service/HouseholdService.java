@@ -45,12 +45,12 @@ public class HouseholdService {
                 .role(Role.OWNER)
                 .build();
         householdMemberRepository.save(owner);
+        household.getMembers().add(owner);
 
         // 오너의 기존 강아지들을 가구에 연결
         dogRepository.findAllByUserId(userId).forEach(dog -> dog.assignHousehold(household));
 
-        return HouseholdResponse.from(householdRepository.findById(household.getId())
-                .orElseThrow());
+        return HouseholdResponse.from(household);
     }
 
     @Transactional(readOnly = true)
@@ -78,12 +78,12 @@ public class HouseholdService {
                 .role(Role.MEMBER)
                 .build();
         householdMemberRepository.save(member);
+        household.getMembers().add(member);
 
         // 기존에 가지고 있던 강아지들을 가구에 연결
         dogRepository.findAllByUserId(userId).forEach(dog -> dog.assignHousehold(household));
 
-        return HouseholdResponse.from(householdRepository.findById(household.getId())
-                .orElseThrow());
+        return HouseholdResponse.from(household);
     }
 
     @Transactional
@@ -121,8 +121,9 @@ public class HouseholdService {
         // 탈퇴한 유저의 강아지에서 가구 연결 해제
         dogRepository.findAllByUserId(userId).forEach(dog -> dog.assignHousehold(null));
 
-        // 멤버가 아무도 없으면 가구 삭제
-        if (household.getMembers().size() <= 1) {
+        // 멤버가 아무도 없으면 가구 삭제 (delete 후 DB 기준으로 카운트)
+        long remaining = householdMemberRepository.countByHouseholdId(household.getId());
+        if (remaining == 0) {
             householdRepository.delete(household);
         }
     }
