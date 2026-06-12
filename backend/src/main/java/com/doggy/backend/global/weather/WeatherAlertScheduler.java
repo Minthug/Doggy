@@ -29,10 +29,7 @@ public class WeatherAlertScheduler {
         int currentHour = LocalTime.now().getHour();
         log.info("날씨 알림 스케줄러 실행 (현재 {}시)", currentHour);
 
-        List<PushSetting> settings = pushSettingRepository.findAll().stream()
-                .filter(PushSetting::isWeatherAlertEnabled)
-                .filter(s -> s.getWeatherAlertHour() == currentHour)
-                .toList();
+        List<PushSetting> settings = pushSettingRepository.findWeatherAlertTargets(currentHour);
 
         if (settings.isEmpty()) return;
 
