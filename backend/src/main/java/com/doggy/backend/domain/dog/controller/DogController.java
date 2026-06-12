@@ -56,4 +56,12 @@ public class DogController {
         dogService.delete(principal.getId(), dogId);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{dogId}/favorite")
+    public ResponseEntity<Void> toggleFavorite(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long dogId) {
+        dogService.toggleFavorite(principal.getId(), dogId);
+        return ResponseEntity.ok().build();
+    }
 }

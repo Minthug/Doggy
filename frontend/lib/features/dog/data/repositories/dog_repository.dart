@@ -67,4 +67,8 @@ class DogRepository {
   Future<void> delete(int dogId) async {
     await _dio.delete('/api/dogs/$dogId');
   }
+
+  Future<void> toggleFavorite(int dogId) async {
+    await _dio.post('/api/dogs/$dogId/favorite');
+  }
 }

@@ -22,6 +22,7 @@ public record WalkMeetResponse(
             String name,
             String breed,
             String profileImage,
-            Set<Dog.DogWarning> warnings
+            Set<Dog.DogWarning> warnings,
+            boolean isFavorited
     ) {}
 }

@@ -2,6 +2,8 @@ package com.doggy.backend.domain.walk.service;
 
 import com.doggy.backend.domain.dog.entity.Dog;
 import com.doggy.backend.domain.dog.entity.Dog.DogWarning;
+import com.doggy.backend.domain.dog.entity.DogFavorite;
+import com.doggy.backend.domain.dog.repository.DogFavoriteRepository;
 import com.doggy.backend.domain.dog.repository.DogRepository;
 import com.doggy.backend.domain.walk.entity.WalkLocation;
 import com.doggy.backend.domain.walk.entity.WalkPingLog;
@@ -38,6 +40,7 @@ public class WalkPingService {
     private final WalkLocationRepository walkLocationRepository;
     private final WalkPingLogRepository walkPingLogRepository;
     private final DogRepository dogRepository;
+    private final DogFavoriteRepository dogFavoriteRepository;
     private final FcmService fcmService;
 
     @Transactional
@@ -135,17 +138,33 @@ public class WalkPingService {
                         pl -> pl
                 ));
 
+        // 즐겨찾기 배치 조회: 근처 유저들이 내 강아지를 즐겨찾기했는지 확인
+        List<Long> myDogIds = myDogs.stream().map(Dog::getId).toList();
+        Map<Long, List<Dog>> favoritedMyDogsByNearbyUser = myDogIds.isEmpty()
+                ? Map.of()
+                : dogFavoriteRepository.findByUserIdInAndDogIdIn(validNearbyUserIds, myDogIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                f -> f.getUser().getId(),
+                                Collectors.mapping(DogFavorite::getDog, Collectors.toList())
+                        ));
+
         // 각 근처 유저에게 알림 + PingLog 일괄 저장
         List<WalkPingLog> logsToSave = new ArrayList<>();
         for (WalkLocation nearby : validNearby) {
             Long nearbySessionId = nearby.getWalkSession().getId();
             WalkLocation nearbyWithUser = nearbyBySessionId.get(nearbySessionId);
-            String nearbyFcmToken = nearbyWithUser != null
-                    ? nearbyWithUser.getWalkSession().getUser().getFcmToken()
-                    : null;
+            if (nearbyWithUser == null) continue;
+            Long nearbyUserId = nearbyWithUser.getWalkSession().getUser().getId();
+            String nearbyFcmToken = nearbyWithUser.getWalkSession().getUser().getFcmToken();
 
             if (nearbyFcmToken != null && !nearbyFcmToken.isBlank()) {
-                sendPingNotification(nearbyFcmToken, myWarnings);
+                List<Dog> favoritedDogs = favoritedMyDogsByNearbyUser.get(nearbyUserId);
+                if (favoritedDogs != null && !favoritedDogs.isEmpty()) {
+                    sendFavoriteDogPingNotification(nearbyFcmToken, favoritedDogs);
+                } else {
+                    sendPingNotification(nearbyFcmToken, myWarnings);
+                }
             } else {
                 log.warn("[핑] 상대방 FCM 토큰 없음 — nearbySession={}", nearbySessionId);
             }
@@ -199,6 +218,15 @@ public class WalkPingService {
             body = "50m 내에 다른 강아지가 있어요.";
         }
 
+        fcmService.sendToToken(fcmToken, title, body, FcmService.Channel.PING);
+    }
+
+    private void sendFavoriteDogPingNotification(String fcmToken, List<Dog> favoritedDogs) {
+        String dogNames = favoritedDogs.stream()
+                .map(Dog::getName)
+                .collect(Collectors.joining(", "));
+        String title = "⭐ 즐겨찾기 강아지가 근처에 있어요!";
+        String body = dogNames + "이(가) 50m 내에 있어요!";
         fcmService.sendToToken(fcmToken, title, body, FcmService.Channel.PING);
     }
 

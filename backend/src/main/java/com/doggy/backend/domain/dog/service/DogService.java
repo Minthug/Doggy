@@ -4,6 +4,8 @@ import com.doggy.backend.domain.dog.dto.CreateDogRequest;
 import com.doggy.backend.domain.dog.dto.DogResponse;
 import com.doggy.backend.domain.dog.dto.UpdateDogRequest;
 import com.doggy.backend.domain.dog.entity.Dog;
+import com.doggy.backend.domain.dog.entity.DogFavorite;
+import com.doggy.backend.domain.dog.repository.DogFavoriteRepository;
 import com.doggy.backend.domain.dog.repository.DogRepository;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +23,7 @@ import java.util.List;
 public class DogService {
 
     private final DogRepository dogRepository;
+    private final DogFavoriteRepository dogFavoriteRepository;
     private final UserRepository userRepository;
 
     @Transactional
@@ -45,15 +49,30 @@ public class DogService {
     }
 
     public List<DogResponse> getMyDogs(Long userId) {
+        Set<Long> favoritedIds = dogFavoriteRepository.findFavoritedDogIdsByUserId(userId);
         return dogRepository.findAllByUserId(userId).stream()
-                .map(DogResponse::from)
+                .map(dog -> DogResponse.from(dog, favoritedIds.contains(dog.getId())))
                 .toList();
     }
 
     public DogResponse getDog(Long userId, Long dogId) {
         Dog dog = dogRepository.findByIdAndUserId(dogId, userId)
                 .orElseThrow(() -> BusinessException.notFound("반려견을 찾을 수 없습니다"));
-        return DogResponse.from(dog);
+        boolean favorited = dogFavoriteRepository.existsByUserIdAndDogId(userId, dogId);
+        return DogResponse.from(dog, favorited);
+    }
+
+    @Transactional
+    public void toggleFavorite(Long userId, Long dogId) {
+        Dog dog = dogRepository.findById(dogId)
+                .orElseThrow(() -> BusinessException.notFound("반려견을 찾을 수 없습니다"));
+        if (dogFavoriteRepository.existsByUserIdAndDogId(userId, dogId)) {
+            dogFavoriteRepository.deleteByUserIdAndDogId(userId, dogId);
+        } else {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
+            dogFavoriteRepository.save(DogFavorite.builder().user(user).dog(dog).build());
+        }
     }
 
     @Transactional

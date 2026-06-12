@@ -10,6 +10,7 @@ class Dog {
   final double? weightKg;
   final DateTime? birthDate;
   final List<String> warnings;
+  final bool isFavorited;
 
   Dog({
     required this.id,
@@ -21,6 +22,7 @@ class Dog {
     this.weightKg,
     this.birthDate,
     this.warnings = const [],
+    this.isFavorited = false,
   });
 
   factory Dog.fromJson(Map<String, dynamic> json) => Dog(
@@ -40,6 +42,20 @@ class Dog {
                 ?.map((e) => e as String)
                 .toList() ??
             [],
+        isFavorited: json['isFavorited'] ?? false,
+      );
+
+  Dog copyWith({bool? isFavorited}) => Dog(
+        id: id,
+        name: name,
+        breed: breed,
+        profileImage: profileImage,
+        gender: gender,
+        isNeutered: isNeutered,
+        weightKg: weightKg,
+        birthDate: birthDate,
+        warnings: warnings,
+        isFavorited: isFavorited ?? this.isFavorited,
       );
 
   /// RER = 70 × (체중kg ^ 0.75)

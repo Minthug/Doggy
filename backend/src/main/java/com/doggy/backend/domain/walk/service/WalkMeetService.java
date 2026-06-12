@@ -1,6 +1,7 @@
 package com.doggy.backend.domain.walk.service;
 
 import com.doggy.backend.domain.dog.entity.Dog;
+import com.doggy.backend.domain.dog.repository.DogFavoriteRepository;
 import com.doggy.backend.domain.dog.repository.DogRepository;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.walk.dto.WalkMeetResponse;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,6 +27,7 @@ public class WalkMeetService {
     private final WalkPingLogRepository walkPingLogRepository;
     private final WalkSessionRepository walkSessionRepository;
     private final DogRepository dogRepository;
+    private final DogFavoriteRepository dogFavoriteRepository;
 
     @Transactional(readOnly = true)
     public List<WalkMeetResponse> getMeets(Long userId, Long sessionId) {
@@ -62,6 +65,8 @@ public class WalkMeetService {
                 : dogRepository.findAllByUserIdIn(emptyDogUserIds).stream()
                         .collect(Collectors.groupingBy(d -> d.getUser().getId()));
 
+        Set<Long> myFavoritedDogIds = dogFavoriteRepository.findFavoritedDogIdsByUserId(userId);
+
         return logs.stream()
                 .map(log -> {
                     Long otherId = log.getSessionAId().equals(sessionId)
@@ -72,13 +77,13 @@ public class WalkMeetService {
                     List<Dog> dogs = !other.getDogs().isEmpty()
                             ? other.getDogs()
                             : dogsByUserId.getOrDefault(otherUser.getId(), List.of());
-                    return buildResponse(log, otherUser, dogs);
+                    return buildResponse(log, otherUser, dogs, myFavoritedDogIds);
                 })
                 .filter(Objects::nonNull)
                 .toList();
     }
 
-    private WalkMeetResponse buildResponse(WalkPingLog log, User otherUser, List<Dog> dogs) {
+    private WalkMeetResponse buildResponse(WalkPingLog log, User otherUser, List<Dog> dogs, Set<Long> favoritedDogIds) {
         var userInfo = new WalkMeetResponse.UserInfo(
                 otherUser.getId(),
                 otherUser.getNickname(),
@@ -90,7 +95,8 @@ public class WalkMeetService {
                         dog.getName(),
                         dog.getBreed(),
                         dog.getProfileImage(),
-                        dog.getWarnings()
+                        dog.getWarnings(),
+                        favoritedDogIds.contains(dog.getId())
                 ))
                 .toList();
         return new WalkMeetResponse(log.getPingedAt(), userInfo, dogInfos);

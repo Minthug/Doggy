@@ -17,9 +17,14 @@ public record DogResponse(
         Gender gender,
         boolean isNeutered,
         String profileImage,
-        Set<DogWarning> warnings
+        Set<DogWarning> warnings,
+        boolean isFavorited
 ) {
     public static DogResponse from(Dog dog) {
+        return from(dog, false);
+    }
+
+    public static DogResponse from(Dog dog, boolean isFavorited) {
         return new DogResponse(
                 dog.getId(),
                 dog.getName(),
@@ -29,7 +34,8 @@ public record DogResponse(
                 dog.getGender(),
                 dog.isNeutered(),
                 dog.getProfileImage(),
-                dog.getWarnings()
+                dog.getWarnings(),
+                isFavorited
         );
     }
 }

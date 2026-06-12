@@ -4,6 +4,7 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
+import '../../../dog/data/repositories/dog_repository.dart';
 
 final _walkDetailProvider =
     FutureProvider.family<WalkDetail, int>((ref, sessionId) {
@@ -189,7 +190,7 @@ class _DetailBody extends ConsumerWidget {
                         ),
                   loading: () => const Center(
                       child: CircularProgressIndicator()),
-                  error: (_, _e) => const _EmptyMeets(),
+                  error: (_, __) => const _EmptyMeets(),
                 ),
               ],
             ),
@@ -332,10 +333,43 @@ class _EmptyMeets extends StatelessWidget {
   }
 }
 
-class _MeetCard extends StatelessWidget {
+class _MeetCard extends ConsumerStatefulWidget {
   final WalkMeet meet;
 
   const _MeetCard({required this.meet});
+
+  @override
+  ConsumerState<_MeetCard> createState() => _MeetCardState();
+}
+
+class _MeetCardState extends ConsumerState<_MeetCard> {
+  late Set<int> _favoritedDogIds;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _favoritedDogIds =
+        widget.meet.dogs.where((d) => d.isFavorited).map((d) => d.id).toSet();
+  }
+
+  Future<void> _toggleFavorite(int dogId) async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(dogRepositoryProvider).toggleFavorite(dogId);
+      setState(() {
+        if (_favoritedDogIds.contains(dogId)) {
+          _favoritedDogIds.remove(dogId);
+        } else {
+          _favoritedDogIds.add(dogId);
+        }
+      });
+    } catch (_) {
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -352,46 +386,64 @@ class _MeetCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // 프로필 이미지
           CircleAvatar(
             radius: 24,
             backgroundColor: const Color(0xFFE8F5E9),
-            backgroundImage: meet.user.profileImage != null
-                ? NetworkImage(meet.user.profileImage!)
+            backgroundImage: widget.meet.user.profileImage != null
+                ? NetworkImage(widget.meet.user.profileImage!)
                 : null,
-            child: meet.user.profileImage == null
+            child: widget.meet.user.profileImage == null
                 ? const Text('🐶', style: TextStyle(fontSize: 20))
                 : null,
           ),
           const SizedBox(width: 12),
 
-          // 유저/강아지 정보
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(meet.user.nickname,
+                Text(widget.meet.user.nickname,
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 4),
-                if (meet.dogs.isNotEmpty)
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: meet.dogs.map((dog) {
-                      final label = dog.breed != null
-                          ? '${dog.name} · ${dog.breed}'
-                          : dog.name;
-                      return Text(label,
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 13));
+                if (widget.meet.dogs.isNotEmpty)
+                  Column(
+                    children: widget.meet.dogs.map((dog) {
+                      final isFav = _favoritedDogIds.contains(dog.id);
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              dog.breed != null
+                                  ? '${dog.name} · ${dog.breed}'
+                                  : dog.name,
+                              style: const TextStyle(
+                                  color: Colors.grey, fontSize: 13),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => _toggleFavorite(dog.id),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 4, vertical: 2),
+                              child: Icon(
+                                isFav ? Icons.star : Icons.star_border,
+                                size: 20,
+                                color: isFav
+                                    ? const Color(0xFFFFC107)
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
                     }).toList(),
                   ),
-                if (meet.dogs.any((d) => d.warnings.isNotEmpty))
+                if (widget.meet.dogs.any((d) => d.warnings.isNotEmpty))
                   const SizedBox(height: 6),
                 Wrap(
                   spacing: 4,
-                  children: meet.dogs
+                  children: widget.meet.dogs
                       .expand((d) => d.warnings)
                       .toSet()
                       .map((w) => Container(

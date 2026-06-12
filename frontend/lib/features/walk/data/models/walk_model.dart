@@ -199,13 +199,15 @@ class WalkMeetDog {
   final String? breed;
   final String? profileImage;
   final List<String> warnings;
+  final bool isFavorited;
 
   WalkMeetDog(
       {required this.id,
       required this.name,
       this.breed,
       this.profileImage,
-      required this.warnings});
+      required this.warnings,
+      this.isFavorited = false});
 
   factory WalkMeetDog.fromJson(Map<String, dynamic> json) => WalkMeetDog(
         id: json['id'],
@@ -215,6 +217,7 @@ class WalkMeetDog {
         warnings: (json['warnings'] as List? ?? [])
             .map((w) => w.toString())
             .toList(),
+        isFavorited: json['isFavorited'] ?? false,
       );
 }
 

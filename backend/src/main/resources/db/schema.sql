@@ -149,6 +149,17 @@ CREATE TABLE community_posts (
 CREATE INDEX idx_community_posts_type ON community_posts (type);
 CREATE INDEX idx_community_posts_created ON community_posts (created_at DESC);
 
+-- dog_favorites
+CREATE TABLE dog_favorites (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    dog_id     BIGINT NOT NULL REFERENCES dogs (id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, dog_id)
+);
+CREATE INDEX idx_dog_favorites_user_id ON dog_favorites (user_id);
+CREATE INDEX idx_dog_favorites_dog_id ON dog_favorites (dog_id);
+
 -- push_settings
 CREATE TABLE push_settings (
     id                      BIGSERIAL PRIMARY KEY,
