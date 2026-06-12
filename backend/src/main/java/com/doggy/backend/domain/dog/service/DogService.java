@@ -7,6 +7,8 @@ import com.doggy.backend.domain.dog.entity.Dog;
 import com.doggy.backend.domain.dog.entity.DogFavorite;
 import com.doggy.backend.domain.dog.repository.DogFavoriteRepository;
 import com.doggy.backend.domain.dog.repository.DogRepository;
+import com.doggy.backend.domain.household.entity.Household;
+import com.doggy.backend.domain.household.repository.HouseholdRepository;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
@@ -25,41 +27,55 @@ public class DogService {
     private final DogRepository dogRepository;
     private final DogFavoriteRepository dogFavoriteRepository;
     private final UserRepository userRepository;
+    private final HouseholdRepository householdRepository;
 
     @Transactional
     public DogResponse create(Long userId, CreateDogRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
 
-        Dog dog = dogRepository.save(
-                Dog.builder()
-                        .user(user)
-                        .name(request.name())
-                        .breed(request.breed())
-                        .birthDate(request.birthDate())
-                        .weightKg(request.weightKg())
-                        .gender(request.gender())
-                        .isNeutered(request.isNeutered())
-                        .profileImage(request.profileImage())
-                        .warnings(request.warnings())
-                        .build()
-        );
+        Dog dog = Dog.builder()
+                .user(user)
+                .name(request.name())
+                .breed(request.breed())
+                .birthDate(request.birthDate())
+                .weightKg(request.weightKg())
+                .gender(request.gender())
+                .isNeutered(request.isNeutered())
+                .profileImage(request.profileImage())
+                .warnings(request.warnings())
+                .build();
 
-        return DogResponse.from(dog);
+        // 가구에 속해 있으면 자동으로 가구 연결
+        householdRepository.findByUserId(userId).ifPresent(dog::assignHousehold);
+
+        return DogResponse.from(dogRepository.save(dog));
     }
 
     public List<DogResponse> getMyDogs(Long userId) {
         Set<Long> favoritedIds = dogFavoriteRepository.findFavoritedDogIdsByUserId(userId);
-        return dogRepository.findAllByUserId(userId).stream()
+        List<Dog> dogs = householdRepository.findByUserId(userId)
+                .map(h -> dogRepository.findAllAccessibleDogs(userId, h.getId()))
+                .orElseGet(() -> dogRepository.findAllByUserId(userId));
+        return dogs.stream()
                 .map(dog -> DogResponse.from(dog, favoritedIds.contains(dog.getId())))
                 .toList();
     }
 
     public DogResponse getDog(Long userId, Long dogId) {
-        Dog dog = dogRepository.findByIdAndUserId(dogId, userId)
+        Dog dog = dogRepository.findById(dogId)
                 .orElseThrow(() -> BusinessException.notFound("반려견을 찾을 수 없습니다"));
+        checkAccess(userId, dog);
         boolean favorited = dogFavoriteRepository.existsByUserIdAndDogId(userId, dogId);
         return DogResponse.from(dog, favorited);
+    }
+
+    private void checkAccess(Long userId, Dog dog) {
+        if (dog.getUser().getId().equals(userId)) return;
+        Household household = householdRepository.findByUserId(userId).orElse(null);
+        if (household != null && dog.getHousehold() != null
+                && dog.getHousehold().getId().equals(household.getId())) return;
+        throw BusinessException.notFound("반려견을 찾을 수 없습니다");
     }
 
     @Transactional

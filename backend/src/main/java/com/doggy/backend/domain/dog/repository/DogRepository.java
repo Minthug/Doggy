@@ -18,6 +18,11 @@ public interface DogRepository extends JpaRepository<Dog, Long> {
 
     Optional<Dog> findByIdAndUserId(Long id, Long userId);
 
+    List<Dog> findAllByHouseholdId(Long householdId);
+
+    @Query("SELECT d FROM Dog d WHERE d.user.id = :userId OR d.household.id = :householdId")
+    List<Dog> findAllAccessibleDogs(@Param("userId") Long userId, @Param("householdId") Long householdId);
+
     @Query(value = "SELECT * FROM dogs WHERE birth_date IS NOT NULL AND EXTRACT(MONTH FROM birth_date) = :month AND EXTRACT(DAY FROM birth_date) = :day", nativeQuery = true)
     List<Dog> findByBirthMonthAndDay(@Param("month") int month, @Param("day") int day);
 }

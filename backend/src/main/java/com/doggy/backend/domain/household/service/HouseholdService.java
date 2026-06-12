@@ -1,5 +1,6 @@
 package com.doggy.backend.domain.household.service;
 
+import com.doggy.backend.domain.dog.repository.DogRepository;
 import com.doggy.backend.domain.household.dto.CreateHouseholdRequest;
 import com.doggy.backend.domain.household.dto.HouseholdResponse;
 import com.doggy.backend.domain.household.dto.JoinHouseholdRequest;
@@ -22,6 +23,7 @@ public class HouseholdService {
     private final HouseholdRepository householdRepository;
     private final HouseholdMemberRepository householdMemberRepository;
     private final UserRepository userRepository;
+    private final DogRepository dogRepository;
 
     @Transactional
     public HouseholdResponse create(Long userId, CreateHouseholdRequest request) {
@@ -43,6 +45,9 @@ public class HouseholdService {
                 .role(Role.OWNER)
                 .build();
         householdMemberRepository.save(owner);
+
+        // 오너의 기존 강아지들을 가구에 연결
+        dogRepository.findAllByUserId(userId).forEach(dog -> dog.assignHousehold(household));
 
         return HouseholdResponse.from(householdRepository.findById(household.getId())
                 .orElseThrow());
@@ -73,6 +78,9 @@ public class HouseholdService {
                 .role(Role.MEMBER)
                 .build();
         householdMemberRepository.save(member);
+
+        // 기존에 가지고 있던 강아지들을 가구에 연결
+        dogRepository.findAllByUserId(userId).forEach(dog -> dog.assignHousehold(household));
 
         return HouseholdResponse.from(householdRepository.findById(household.getId())
                 .orElseThrow());
@@ -109,6 +117,9 @@ public class HouseholdService {
         }
 
         householdMemberRepository.deleteByHouseholdIdAndUserId(household.getId(), userId);
+
+        // 탈퇴한 유저의 강아지에서 가구 연결 해제
+        dogRepository.findAllByUserId(userId).forEach(dog -> dog.assignHousehold(null));
 
         // 멤버가 아무도 없으면 가구 삭제
         if (household.getMembers().size() <= 1) {

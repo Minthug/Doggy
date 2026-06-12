@@ -2,6 +2,7 @@ package com.doggy.backend.domain.walk.service;
 
 import com.doggy.backend.domain.dog.entity.Dog;
 import com.doggy.backend.domain.dog.repository.DogRepository;
+import com.doggy.backend.domain.household.repository.HouseholdRepository;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.PushSettingRepository;
 import com.doggy.backend.domain.user.repository.UserRepository;
@@ -43,6 +44,7 @@ public class WalkService {
     private final WalkRouteBookmarkRepository bookmarkRepository;
     private final UserRepository userRepository;
     private final DogRepository dogRepository;
+    private final HouseholdRepository householdRepository;
     private final PushSettingRepository pushSettingRepository;
     private final FcmService fcmService;
     private final WalkPingService walkPingService;
@@ -77,8 +79,12 @@ public class WalkService {
                 .build();
 
         if (request != null && request.dogIds() != null && !request.dogIds().isEmpty()) {
+            Long householdId = householdRepository.findByUserId(userId)
+                    .map(h -> h.getId()).orElse(null);
             List<Dog> dogs = dogRepository.findAllById(request.dogIds()).stream()
-                    .filter(d -> d.getUser().getId().equals(userId))
+                    .filter(d -> d.getUser().getId().equals(userId)
+                            || (householdId != null && d.getHousehold() != null
+                                && d.getHousehold().getId().equals(householdId)))
                     .toList();
             session.setDogs(dogs);
         }
