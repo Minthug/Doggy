@@ -1,5 +1,6 @@
 package com.doggy.backend.domain.dog.entity;
 
+import com.doggy.backend.domain.household.entity.Household;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.global.common.BaseEntity;
 import jakarta.persistence.*;
@@ -27,6 +28,10 @@ public class Dog extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "household_id")
+    private Household household;
+
     @Column(nullable = false, length = 50)
     private String name;
 
@@ -53,6 +58,10 @@ public class Dog extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "warning", length = 20)
     private Set<DogWarning> warnings = new HashSet<>();
+
+    public void assignHousehold(Household household) {
+        this.household = household;
+    }
 
     @Builder
     public Dog(User user, String name, String breed, LocalDate birthDate,

@@ -29,6 +29,7 @@ CREATE TABLE user_auth (
 CREATE TABLE dogs (
     id            BIGSERIAL PRIMARY KEY,
     user_id       BIGINT       NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    household_id  BIGINT       REFERENCES households (id) ON DELETE SET NULL,
     name          VARCHAR(50)  NOT NULL,
     breed         VARCHAR(100),
     birth_date    DATE,
@@ -159,6 +160,27 @@ CREATE TABLE dog_favorites (
 );
 CREATE INDEX idx_dog_favorites_user_id ON dog_favorites (user_id);
 CREATE INDEX idx_dog_favorites_dog_id ON dog_favorites (dog_id);
+
+-- households
+CREATE TABLE households (
+    id          BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(50)  NOT NULL,
+    invite_code VARCHAR(20)  NOT NULL UNIQUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+-- household_members
+CREATE TABLE household_members (
+    id           BIGSERIAL PRIMARY KEY,
+    household_id BIGINT      NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+    user_id      BIGINT      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    role         VARCHAR(10) NOT NULL, -- OWNER / MEMBER
+    joined_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (household_id, user_id)
+);
+
+CREATE INDEX idx_household_members_user_id ON household_members (user_id);
 
 -- push_settings
 CREATE TABLE push_settings (
