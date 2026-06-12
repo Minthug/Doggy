@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/domain/providers/auth_provider.dart';
+import '../../../household/presentation/screens/household_screen.dart';
 import 'push_setting_screen.dart';
 import '../../../dog/data/models/dog_model.dart';
 import '../../../dog/domain/providers/dog_provider.dart';
@@ -110,6 +111,41 @@ class ProfileTab extends ConsumerWidget {
 
             // 용품 재고
             const _SupplyInventoryCard(),
+            const SizedBox(height: 12),
+
+            // 가족 관리
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HouseholdScreen()),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 8),
+                    ],
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.people_outlined, color: Color(0xFF4CAF50)),
+                      SizedBox(width: 12),
+                      Expanded(
+                          child: Text('가족 관리',
+                              style: TextStyle(fontSize: 15))),
+                      Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
             const SizedBox(height: 12),
 
             // 알림 설정
