@@ -204,7 +204,7 @@ class _EmptyDogCard extends StatelessWidget {
   }
 }
 
-// 강아지 목록
+// 강아지 목록 — 가로 슬라이더
 class _DogListCard extends ConsumerWidget {
   final List<Dog> dogs;
   const _DogListCard({required this.dogs});
@@ -214,45 +214,136 @@ class _DogListCard extends ConsumerWidget {
     final caloriesAsync = ref.watch(todayDogCaloriesProvider);
     final caloriesMap = caloriesAsync.valueOrNull ?? {};
 
-    return _card(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            children: [
+              const Text('내 반려견',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(width: 6),
+              Text('${dogs.length}마리',
+                  style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 160,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            itemCount: dogs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, i) {
+              final dog = dogs[i];
+              final burned = caloriesMap[dog.id] ?? 0;
+              final recommended = dog.dailyCalories;
+              return _DogSliderItem(
+                dog: dog,
+                burned: burned,
+                recommended: recommended,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DogSliderItem extends StatelessWidget {
+  final Dog dog;
+  final int burned;
+  final int? recommended;
+
+  const _DogSliderItem({
+    required this.dog,
+    required this.burned,
+    required this.recommended,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDone = recommended != null && burned >= recommended!;
+    final barColor = isDone ? const Color(0xFF4CAF50) : const Color(0xFFFFA726);
+    final ratio = recommended != null
+        ? (burned / recommended!).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Container(
+      width: 150,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('내 반려견',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 12),
-          ...dogs.map((dog) {
-            final burned = caloriesMap[dog.id] ?? 0;
-            final recommended = dog.dailyCalories;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  _dogIcon(size: 40, profileImage: dog.profileImage),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(dog.name,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 15)),
-                        if (dog.breed != null)
-                          Text(dog.breed!,
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 12)),
-                        if (recommended != null) ...[
-                          const SizedBox(height: 6),
-                          _CalorieBar(
-                              burned: burned, recommended: recommended),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
+          Row(
+            children: [
+              _dogIcon(size: 36, profileImage: dog.profileImage),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(dog.name,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    if (dog.breed != null)
+                      Text(dog.breed!,
+                          style: const TextStyle(
+                              color: Colors.grey, fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                  ],
+                ),
               ),
-            );
-          }),
+            ],
+          ),
+          const Spacer(),
+          if (recommended != null) ...[
+            Row(
+              children: [
+                Text('🔥 ${burned}kcal',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: burned > 0 ? barColor : Colors.grey)),
+                if (isDone)
+                  const Text(' ✓',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF4CAF50),
+                          fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text('목표 ${recommended}kcal',
+                style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: ratio,
+                minHeight: 5,
+                backgroundColor: const Color(0xFFEEEEEE),
+                valueColor: AlwaysStoppedAnimation<Color>(barColor),
+              ),
+            ),
+          ] else ...[
+            const Text('칼로리 정보 없음',
+                style: TextStyle(fontSize: 11, color: Colors.grey)),
+          ],
         ],
       ),
     );
