@@ -39,6 +39,7 @@ class HomeTab extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(userProfileProvider);
           ref.invalidate(myDogsProvider);
+          ref.invalidate(walkHistoryProvider);
           ref.invalidate(todayWalkStatsProvider);
           ref.invalidate(todayDogCaloriesProvider);
           ref.invalidate(walkIndexProvider);
