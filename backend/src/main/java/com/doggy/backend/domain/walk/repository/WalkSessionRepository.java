@@ -15,11 +15,21 @@ import java.util.Optional;
 public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> {
 
     @Query("""
-            SELECT DISTINCT w FROM WalkSession w LEFT JOIN FETCH w.dogs
-            WHERE w.user.id = :userId AND w.status <> com.doggy.backend.domain.walk.entity.WalkSession.Status.ABANDONED
+            SELECT DISTINCT w FROM WalkSession w LEFT JOIN FETCH w.dogs d
+            WHERE w.status <> com.doggy.backend.domain.walk.entity.WalkSession.Status.ABANDONED
+            AND (
+                w.user.id = :userId
+                OR (:householdId IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM WalkSession w2 JOIN w2.dogs hd
+                    WHERE w2.id = w.id AND hd.household.id = :householdId
+                ))
+            )
             ORDER BY w.startedAt DESC
             """)
-    List<WalkSession> findHistoryByUserId(@Param("userId") Long userId, Pageable pageable);
+    List<WalkSession> findHistoryByUserId(
+            @Param("userId") Long userId,
+            @Param("householdId") Long householdId,
+            Pageable pageable);
 
     Optional<WalkSession> findByIdAndUserId(Long id, Long userId);
 

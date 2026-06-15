@@ -216,7 +216,10 @@ public class WalkService {
     }
 
     public List<WalkSessionResponse> getHistory(Long userId, int page, int size) {
-        return walkSessionRepository.findHistoryByUserId(userId, PageRequest.of(page, size))
+        Long householdId = householdRepository.findByUserId(userId)
+                .map(h -> h.getId())
+                .orElse(null);
+        return walkSessionRepository.findHistoryByUserId(userId, householdId, PageRequest.of(page, size))
                 .stream().map(WalkSessionResponse::from).toList();
     }
 
