@@ -109,7 +109,7 @@ class ProfileTab extends ConsumerWidget {
 
             const SizedBox(height: 12),
 
-            // 용품 재고
+            // 사료 재고
             const _SupplyInventoryCard(),
             const SizedBox(height: 12),
 
@@ -554,7 +554,7 @@ class _LoadingCard extends StatelessWidget {
   }
 }
 
-// 용품 재고 카드
+// 사료 재고 카드
 class _SupplyInventoryCard extends ConsumerWidget {
   const _SupplyInventoryCard();
 
@@ -577,7 +577,7 @@ class _SupplyInventoryCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('용품 재고',
+            const Text('사료 재고',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 14),
             ...items.asMap().entries.map(
