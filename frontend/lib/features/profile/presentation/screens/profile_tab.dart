@@ -11,6 +11,7 @@ import '../../../home/domain/providers/home_provider.dart';
 import '../../../walk/data/models/walk_model.dart';
 import '../../../walk/domain/providers/walk_provider.dart';
 import '../../domain/supply_inventory_provider.dart';
+import 'profile_settings_screen.dart';
 
 // base64 또는 URL 이미지를 ImageProvider로 변환
 ImageProvider? _dogImageProvider(String? profileImage) {
@@ -241,27 +242,80 @@ class _ProfileHeader extends StatelessWidget {
 
   const _ProfileHeader({required this.nickname, required this.profileImage});
 
+  ImageProvider? _imageProvider() {
+    if (profileImage == null) return null;
+    if (profileImage!.startsWith('data:image')) {
+      return MemoryImage(base64Decode(profileImage!.split(',').last));
+    }
+    return NetworkImage(profileImage!);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       child: Column(
         children: [
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: const Color(0xFFE8F5E9),
-            backgroundImage:
-                profileImage != null ? NetworkImage(profileImage!) : null,
-            child: profileImage == null
-                ? const Icon(Icons.person, size: 40, color: Color(0xFF4CAF50))
-                : null,
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProfileSettingsScreen(
+                  initialNickname: nickname,
+                  initialProfileImage: profileImage,
+                ),
+              ),
+            ),
+            behavior: HitTestBehavior.opaque,
+            child: Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: const Color(0xFFE8F5E9),
+                  backgroundImage: _imageProvider(),
+                  child: profileImage == null
+                      ? const Icon(Icons.person, size: 40,
+                          color: Color(0xFF4CAF50))
+                      : null,
+                ),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF4CAF50),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.edit, size: 13, color: Colors.white),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            nickname,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                nickname,
+                style: const TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProfileSettingsScreen(
+                      initialNickname: nickname,
+                      initialProfileImage: profileImage,
+                    ),
+                  ),
+                ),
+                child: const Icon(Icons.edit_outlined,
+                    size: 16, color: Colors.grey),
+              ),
+            ],
           ),
         ],
       ),

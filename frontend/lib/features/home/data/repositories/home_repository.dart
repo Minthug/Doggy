@@ -17,6 +17,17 @@ class HomeRepository {
     return UserProfile.fromJson(response.data);
   }
 
+  Future<UserProfile> updateProfile({
+    required String nickname,
+    String? profileImage,
+  }) async {
+    final response = await _dio.patch('/api/users/me', data: {
+      'nickname': nickname,
+      if (profileImage != null) 'profileImage': profileImage,
+    });
+    return UserProfile.fromJson(response.data);
+  }
+
   Future<Map<String, dynamic>> getWalkIndex({double? lat, double? lng}) async {
     final response = await _dio.get(
       '/api/weather/walk-index',
