@@ -801,6 +801,7 @@ class _SupplyRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 14),
       child: GestureDetector(
         onTap: onTap,
+        behavior: HitTestBehavior.opaque,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
