@@ -219,8 +219,21 @@ public class WalkService {
         Long householdId = householdRepository.findByUserId(userId)
                 .map(h -> h.getId())
                 .orElse(null);
-        return walkSessionRepository.findHistoryByUserId(userId, householdId, PageRequest.of(page, size))
-                .stream().map(WalkSessionResponse::from).toList();
+        // Step 1: DB LIMIT 적용된 ID 목록 (JOIN FETCH 없이 정확한 페이지네이션)
+        // 한 세션에 가구 강아지가 여럿이면 같은 ID가 중복될 수 있으므로 deduplicate 후 재요청
+        List<Long> rawIds = walkSessionRepository.findHistoryIdsByUserId(
+                userId, householdId, PageRequest.of(page, size));
+        if (rawIds.isEmpty()) return List.of();
+        List<Long> ids = rawIds.stream().distinct().toList();
+        // Step 2: dogs 배치 로드 (IN 절 1회, N+1 없음)
+        Map<Long, WalkSession> sessionMap = walkSessionRepository.findAllByIdWithDogs(ids)
+                .stream().collect(Collectors.toMap(WalkSession::getId, s -> s));
+        // Step 1 정렬 순서 유지 (중복 제거 후)
+        return ids.stream()
+                .map(sessionMap::get)
+                .filter(s -> s != null)
+                .map(WalkSessionResponse::from)
+                .toList();
     }
 
     @Transactional(readOnly = false)

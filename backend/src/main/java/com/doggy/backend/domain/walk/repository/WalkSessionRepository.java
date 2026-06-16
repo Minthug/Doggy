@@ -14,19 +14,19 @@ import java.util.Optional;
 
 public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> {
 
+    // Step 1: 페이지네이션된 세션 ID만 조회 (JOIN FETCH 없이 → DB LIMIT 정확 적용)
     @Query("""
-            SELECT DISTINCT w FROM WalkSession w LEFT JOIN FETCH w.dogs d
+            SELECT w.id FROM WalkSession w
             WHERE w.status <> com.doggy.backend.domain.walk.entity.WalkSession.Status.ABANDONED
             AND (
                 w.user.id = :userId
                 OR (:householdId IS NOT NULL AND EXISTS (
-                    SELECT 1 FROM WalkSession w2 JOIN w2.dogs hd
-                    WHERE w2.id = w.id AND hd.household.id = :householdId
+                    SELECT 1 FROM w.dogs hd WHERE hd.household.id = :householdId
                 ))
             )
             ORDER BY w.startedAt DESC
             """)
-    List<WalkSession> findHistoryByUserId(
+    List<Long> findHistoryIdsByUserId(
             @Param("userId") Long userId,
             @Param("householdId") Long householdId,
             Pageable pageable);
