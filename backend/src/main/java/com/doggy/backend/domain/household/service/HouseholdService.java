@@ -13,6 +13,8 @@ import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,14 @@ public class HouseholdService {
     private final UserRepository userRepository;
     private final DogRepository dogRepository;
 
+    // 캐시 조회 — create/join/leave/refreshInviteCode 시 evict
+    @Cacheable(value = "householdByUserId", key = "#userId")
+    @Transactional(readOnly = true)
+    public Long findHouseholdIdByUserId(Long userId) {
+        return householdRepository.findByUserId(userId).map(Household::getId).orElse(null);
+    }
+
+    @CacheEvict(value = "householdByUserId", key = "#userId")
     @Transactional
     public HouseholdResponse create(Long userId, CreateHouseholdRequest request) {
         if (householdRepository.findByUserId(userId).isPresent()) {
@@ -60,6 +70,7 @@ public class HouseholdService {
         return HouseholdResponse.from(household);
     }
 
+    @CacheEvict(value = "householdByUserId", key = "#userId")
     @Transactional
     public HouseholdResponse join(Long userId, JoinHouseholdRequest request) {
         if (householdRepository.findByUserId(userId).isPresent()) {
@@ -86,6 +97,7 @@ public class HouseholdService {
         return HouseholdResponse.from(household);
     }
 
+    @CacheEvict(value = "householdByUserId", key = "#userId")
     @Transactional
     public String refreshInviteCode(Long userId) {
         Household household = householdRepository.findByUserId(userId)
@@ -103,6 +115,7 @@ public class HouseholdService {
         return household.getInviteCode();
     }
 
+    @CacheEvict(value = "householdByUserId", key = "#userId")
     @Transactional
     public void leave(Long userId) {
         Household household = householdRepository.findByUserId(userId)

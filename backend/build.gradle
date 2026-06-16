@@ -48,6 +48,10 @@ dependencies {
 	// Firebase Admin SDK (FCM 푸시 알림)
 	implementation 'com.google.firebase:firebase-admin:9.4.2'
 
+	// Cache (Caffeine)
+	implementation 'org.springframework.boot:spring-boot-starter-cache'
+	implementation 'com.github.ben-manes.caffeine:caffeine'
+
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'

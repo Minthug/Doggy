@@ -9,6 +9,7 @@ import com.doggy.backend.domain.dog.repository.DogFavoriteRepository;
 import com.doggy.backend.domain.dog.repository.DogRepository;
 import com.doggy.backend.domain.household.entity.Household;
 import com.doggy.backend.domain.household.repository.HouseholdRepository;
+import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
@@ -28,6 +29,7 @@ public class DogService {
     private final DogFavoriteRepository dogFavoriteRepository;
     private final UserRepository userRepository;
     private final HouseholdRepository householdRepository;
+    private final HouseholdService householdService;
 
     @Transactional
     public DogResponse create(Long userId, CreateDogRequest request) {
@@ -54,9 +56,10 @@ public class DogService {
 
     public List<DogResponse> getMyDogs(Long userId) {
         Set<Long> favoritedIds = dogFavoriteRepository.findFavoritedDogIdsByUserId(userId);
-        List<Dog> dogs = householdRepository.findByUserId(userId)
-                .map(h -> dogRepository.findAllAccessibleDogs(userId, h.getId()))
-                .orElseGet(() -> dogRepository.findAllByUserId(userId));
+        Long householdId = householdService.findHouseholdIdByUserId(userId);
+        List<Dog> dogs = householdId != null
+                ? dogRepository.findAllAccessibleDogs(userId, householdId)
+                : dogRepository.findAllByUserId(userId);
         return dogs.stream()
                 .map(dog -> DogResponse.from(dog, favoritedIds.contains(dog.getId())))
                 .toList();

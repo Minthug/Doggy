@@ -2,7 +2,7 @@ package com.doggy.backend.domain.walk.service;
 
 import com.doggy.backend.domain.dog.entity.Dog;
 import com.doggy.backend.domain.dog.repository.DogRepository;
-import com.doggy.backend.domain.household.repository.HouseholdRepository;
+import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.PushSettingRepository;
 import com.doggy.backend.domain.user.repository.UserRepository;
@@ -44,7 +44,7 @@ public class WalkService {
     private final WalkRouteBookmarkRepository bookmarkRepository;
     private final UserRepository userRepository;
     private final DogRepository dogRepository;
-    private final HouseholdRepository householdRepository;
+    private final HouseholdService householdService;
     private final PushSettingRepository pushSettingRepository;
     private final FcmService fcmService;
     private final WalkPingService walkPingService;
@@ -79,8 +79,7 @@ public class WalkService {
                 .build();
 
         if (request != null && request.dogIds() != null && !request.dogIds().isEmpty()) {
-            Long householdId = householdRepository.findByUserId(userId)
-                    .map(h -> h.getId()).orElse(null);
+            Long householdId = householdService.findHouseholdIdByUserId(userId);
             List<Dog> dogs = dogRepository.findAllById(request.dogIds()).stream()
                     .filter(d -> d.getUser().getId().equals(userId)
                             || (householdId != null && d.getHousehold() != null
@@ -216,9 +215,7 @@ public class WalkService {
     }
 
     public List<WalkSessionResponse> getHistory(Long userId, int page, int size) {
-        Long householdId = householdRepository.findByUserId(userId)
-                .map(h -> h.getId())
-                .orElse(null);
+        Long householdId = householdService.findHouseholdIdByUserId(userId);
         // Step 1: DB LIMIT 적용된 ID 목록 (JOIN FETCH 없이 정확한 페이지네이션)
         // 한 세션에 가구 강아지가 여럿이면 같은 ID가 중복될 수 있으므로 deduplicate 후 재요청
         List<Long> rawIds = walkSessionRepository.findHistoryIdsByUserId(
