@@ -22,22 +22,9 @@ class ProfileSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
-  late final TextEditingController _nicknameCtrl;
   File? _imageFile;
   bool _clearImage = false;
   bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _nicknameCtrl = TextEditingController(text: widget.initialNickname);
-  }
-
-  @override
-  void dispose() {
-    _nicknameCtrl.dispose();
-    super.dispose();
-  }
 
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
@@ -134,13 +121,6 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
   }
 
   Future<void> _save() async {
-    final nickname = _nicknameCtrl.text.trim();
-    if (nickname.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('닉네임을 입력해주세요')));
-      return;
-    }
-
     setState(() => _saving = true);
     try {
       String? profileImage;
@@ -153,7 +133,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       }
 
       await ref.read(homeRepositoryProvider).updateProfile(
-            nickname: nickname,
+            nickname: widget.initialNickname,
             profileImage: profileImage,
           );
 
@@ -176,8 +156,8 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title:
-            const Text('프로필 설정', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('프로필 사진 변경',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
@@ -189,62 +169,34 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
                   )
                 : const Text('저장',
                     style: TextStyle(
-                        color: Color(0xFF4CAF50), fontWeight: FontWeight.bold)),
+                        color: Color(0xFF4CAF50),
+                        fontWeight: FontWeight.bold)),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          // 프로필 이미지
-          Center(
-            child: GestureDetector(
-              onTap: _showImageOptions,
-              behavior: HitTestBehavior.opaque,
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  _buildAvatar(),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF4CAF50),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.camera_alt,
-                        size: 16, color: Colors.white),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(40),
+          child: GestureDetector(
+            onTap: _showImageOptions,
+            behavior: HitTestBehavior.opaque,
+            child: Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                _buildAvatar(),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF4CAF50),
+                    shape: BoxShape.circle,
                   ),
-                ],
-              ),
+                  child: const Icon(Icons.camera_alt,
+                      size: 20, color: Colors.white),
+                ),
+              ],
             ),
           ),
-
-          const SizedBox(height: 32),
-
-          // 닉네임
-          const Text('닉네임',
-              style: TextStyle(fontSize: 13, color: Colors.grey)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _nicknameCtrl,
-            maxLength: 50,
-            decoration: InputDecoration(
-              hintText: '닉네임을 입력하세요',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide:
-                    const BorderSide(color: Color(0xFF4CAF50), width: 1.5),
-              ),
-              counterStyle: const TextStyle(fontSize: 11),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

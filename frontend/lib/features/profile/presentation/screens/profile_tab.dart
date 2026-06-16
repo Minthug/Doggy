@@ -293,29 +293,9 @@ class _ProfileHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                nickname,
-                style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ProfileSettingsScreen(
-                      initialNickname: nickname,
-                      initialProfileImage: profileImage,
-                    ),
-                  ),
-                ),
-                child: const Icon(Icons.edit_outlined,
-                    size: 16, color: Colors.grey),
-              ),
-            ],
+          Text(
+            nickname,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ],
       ),
