@@ -598,11 +598,9 @@ class _SupplyInventoryCard extends ConsumerWidget {
       context: context,
       builder: (ctx) => _SupplyEditDialog(
         item: item,
-        onSave: (total, current) {
+        onSave: (total, current, daily) {
           ref.read(supplyInventoryProvider.notifier).update(
-                index,
-                current.clamp(0, total),
-                total,
+                index, current, total, daily,
               );
         },
       ),
@@ -612,7 +610,7 @@ class _SupplyInventoryCard extends ConsumerWidget {
 
 class _SupplyEditDialog extends StatefulWidget {
   final SupplyItem item;
-  final void Function(int total, int current) onSave;
+  final void Function(int total, int current, int daily) onSave;
 
   const _SupplyEditDialog({required this.item, required this.onSave});
 
@@ -623,21 +621,22 @@ class _SupplyEditDialog extends StatefulWidget {
 class _SupplyEditDialogState extends State<_SupplyEditDialog> {
   late final TextEditingController _totalCtrl;
   late final TextEditingController _currentCtrl;
+  late final TextEditingController _dailyCtrl;
 
   @override
   void initState() {
     super.initState();
     final item = widget.item;
-    _totalCtrl = TextEditingController(
-        text: item.isSet ? '${item.totalGrams}' : '');
-    _currentCtrl = TextEditingController(
-        text: item.isSet ? '${item.currentGrams}' : '');
+    _totalCtrl = TextEditingController(text: item.isSet ? '${item.totalGrams}' : '');
+    _currentCtrl = TextEditingController(text: item.isSet ? '${item.currentGrams}' : '');
+    _dailyCtrl = TextEditingController(text: item.hasDailyRate ? '${item.dailyGrams}' : '');
   }
 
   @override
   void dispose() {
     _totalCtrl.dispose();
     _currentCtrl.dispose();
+    _dailyCtrl.dispose();
     super.dispose();
   }
 
@@ -668,21 +667,29 @@ class _SupplyEditDialogState extends State<_SupplyEditDialog> {
               border: OutlineInputBorder(),
             ),
           ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _dailyCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '하루 섭취량 (g)',
+              hintText: '예: 150 (설정하면 매일 자동 차감)',
+              border: OutlineInputBorder(),
+            ),
+          ),
         ],
       ),
       actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소')),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
         ElevatedButton(
           onPressed: () {
             final total = int.tryParse(_totalCtrl.text.trim()) ?? 0;
             final current = int.tryParse(_currentCtrl.text.trim()) ?? 0;
+            final daily = int.tryParse(_dailyCtrl.text.trim()) ?? 0;
             Navigator.pop(context);
-            if (total > 0) widget.onSave(total, current);
+            if (total > 0) widget.onSave(total, current, daily);
           },
-          style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4CAF50)),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50)),
           child: const Text('저장', style: TextStyle(color: Colors.white)),
         ),
       ],
@@ -764,6 +771,34 @@ class _SupplyRow extends StatelessWidget {
                   valueColor: AlwaysStoppedAnimation<Color>(barColor),
                 ),
               ),
+              if (item.hasDailyRate) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      '하루 ${item.displayDaily}씩',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                    const Spacer(),
+                    Text(
+                      item.isEmpty
+                          ? '재고 소진'
+                          : item.daysLeft != null
+                              ? '약 ${item.daysLeft}일 남음'
+                              : '',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: item.isEmpty
+                            ? Colors.red
+                            : item.daysLeft != null && item.daysLeft! <= 3
+                                ? Colors.orange
+                                : Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ],
         ),
