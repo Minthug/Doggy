@@ -14,6 +14,8 @@ class HouseholdScreen extends ConsumerWidget {
     final householdAsync = ref.watch(myHouseholdProvider);
 
     void refresh() {
+      clearHouseholdCache();
+      clearDogsCache();
       ref.invalidate(myHouseholdProvider);
       ref.invalidate(myDogsProvider);
     }

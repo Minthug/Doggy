@@ -151,6 +151,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
               profileImage: profileImage,
             );
       }
+      await clearDogsCache();
       ref.invalidate(myDogsProvider);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -185,6 +186,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
     setState(() => _isLoading = true);
     try {
       await ref.read(dogRepositoryProvider).delete(widget.dog!.id);
+      await clearDogsCache();
       ref.invalidate(myDogsProvider);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
