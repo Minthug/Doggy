@@ -11,7 +11,8 @@ class SupplyItem {
   final String emoji;
   final int currentGrams;
   final int totalGrams;
-  final int dailyGrams;        // 하루 섭취량
+  final int dailyGrams;         // 하루 섭취량
+  final double kcalPerKg;       // 사료 칼로리 밀도 (kcal/kg)
   final String lastUpdatedDate; // 마지막 차감일 (yyyy-MM-dd)
 
   const SupplyItem({
@@ -20,11 +21,13 @@ class SupplyItem {
     this.currentGrams = 0,
     this.totalGrams = 0,
     this.dailyGrams = 0,
+    this.kcalPerKg = 0,
     this.lastUpdatedDate = '',
   });
 
   bool get isSet => totalGrams > 0;
   bool get hasDailyRate => dailyGrams > 0;
+  bool get hasKcal => kcalPerKg > 0;
   double get percentage =>
       (!isSet || currentGrams <= 0) ? 0 : (currentGrams / totalGrams).clamp(0.0, 1.0);
   bool get isLow => isSet && percentage < 0.2;
@@ -45,6 +48,7 @@ class SupplyItem {
     int? currentGrams,
     int? totalGrams,
     int? dailyGrams,
+    double? kcalPerKg,
     String? lastUpdatedDate,
   }) =>
       SupplyItem(
@@ -53,6 +57,7 @@ class SupplyItem {
         currentGrams: currentGrams ?? this.currentGrams,
         totalGrams: totalGrams ?? this.totalGrams,
         dailyGrams: dailyGrams ?? this.dailyGrams,
+        kcalPerKg: kcalPerKg ?? this.kcalPerKg,
         lastUpdatedDate: lastUpdatedDate ?? this.lastUpdatedDate,
       );
 
@@ -87,6 +92,7 @@ class SupplyItem {
         'currentGrams': currentGrams,
         'totalGrams': totalGrams,
         'dailyGrams': dailyGrams,
+        'kcalPerKg': kcalPerKg,
         'lastUpdatedDate': lastUpdatedDate,
       };
 
@@ -96,6 +102,7 @@ class SupplyItem {
         currentGrams: json['currentGrams'] ?? 0,
         totalGrams: json['totalGrams'] ?? 0,
         dailyGrams: json['dailyGrams'] ?? 0,
+        kcalPerKg: (json['kcalPerKg'] as num?)?.toDouble() ?? 0,
         lastUpdatedDate: json['lastUpdatedDate'] ?? '',
       );
 }
@@ -130,13 +137,14 @@ class SupplyInventoryNotifier extends StateNotifier<List<SupplyItem>> {
     return items.map((e) => e.applyDailyDecrement()).toList();
   }
 
-  Future<void> update(int index, int currentGrams, int totalGrams, int dailyGrams) async {
+  Future<void> update(int index, int currentGrams, int totalGrams, int dailyGrams, double kcalPerKg) async {
     final today = SupplyItem._todayStr();
     final updated = [...state];
     updated[index] = updated[index].copyWith(
       currentGrams: currentGrams.clamp(0, totalGrams),
       totalGrams: totalGrams,
       dailyGrams: dailyGrams,
+      kcalPerKg: kcalPerKg,
       lastUpdatedDate: today,
     );
     state = updated;

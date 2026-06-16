@@ -561,6 +561,7 @@ class _SupplyInventoryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final items = ref.watch(supplyInventoryProvider);
+    final dogs = ref.watch(myDogsProvider).valueOrNull ?? [];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -583,7 +584,7 @@ class _SupplyInventoryCard extends ConsumerWidget {
             ...items.asMap().entries.map(
                   (e) => _SupplyRow(
                     item: e.value,
-                    onTap: () => _showEditDialog(context, ref, e.key, e.value),
+                    onTap: () => _showEditDialog(context, ref, e.key, e.value, dogs),
                   ),
                 ),
           ],
@@ -593,14 +594,15 @@ class _SupplyInventoryCard extends ConsumerWidget {
   }
 
   void _showEditDialog(
-      BuildContext context, WidgetRef ref, int index, SupplyItem item) {
+      BuildContext context, WidgetRef ref, int index, SupplyItem item, List<Dog> dogs) {
     showDialog(
       context: context,
       builder: (ctx) => _SupplyEditDialog(
         item: item,
-        onSave: (total, current, daily) {
+        dogs: dogs,
+        onSave: (total, current, daily, kcalPerKg) {
           ref.read(supplyInventoryProvider.notifier).update(
-                index, current, total, daily,
+                index, current, total, daily, kcalPerKg,
               );
         },
       ),
@@ -610,9 +612,14 @@ class _SupplyInventoryCard extends ConsumerWidget {
 
 class _SupplyEditDialog extends StatefulWidget {
   final SupplyItem item;
-  final void Function(int total, int current, int daily) onSave;
+  final List<Dog> dogs;
+  final void Function(int total, int current, int daily, double kcalPerKg) onSave;
 
-  const _SupplyEditDialog({required this.item, required this.onSave});
+  const _SupplyEditDialog({
+    required this.item,
+    required this.dogs,
+    required this.onSave,
+  });
 
   @override
   State<_SupplyEditDialog> createState() => _SupplyEditDialogState();
@@ -622,14 +629,39 @@ class _SupplyEditDialogState extends State<_SupplyEditDialog> {
   late final TextEditingController _totalCtrl;
   late final TextEditingController _currentCtrl;
   late final TextEditingController _dailyCtrl;
+  late final TextEditingController _kcalCtrl;
+
+  // RER = (30 × kg) + 70, DER = RER × 계수
+  static double _rer(double kg) => 30 * kg + 70;
+  static double _der(double rer, bool neutered) => rer * (neutered ? 1.6 : 1.8);
+
+  int? _calcRecommended(double kcalPerKg) {
+    if (kcalPerKg <= 0 || widget.dogs.isEmpty) return null;
+    final totalDer = widget.dogs.fold<double>(0, (sum, d) {
+      final kg = d.weightKg ?? 5.0;
+      return sum + _der(_rer(kg), d.isNeutered);
+    });
+    final kcalPerG = kcalPerKg / 1000;
+    // 간식은 총 DER의 10% 이내 → 사료는 나머지 90% 기준
+    final ratio = widget.item.name == '간식' ? 0.1 : 0.9;
+    return (totalDer * ratio / kcalPerG).round();
+  }
+
+  void _autoFill() {
+    final kcal = double.tryParse(_kcalCtrl.text.trim()) ?? 0;
+    final rec = _calcRecommended(kcal);
+    if (rec != null) setState(() => _dailyCtrl.text = '$rec');
+  }
 
   @override
   void initState() {
     super.initState();
     final item = widget.item;
-    _totalCtrl = TextEditingController(text: item.isSet ? '${item.totalGrams}' : '');
+    _totalCtrl   = TextEditingController(text: item.isSet ? '${item.totalGrams}' : '');
     _currentCtrl = TextEditingController(text: item.isSet ? '${item.currentGrams}' : '');
-    _dailyCtrl = TextEditingController(text: item.hasDailyRate ? '${item.dailyGrams}' : '');
+    _dailyCtrl   = TextEditingController(text: item.hasDailyRate ? '${item.dailyGrams}' : '');
+    _kcalCtrl    = TextEditingController(text: item.hasKcal ? '${item.kcalPerKg.toStringAsFixed(0)}' : '');
+    _kcalCtrl.addListener(() => setState(() {}));
   }
 
   @override
@@ -637,57 +669,111 @@ class _SupplyEditDialogState extends State<_SupplyEditDialog> {
     _totalCtrl.dispose();
     _currentCtrl.dispose();
     _dailyCtrl.dispose();
+    _kcalCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    final kcal = double.tryParse(_kcalCtrl.text.trim()) ?? 0;
+    final recommended = _calcRecommended(kcal);
+
     return AlertDialog(
       title: Text('${item.emoji} ${item.name} 재고 설정'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _totalCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '총량 (g)',
-              hintText: '예: 5000 (5kg)',
-              border: OutlineInputBorder(),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _totalCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '총량 (g)',
+                hintText: '예: 5000',
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _currentCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '현재 남은 양 (g)',
-              hintText: '예: 2500 (2.5kg)',
-              border: OutlineInputBorder(),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _currentCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '현재 남은 양 (g)',
+                hintText: '예: 2500',
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _dailyCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '하루 섭취량 (g)',
-              hintText: '예: 150 (설정하면 매일 자동 차감)',
-              border: OutlineInputBorder(),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 4),
+            const Text('권장량 자동 계산', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF4CAF50))),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _kcalCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: '사료 칼로리 (kcal/kg)',
+                hintText: '예: 3500',
+                helperText: '포장지의 칼로리 정보를 입력하세요',
+                border: const OutlineInputBorder(),
+                suffixIcon: recommended != null
+                    ? IconButton(
+                        icon: const Icon(Icons.auto_fix_high, color: Color(0xFF4CAF50)),
+                        tooltip: '권장량 자동입력',
+                        onPressed: _autoFill,
+                      )
+                    : null,
+              ),
             ),
-          ),
-        ],
+            if (recommended != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.pets, size: 14, color: Color(0xFF4CAF50)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '${widget.dogs.map((d) => d.name).join(' + ')} 기준 권장 ${item.name}: ${recommended}g/일'
+                        '${item.name == '간식' ? ' (총 열량의 10%)' : ''}',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF2E7D32)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _dailyCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: '하루 섭취량 (g)',
+                hintText: recommended != null ? '권장 ${recommended}g' : '예: 150',
+                helperText: '설정하면 매일 자동 차감됩니다',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
         ElevatedButton(
           onPressed: () {
-            final total = int.tryParse(_totalCtrl.text.trim()) ?? 0;
+            final total   = int.tryParse(_totalCtrl.text.trim()) ?? 0;
             final current = int.tryParse(_currentCtrl.text.trim()) ?? 0;
-            final daily = int.tryParse(_dailyCtrl.text.trim()) ?? 0;
+            final daily   = int.tryParse(_dailyCtrl.text.trim()) ?? 0;
+            final kcalVal = double.tryParse(_kcalCtrl.text.trim()) ?? 0;
             Navigator.pop(context);
-            if (total > 0) widget.onSave(total, current, daily);
+            if (total > 0) widget.onSave(total, current, daily, kcalVal);
           },
           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50)),
           child: const Text('저장', style: TextStyle(color: Colors.white)),
