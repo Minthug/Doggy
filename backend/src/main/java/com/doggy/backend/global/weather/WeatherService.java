@@ -3,6 +3,7 @@ package com.doggy.backend.global.weather;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -34,7 +35,8 @@ public class WeatherService {
     private static final double DEFAULT_LAT = 37.218392;
     private static final double DEFAULT_LNG = 126.944858;
 
-    private static final long CACHE_TTL_MS = 10 * 60 * 1000L; // 10분
+    // 소수점 1자리 반올림 → 약 10km 단위로 캐시 공유
+    private static final String CACHE_KEY_WEATHER = "T(Math).round(#lat * 10) + ':' + T(Math).round(#lng * 10)";
 
     @Value("${weather.api.key}")
     private String apiKey;
@@ -50,30 +52,26 @@ public class WeatherService {
     // 병렬 외부 API 호출용 스레드풀
     private final ExecutorService executor = Executors.newFixedThreadPool(6);
 
-    // 간단한 인메모리 캐시 (key → {value, expiresAtMs})
-    private final ConcurrentHashMap<String, Object[]> cache = new ConcurrentHashMap<>();
-
     // ── 공개 API ────────────────────────────────────────────────
 
+    @Cacheable(value = "walkIndex", key = "'default'")
     public WalkIndexResponse getWalkIndex() {
-        return getWalkIndex(DEFAULT_LAT, DEFAULT_LNG);
+        return doGetWalkIndex(DEFAULT_LAT, DEFAULT_LNG);
     }
 
+    @Cacheable(value = "walkIndex", key = CACHE_KEY_WEATHER)
     public WalkIndexResponse getWalkIndex(double lat, double lng, String sido) {
-        return getWalkIndex(lat, lng);
+        return doGetWalkIndex(lat, lng);
     }
 
+    @Cacheable(value = "walkIndex", key = CACHE_KEY_WEATHER)
     public WalkIndexResponse getWalkIndex(double lat, double lng) {
-        String key = cacheKey("index", lat, lng);
-        WalkIndexResponse cached = fromCache(key);
-        if (cached != null) {
-            log.debug("[날씨캐시] walk-index 히트");
-            return cached;
-        }
+        return doGetWalkIndex(lat, lng);
+    }
 
+    private WalkIndexResponse doGetWalkIndex(double lat, double lng) {
         int[] grid = KmaGridConverter.toGrid(lat, lng);
 
-        // 기상청(기온+강수) 와 에어코리아(미세먼지) 를 병렬 호출
         CompletableFuture<WeatherData> weatherFuture =
                 CompletableFuture.supplyAsync(() -> fetchWeather(grid), executor);
         CompletableFuture<AirData> airFuture =
@@ -83,37 +81,30 @@ public class WeatherService {
         AirData air        = safeGet(airFuture,     new AirData(30, 10, "보통", "보통"));
 
         if (weather == null) {
-            WalkIndexResponse result = WalkIndexResponse.of(
+            return WalkIndexResponse.of(
                     WalkIndex.CAUTION, 20, 0, 0,
                     air.pm10(), air.pm25(), air.pm10Grade(), air.pm25Grade());
-            toCache(key, result);
-            return result;
         }
 
         WalkIndex index = calculateIndex(weather, air);
-        WalkIndexResponse result = WalkIndexResponse.of(
+        return WalkIndexResponse.of(
                 index, weather.tmp(), weather.pop(), weather.pty(),
                 air.pm10(), air.pm25(), air.pm10Grade(), air.pm25Grade());
-
-        toCache(key, result);
-        return result;
     }
 
+    @Cacheable(value = "walkForecast", key = "'default'")
     public WalkForecastResponse getWalkForecast() {
-        return getWalkForecast(DEFAULT_LAT, DEFAULT_LNG);
+        return doGetWalkForecast(DEFAULT_LAT, DEFAULT_LNG);
     }
 
+    @Cacheable(value = "walkForecast", key = CACHE_KEY_WEATHER)
     public WalkForecastResponse getWalkForecast(double lat, double lng) {
-        String key = cacheKey("forecast", lat, lng);
-        WalkForecastResponse cached = fromCache(key);
-        if (cached != null) {
-            log.debug("[날씨캐시] walk-forecast 히트");
-            return cached;
-        }
+        return doGetWalkForecast(lat, lng);
+    }
 
+    private WalkForecastResponse doGetWalkForecast(double lat, double lng) {
         int[] grid = KmaGridConverter.toGrid(lat, lng);
 
-        // 3개 병렬 호출: 에어코리아 + 시간대별 예보 + 초단기실황(지금/+30분 온도 실측 보정)
         CompletableFuture<AirData> airFuture =
                 CompletableFuture.supplyAsync(() -> fetchAirQuality(lat, lng), executor);
         CompletableFuture<List<HourlyForecast>> hourlyFuture =
@@ -127,8 +118,8 @@ public class WeatherService {
         WeatherData nowWeather = safeGet(nowFuture, null);
 
         String[] labels = {"지금", "+30분", "+1시간", "+1시간30분", "+2시간"};
-        int[] hourIdx         = {0,  0,   1,   1,   2};
-        int[] offsetMinutes   = {0, 30,  60,  90, 120};
+        int[] hourIdx       = {0, 0, 1, 1, 2};
+        int[] offsetMinutes = {0, 30, 60, 90, 120};
 
         ZonedDateTime now = ZonedDateTime.now(KST);
 
@@ -137,7 +128,6 @@ public class WeatherService {
             int idx = Math.min(hourIdx[i], hourly.size() - 1);
             HourlyForecast f = hourly.get(idx);
 
-            // "지금"·"+30분"은 초단기실황 실측 온도·강수형태로 보정
             int tmp = (i < 2 && nowWeather != null) ? nowWeather.tmp() : f.tmp();
             int pty = (i < 2 && nowWeather != null) ? nowWeather.pty() : f.pty();
 
@@ -150,9 +140,7 @@ public class WeatherService {
                     tmp, f.pop(), precipitationLabel(pty), pty != 0, isNight));
         }
 
-        WalkForecastResponse result = new WalkForecastResponse(slots);
-        toCache(key, result);
-        return result;
+        return new WalkForecastResponse(slots);
     }
 
     // ── 산책 지수 계산 ────────────────────────────────────────
@@ -353,28 +341,6 @@ public class WeatherService {
         }
     }
 
-    // ── 캐시 헬퍼 ────────────────────────────────────────────
-
-    private String cacheKey(String type, double lat, double lng) {
-        // 소수점 1자리 반올림 → 약 10km 단위로 공유
-        return type + ":" + Math.round(lat * 10) + ":" + Math.round(lng * 10);
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> T fromCache(String key) {
-        Object[] entry = cache.get(key);
-        if (entry == null) return null;
-        long expiresAt = (long) entry[1];
-        if (System.currentTimeMillis() > expiresAt) {
-            cache.remove(key);
-            return null;
-        }
-        return (T) entry[0];
-    }
-
-    private void toCache(String key, Object value) {
-        cache.put(key, new Object[]{value, System.currentTimeMillis() + CACHE_TTL_MS});
-    }
 
     // ── CompletableFuture 헬퍼 ───────────────────────────────
 
