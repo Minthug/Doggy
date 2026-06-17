@@ -2,7 +2,6 @@ package com.doggy.backend.domain.walk.repository;
 
 import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.entity.WalkSession.Status;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,24 +11,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> {
-
-    // Step 1: 페이지네이션된 세션 ID만 조회 (JOIN FETCH 없이 → DB LIMIT 정확 적용)
-    @Query("""
-            SELECT w.id FROM WalkSession w
-            WHERE w.status <> com.doggy.backend.domain.walk.entity.WalkSession.Status.ABANDONED
-            AND (
-                w.user.id = :userId
-                OR (:householdId IS NOT NULL AND EXISTS (
-                    SELECT 1 FROM w.dogs hd WHERE hd.household.id = :householdId
-                ))
-            )
-            ORDER BY w.startedAt DESC
-            """)
-    List<Long> findHistoryIdsByUserId(
-            @Param("userId") Long userId,
-            @Param("householdId") Long householdId,
-            Pageable pageable);
+public interface WalkSessionRepository extends JpaRepository<WalkSession, Long>, WalkSessionRepositoryCustom {
 
     Optional<WalkSession> findByIdAndUserId(Long id, Long userId);
 
@@ -97,18 +79,7 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long> 
             @Param("before") LocalDateTime before,
             @Param("lim") int lim);
 
-    // 마지막 산책이 since 이전인 유저 ID 목록 (fcmToken 있는 유저만)
-    @Query("""
-            SELECT DISTINCT w.user.id FROM WalkSession w
-            WHERE w.status = 'COMPLETED'
-            AND w.user.fcmToken IS NOT NULL
-            AND w.user.id NOT IN (
-                SELECT w2.user.id FROM WalkSession w2
-                WHERE w2.status = 'COMPLETED'
-                AND w2.startedAt >= :since
-            )
-            """)
-    List<Long> findUserIdsNotWalkedSince(@Param("since") LocalDateTime since);
+    // findUserIdsNotWalkedSince → WalkSessionRepositoryImpl (QueryDSL)
 
     // 특정 월의 완료된 산책 거리 합계 (미터) - PostgreSQL EXTRACT 사용
     @Query(value = """
