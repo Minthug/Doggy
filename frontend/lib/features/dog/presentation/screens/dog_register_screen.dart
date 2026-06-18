@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -155,9 +156,12 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isEditMode ? '수정에 실패했습니다' : '등록에 실패했습니다')),
-        );
+        String msg = _isEditMode ? '수정에 실패했습니다' : '등록에 실패했습니다';
+        if (e is DioException && e.response != null) {
+          final serverMsg = e.response?.data?['message'] as String?;
+          if (serverMsg != null) msg = serverMsg;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

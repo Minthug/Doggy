@@ -28,7 +28,7 @@ public class HouseholdService {
     private final DogRepository dogRepository;
 
     // 캐시 조회 — create/join/leave/refreshInviteCode 시 evict
-    @Cacheable(value = "householdByUserId", key = "#userId")
+    @Cacheable(value = "householdByUserId", key = "#userId", unless = "#result == null")
     @Transactional(readOnly = true)
     public Long findHouseholdIdByUserId(Long userId) {
         return householdRepository.findByUserId(userId).map(Household::getId).orElse(null);

@@ -8,6 +8,8 @@ import com.doggy.backend.domain.dog.entity.DogFavorite;
 import com.doggy.backend.domain.dog.repository.DogFavoriteRepository;
 import com.doggy.backend.domain.dog.repository.DogRepository;
 import com.doggy.backend.domain.household.entity.Household;
+import com.doggy.backend.domain.household.entity.HouseholdMember;
+import com.doggy.backend.domain.household.repository.HouseholdMemberRepository;
 import com.doggy.backend.domain.household.repository.HouseholdRepository;
 import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.domain.user.entity.User;
@@ -15,12 +17,14 @@ import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
 import com.doggy.backend.global.image.ImageStorageService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -30,6 +34,7 @@ public class DogService {
     private final DogFavoriteRepository dogFavoriteRepository;
     private final UserRepository userRepository;
     private final HouseholdRepository householdRepository;
+    private final HouseholdMemberRepository householdMemberRepository;
     private final HouseholdService householdService;
     private final ImageStorageService imageStorageService;
 
@@ -98,8 +103,18 @@ public class DogService {
 
     @Transactional
     public DogResponse update(Long userId, Long dogId, UpdateDogRequest request) {
-        Dog dog = dogRepository.findByIdAndUserId(dogId, userId)
+        log.info("[DogService.update] userId={}, dogId={}", userId, dogId);
+        Dog dog = dogRepository.findById(dogId)
                 .orElseThrow(() -> BusinessException.notFound("반려견을 찾을 수 없습니다"));
+        boolean isDogOwner = dog.getUser().getId().equals(userId);
+        boolean isHouseholdOwner = dog.getHousehold() != null &&
+                householdMemberRepository.findByHouseholdIdAndUserId(dog.getHousehold().getId(), userId)
+                        .map(m -> m.getRole() == HouseholdMember.Role.OWNER)
+                        .orElse(false);
+        if (!isDogOwner && !isHouseholdOwner) {
+            log.warn("[DogService.update] forbidden: dogOwnerId={}, requestUserId={}", dog.getUser().getId(), userId);
+            throw BusinessException.forbidden("강아지 소유자 또는 가구 오너만 수정할 수 있습니다");
+        }
         String oldImage = dog.getProfileImage();
         dog.update(
                 request.name(),
@@ -119,8 +134,16 @@ public class DogService {
 
     @Transactional
     public void delete(Long userId, Long dogId) {
-        Dog dog = dogRepository.findByIdAndUserId(dogId, userId)
+        Dog dog = dogRepository.findById(dogId)
                 .orElseThrow(() -> BusinessException.notFound("반려견을 찾을 수 없습니다"));
+        boolean isDogOwner = dog.getUser().getId().equals(userId);
+        boolean isHouseholdOwner = dog.getHousehold() != null &&
+                householdMemberRepository.findByHouseholdIdAndUserId(dog.getHousehold().getId(), userId)
+                        .map(m -> m.getRole() == HouseholdMember.Role.OWNER)
+                        .orElse(false);
+        if (!isDogOwner && !isHouseholdOwner) {
+            throw BusinessException.forbidden("강아지 소유자 또는 가구 오너만 삭제할 수 있습니다");
+        }
         imageStorageService.delete(dog.getProfileImage());
         dogRepository.delete(dog);
     }

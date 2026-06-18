@@ -25,6 +25,10 @@ public class BusinessException extends RuntimeException {
         return new BusinessException(message, HttpStatus.UNAUTHORIZED);
     }
 
+    public static BusinessException forbidden(String message) {
+        return new BusinessException(message, HttpStatus.FORBIDDEN);
+    }
+
     public static BusinessException internalError(String message) {
         return new BusinessException(message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
