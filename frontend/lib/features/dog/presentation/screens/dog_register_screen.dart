@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../../core/api/api_client.dart';
 import '../../data/models/dog_model.dart';
 import '../../data/repositories/dog_repository.dart';
 import '../../domain/providers/dog_provider.dart';
@@ -83,29 +84,28 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
   }
 
   Widget _buildProfileImage() {
-    // 새로 선택한 이미지 우선
     if (_imageFile != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(50),
         child: Image.file(_imageFile!, fit: BoxFit.cover),
       );
     }
-    // 수정 모드에서 기존 저장된 이미지
     final existing = widget.dog?.profileImage;
-    if (existing != null && existing.startsWith('data:image')) {
-      final base64Str = existing.split(',').last;
+    if (existing != null) {
+      if (existing.startsWith('data:image')) {
+        // 기존 base64 이미지 하위 호환
+        final base64Str = existing.split(',').last;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(50),
+          child: Image.memory(base64Decode(base64Str), fit: BoxFit.cover),
+        );
+      }
       return ClipRRect(
         borderRadius: BorderRadius.circular(50),
-        child: Image.memory(base64Decode(base64Str), fit: BoxFit.cover),
+        child: Image.network(existing, fit: BoxFit.cover),
       );
     }
     return const Icon(Icons.pets, color: Color(0xFF4CAF50), size: 48);
-  }
-
-  Future<String?> _encodeImage() async {
-    if (_imageFile == null) return null;
-    final bytes = await _imageFile!.readAsBytes();
-    return 'data:image/jpeg;base64,${base64Encode(bytes)}';
   }
 
   Future<void> _submit() async {
@@ -118,9 +118,8 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // 새 이미지가 있으면 base64로 인코딩, 없으면 기존 이미지 유지
       final profileImage = _imageFile != null
-          ? await _encodeImage()
+          ? await ref.read(imageUploadProvider).upload(_imageFile!)
           : widget.dog?.profileImage;
 
       if (_isEditMode) {

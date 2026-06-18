@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,3 +93,24 @@ final dioProvider = Provider<Dio>((ref) {
 
   return dio;
 });
+
+final imageUploadProvider = Provider<ImageUploadClient>((ref) {
+  return ImageUploadClient(ref.watch(dioProvider));
+});
+
+class ImageUploadClient {
+  final Dio _dio;
+  ImageUploadClient(this._dio);
+
+  Future<String> upload(File file) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(file.path),
+    });
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/images/upload',
+      data: formData,
+      options: Options(contentType: 'multipart/form-data'),
+    );
+    return response.data!['url'] as String;
+  }
+}

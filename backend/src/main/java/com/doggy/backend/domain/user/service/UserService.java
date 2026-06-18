@@ -9,6 +9,7 @@ import com.doggy.backend.domain.user.repository.PushSettingRepository;
 import com.doggy.backend.domain.user.repository.UserAuthRepository;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
+import com.doggy.backend.global.image.ImageStorageService;
 import com.doggy.backend.global.security.jwt.JwtProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,6 +31,7 @@ public class UserService {
     private final PushSettingRepository pushSettingRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final ImageStorageService imageStorageService;
 
     @Transactional
     public TokenResponse signUp(SignUpRequest request) {
@@ -92,7 +94,11 @@ public class UserService {
     public UserProfileResponse updateProfile(Long userId, UpdateProfileRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
+        String oldImage = user.getProfileImage();
         user.updateProfile(request.nickname(), request.profileImage());
+        if (oldImage != null && !oldImage.equals(request.profileImage())) {
+            imageStorageService.delete(oldImage);
+        }
         return UserProfileResponse.from(user);
     }
 

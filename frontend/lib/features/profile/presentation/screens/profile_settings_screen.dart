@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../../core/api/api_client.dart';
 import '../../../home/data/repositories/home_repository.dart';
 import '../../../home/domain/providers/home_provider.dart';
 
@@ -30,9 +31,9 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: source,
-      maxWidth: 512,
-      maxHeight: 512,
-      imageQuality: 80,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
     );
     if (picked != null) {
       setState(() {
@@ -87,12 +88,6 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
     );
   }
 
-  Future<String?> _encodeImage() async {
-    if (_imageFile == null) return null;
-    final bytes = await _imageFile!.readAsBytes();
-    return 'data:image/jpeg;base64,${base64Encode(bytes)}';
-  }
-
   Widget _buildAvatar() {
     if (_imageFile != null) {
       return CircleAvatar(
@@ -103,6 +98,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
     if (!_clearImage && widget.initialProfileImage != null) {
       final img = widget.initialProfileImage!;
       if (img.startsWith('data:image')) {
+        // 기존 base64 이미지 하위 호환
         return CircleAvatar(
           radius: 52,
           backgroundImage: MemoryImage(base64Decode(img.split(',').last)),
@@ -125,7 +121,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
     try {
       String? profileImage;
       if (_imageFile != null) {
-        profileImage = await _encodeImage();
+        profileImage = await ref.read(imageUploadProvider).upload(_imageFile!);
       } else if (_clearImage) {
         profileImage = null;
       } else {

@@ -24,4 +24,8 @@ public class BusinessException extends RuntimeException {
     public static BusinessException unauthorized(String message) {
         return new BusinessException(message, HttpStatus.UNAUTHORIZED);
     }
+
+    public static BusinessException internalError(String message) {
+        return new BusinessException(message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
 }

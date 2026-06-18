@@ -13,6 +13,7 @@ import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
+import com.doggy.backend.global.image.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ public class DogService {
     private final UserRepository userRepository;
     private final HouseholdRepository householdRepository;
     private final HouseholdService householdService;
+    private final ImageStorageService imageStorageService;
 
     @Transactional
     public DogResponse create(Long userId, CreateDogRequest request) {
@@ -98,7 +100,7 @@ public class DogService {
     public DogResponse update(Long userId, Long dogId, UpdateDogRequest request) {
         Dog dog = dogRepository.findByIdAndUserId(dogId, userId)
                 .orElseThrow(() -> BusinessException.notFound("반려견을 찾을 수 없습니다"));
-
+        String oldImage = dog.getProfileImage();
         dog.update(
                 request.name(),
                 request.breed(),
@@ -109,7 +111,9 @@ public class DogService {
                 request.profileImage(),
                 request.warnings()
         );
-
+        if (oldImage != null && !oldImage.equals(request.profileImage())) {
+            imageStorageService.delete(oldImage);
+        }
         return DogResponse.from(dog);
     }
 
@@ -117,6 +121,7 @@ public class DogService {
     public void delete(Long userId, Long dogId) {
         Dog dog = dogRepository.findByIdAndUserId(dogId, userId)
                 .orElseThrow(() -> BusinessException.notFound("반려견을 찾을 수 없습니다"));
+        imageStorageService.delete(dog.getProfileImage());
         dogRepository.delete(dog);
     }
 }

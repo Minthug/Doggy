@@ -24,12 +24,14 @@ graph TB
         direction TB
         CTRL["Controller Layer"]
         SVC["Service Layer"]
-        REPO_B["Repository Layer\n(Spring Data JPA)"]
-        CACHE["Caffeine Cache\n(In-Memory)"]
+        REPO_B["Repository Layer\n(Spring Data JPA + QueryDSL)"]
 
         CTRL --> SVC
-        SVC --> CACHE
         SVC --> REPO_B
+    end
+
+    subgraph Cache["⚡ Redis 7.0"]
+        REDIS["walkIndex · walkForecast\nhouseholdByUserId\nplaces · placesByCategory"]
     end
 
     subgraph DB["🗄️ PostgreSQL 16 + PostGIS"]
@@ -48,6 +50,7 @@ graph TB
     end
 
     REPO_F -->|"HTTPS REST"| CTRL
+    SVC <-->|"캐시 read/write"| Cache
     REPO_B --> DB
     SVC -->|"OAuth2 로그인"| KAKAO
     SVC -->|"푸시 발송"| FCM
@@ -164,8 +167,8 @@ graph LR
         H_S["HouseholdService"]
         H_R["HouseholdRepository"]
         H_C --> H_S --> H_R
-        H_CACHE["@Cacheable\nhouseholdByUserId"]
-        H_S --> H_CACHE
+        H_CACHE["Redis\nhouseholdByUserId (10분)"]
+        H_S <--> H_CACHE
     end
 
     subgraph place["📍 Place"]
@@ -173,6 +176,8 @@ graph LR
         P_S["PlaceService"]
         P_R["PlaceRepository\n(PostGIS ST_DWithin)"]
         P_C --> P_S --> P_R
+        P_CACHE["Redis\nplaces · placesByCategory (3분)"]
+        P_S <--> P_CACHE
     end
 
     subgraph community["💬 Community"]
@@ -229,9 +234,11 @@ graph TD
 | 언어 / 런타임 | Java 21 (JVM) |
 | 프레임워크 | Spring Boot 3.5 |
 | 데이터베이스 | PostgreSQL 16 + PostGIS 3.4 |
+| DB 마이그레이션 | Flyway (버전 관리, V1~V3) |
 | ORM | Spring Data JPA + Hibernate Spatial |
+| 쿼리 빌더 | QueryDSL 5.1 (타입 안전 동적 쿼리) |
 | 인증 | Spring Security + OAuth2 + JWT |
-| 캐시 | Caffeine (인메모리) |
+| 캐시 | Redis 7.0 (분산 캐시, Spring Cache 추상화) |
 | 커넥션 풀 | HikariCP |
 | 푸시 알림 | Firebase Admin SDK (FCM) |
 | 배치 | Spring Batch (생일 · 건강검진 알림) |
@@ -251,5 +258,7 @@ graph TD
 | 분류 | 기술 |
 |------|------|
 | 로컬 개발 DB | Docker Compose (postgis/postgis:16-3.4) |
+| 캐시 서버 | Redis 7.0 (systemctl, 단일 노드 → 멀티 인스턴스 대응 가능) |
 | 배포 | Linux 서버 · systemctl JAR 실행 |
-| 소셜 로그인 | Kakao OAuth2 |
+| 소셜 로그인 | Kakao / Google / Naver OAuth2 |
+| OAuth redirect URI | 환경변수 `${SERVER_BASE_URL}` (IP 하드코딩 제거) |
