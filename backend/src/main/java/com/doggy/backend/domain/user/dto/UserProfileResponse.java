@@ -8,7 +8,8 @@ public record UserProfileResponse(
         String profileImage,
         String phone,
         String address,
-        java.time.LocalDate birthDate
+        java.time.LocalDate birthDate,
+        boolean nicknameChanged
 ) {
     public static UserProfileResponse from(User user) {
         return new UserProfileResponse(
@@ -17,7 +18,8 @@ public record UserProfileResponse(
                 user.getProfileImage(),
                 user.getPhone(),
                 user.getAddress(),
-                user.getBirthDate()
+                user.getBirthDate(),
+                user.isNicknameChanged()
         );
     }
 }

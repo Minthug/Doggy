@@ -10,11 +10,13 @@ import '../../../home/domain/providers/home_provider.dart';
 class ProfileSettingsScreen extends ConsumerStatefulWidget {
   final String initialNickname;
   final String? initialProfileImage;
+  final bool nicknameChanged;
 
   const ProfileSettingsScreen({
     super.key,
     required this.initialNickname,
     this.initialProfileImage,
+    this.nicknameChanged = false,
   });
 
   @override
@@ -23,9 +25,22 @@ class ProfileSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
+  late final TextEditingController _nicknameController;
   File? _imageFile;
   bool _clearImage = false;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nicknameController = TextEditingController(text: widget.initialNickname);
+  }
+
+  @override
+  void dispose() {
+    _nicknameController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
@@ -98,7 +113,6 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
     if (!_clearImage && widget.initialProfileImage != null) {
       final img = widget.initialProfileImage!;
       if (img.startsWith('data:image')) {
-        // 기존 base64 이미지 하위 호환
         return CircleAvatar(
           radius: 52,
           backgroundImage: MemoryImage(base64Decode(img.split(',').last)),
@@ -117,6 +131,14 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
   }
 
   Future<void> _save() async {
+    final nickname = _nicknameController.text.trim();
+    if (nickname.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('닉네임을 입력해주세요')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
     try {
       String? profileImage;
@@ -129,7 +151,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       }
 
       await ref.read(homeRepositoryProvider).updateProfile(
-            nickname: widget.initialNickname,
+            nickname: nickname,
             profileImage: profileImage,
           );
 
@@ -137,8 +159,11 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('저장에 실패했습니다')));
+        final msg = (e is Exception)
+            ? e.toString().contains('닉네임') ? '닉네임은 1회만 변경할 수 있습니다' : '저장에 실패했습니다'
+            : '저장에 실패했습니다';
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -147,12 +172,14 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canChangeNickname = !widget.nicknameChanged;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text('프로필 사진 변경',
+        title: const Text('프로필 설정',
             style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           TextButton(
@@ -170,28 +197,102 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           ),
         ],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(40),
-          child: GestureDetector(
-            onTap: _showImageOptions,
-            behavior: HitTestBehavior.opaque,
-            child: Stack(
-              alignment: Alignment.bottomRight,
-              children: [
-                _buildAvatar(),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF4CAF50),
-                    shape: BoxShape.circle,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: _showImageOptions,
+              behavior: HitTestBehavior.opaque,
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  _buildAvatar(),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF4CAF50),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.camera_alt,
+                        size: 20, color: Colors.white),
                   ),
-                  child: const Icon(Icons.camera_alt,
-                      size: 20, color: Colors.white),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: 32),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('닉네임',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(width: 8),
+                      if (!canChangeNickname)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text('변경 완료',
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey)),
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text('1회만 변경 가능',
+                              style: TextStyle(
+                                  fontSize: 11, color: Color(0xFF4CAF50))),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _nicknameController,
+                    enabled: canChangeNickname,
+                    maxLength: 20,
+                    decoration: InputDecoration(
+                      hintText: '닉네임을 입력하세요',
+                      filled: true,
+                      fillColor: canChangeNickname
+                          ? const Color(0xFFF9F9F9)
+                          : Colors.grey.shade100,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      counterText: '',
+                    ),
+                  ),
+                  if (!canChangeNickname)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        '닉네임은 1회만 변경할 수 있습니다.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

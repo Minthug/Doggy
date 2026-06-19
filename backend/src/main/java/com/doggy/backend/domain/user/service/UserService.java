@@ -94,6 +94,9 @@ public class UserService {
     public UserProfileResponse updateProfile(Long userId, UpdateProfileRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
+        if (!user.getNickname().equals(request.nickname()) && user.isNicknameChanged()) {
+            throw BusinessException.badRequest("닉네임은 1회만 변경할 수 있습니다");
+        }
         String oldImage = user.getProfileImage();
         user.updateProfile(request.nickname(), request.profileImage());
         if (oldImage != null && !oldImage.equals(request.profileImage())) {

@@ -33,6 +33,9 @@ public class User extends BaseEntity {
 
     private LocalDate birthDate;
 
+    @Column(nullable = false)
+    private boolean nicknameChanged = false;
+
     @Builder
     public User(String nickname, String profileImage, String phone, String address, LocalDate birthDate) {
         this.nickname = nickname;
@@ -43,6 +46,9 @@ public class User extends BaseEntity {
     }
 
     public void updateProfile(String nickname, String profileImage) {
+        if (!this.nickname.equals(nickname)) {
+            this.nicknameChanged = true;
+        }
         this.nickname = nickname;
         this.profileImage = profileImage;
     }

@@ -47,6 +47,7 @@ class ProfileTab extends ConsumerWidget {
               data: (profile) => _ProfileHeader(
                 nickname: profile.nickname,
                 profileImage: profile.profileImage,
+                nicknameChanged: profile.nicknameChanged,
               ),
               loading: () => const _ProfileHeader(nickname: '...', profileImage: null),
               error: (_, __) => const _ProfileHeader(nickname: '사용자', profileImage: null),
@@ -239,8 +240,13 @@ class ProfileTab extends ConsumerWidget {
 class _ProfileHeader extends StatelessWidget {
   final String nickname;
   final String? profileImage;
+  final bool nicknameChanged;
 
-  const _ProfileHeader({required this.nickname, required this.profileImage});
+  const _ProfileHeader({
+    required this.nickname,
+    required this.profileImage,
+    this.nicknameChanged = false,
+  });
 
   ImageProvider? _imageProvider() {
     if (profileImage == null) return null;
@@ -265,6 +271,7 @@ class _ProfileHeader extends StatelessWidget {
                 builder: (_) => ProfileSettingsScreen(
                   initialNickname: nickname,
                   initialProfileImage: profileImage,
+                  nicknameChanged: nicknameChanged,
                 ),
               ),
             ),
