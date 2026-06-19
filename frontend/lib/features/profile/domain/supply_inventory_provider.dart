@@ -1,19 +1,14 @@
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-final sharedPreferencesProvider = Provider<SharedPreferences>(
-  (_) => throw UnimplementedError('SharedPreferences must be overridden in ProviderScope'),
-);
+import '../data/supply_repository.dart';
 
 class SupplyItem {
   final String name;
   final String emoji;
   final int currentGrams;
   final int totalGrams;
-  final int dailyGrams;         // 하루 섭취량
-  final double kcalPerKg;       // 사료 칼로리 밀도 (kcal/kg)
-  final String lastUpdatedDate; // 마지막 차감일 (yyyy-MM-dd)
+  final int dailyGrams;
+  final double kcalPerKg;
+  final String lastUpdatedDate;
 
   const SupplyItem({
     required this.name,
@@ -33,7 +28,6 @@ class SupplyItem {
   bool get isLow => isSet && percentage < 0.2;
   bool get isEmpty => isSet && currentGrams <= 0;
 
-  // 현재 재고로 며칠 남았는지
   int? get daysLeft =>
       (hasDailyRate && currentGrams > 0) ? (currentGrams / dailyGrams).floor() : null;
 
@@ -61,31 +55,6 @@ class SupplyItem {
         lastUpdatedDate: lastUpdatedDate ?? this.lastUpdatedDate,
       );
 
-  // 경과 일수만큼 자동 차감
-  SupplyItem applyDailyDecrement() {
-    if (!hasDailyRate || !isSet) return this;
-    final today = _todayStr();
-    if (lastUpdatedDate == today) return this;
-    if (lastUpdatedDate.isEmpty) return copyWith(lastUpdatedDate: today);
-
-    final last = DateTime.tryParse(lastUpdatedDate);
-    if (last == null) return copyWith(lastUpdatedDate: today);
-
-    final now = DateTime.now();
-    final todayDate = DateTime(now.year, now.month, now.day);
-    final days = todayDate.difference(DateTime(last.year, last.month, last.day)).inDays;
-    if (days <= 0) return this;
-
-    final consumed = dailyGrams * days;
-    final next = (currentGrams - consumed).clamp(0, totalGrams);
-    return copyWith(currentGrams: next, lastUpdatedDate: today);
-  }
-
-  static String _todayStr() {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}';
-  }
-
   Map<String, dynamic> toJson() => {
         'name': name,
         'emoji': emoji,
@@ -97,66 +66,58 @@ class SupplyItem {
       };
 
   factory SupplyItem.fromJson(Map<String, dynamic> json) => SupplyItem(
-        name: json['name'],
-        emoji: json['emoji'],
-        currentGrams: json['currentGrams'] ?? 0,
-        totalGrams: json['totalGrams'] ?? 0,
-        dailyGrams: json['dailyGrams'] ?? 0,
+        name: json['name'] as String,
+        emoji: json['emoji'] as String,
+        currentGrams: (json['currentGrams'] as num?)?.toInt() ?? 0,
+        totalGrams: (json['totalGrams'] as num?)?.toInt() ?? 0,
+        dailyGrams: (json['dailyGrams'] as num?)?.toInt() ?? 0,
         kcalPerKg: (json['kcalPerKg'] as num?)?.toDouble() ?? 0,
-        lastUpdatedDate: json['lastUpdatedDate'] ?? '',
+        lastUpdatedDate: json['lastUpdatedDate'] as String? ?? '',
       );
 }
 
-class SupplyInventoryNotifier extends StateNotifier<List<SupplyItem>> {
-  static const _key = 'supply_inventory';
-  final SharedPreferences _prefs;
-
-  SupplyInventoryNotifier(this._prefs) : super(_loadSync(_prefs));
-
-  static List<SupplyItem> _loadSync(SharedPreferences prefs) {
-    final raw = prefs.getString(_key);
-    List<SupplyItem> items;
-    if (raw == null) {
-      items = const [
-        SupplyItem(name: '사료', emoji: '🍖'),
-        SupplyItem(name: '간식', emoji: '🦴'),
-      ];
-    } else {
-      try {
-        items = (jsonDecode(raw) as List)
-            .map((e) => SupplyItem.fromJson(e as Map<String, dynamic>))
-            .toList();
-      } catch (_) {
-        items = const [
-          SupplyItem(name: '사료', emoji: '🍖'),
-          SupplyItem(name: '간식', emoji: '🦴'),
-        ];
-      }
-    }
-    // 앱 실행 시 경과 일수 자동 차감
-    return items.map((e) => e.applyDailyDecrement()).toList();
+class SupplyInventoryNotifier extends AsyncNotifier<List<SupplyItem>> {
+  @override
+  Future<List<SupplyItem>> build() async {
+    return ref.read(supplyRepositoryProvider).getInventory();
   }
 
-  Future<void> update(int index, int currentGrams, int totalGrams, int dailyGrams, double kcalPerKg) async {
-    final today = SupplyItem._todayStr();
-    final updated = [...state];
-    updated[index] = updated[index].copyWith(
+  Future<void> updateItem(int index, int currentGrams, int totalGrams, int dailyGrams, double kcalPerKg) async {
+    final current = state.valueOrNull ?? [];
+    if (index < 0 || index >= current.length) return;
+
+    final item = current[index];
+
+    // 낙관적 업데이트
+    final optimistic = [...current];
+    optimistic[index] = item.copyWith(
       currentGrams: currentGrams.clamp(0, totalGrams),
       totalGrams: totalGrams,
       dailyGrams: dailyGrams,
       kcalPerKg: kcalPerKg,
-      lastUpdatedDate: today,
     );
-    state = updated;
-    await _save();
-  }
+    state = AsyncData(optimistic);
 
-  Future<void> _save() async {
-    await _prefs.setString(_key, jsonEncode(state.map((e) => e.toJson()).toList()));
+    try {
+      final updated = await ref.read(supplyRepositoryProvider).update(
+        item.name,
+        currentGrams: currentGrams,
+        totalGrams: totalGrams,
+        dailyGrams: dailyGrams,
+        kcalPerKg: kcalPerKg,
+      );
+      final confirmed = [...current];
+      confirmed[index] = updated;
+      state = AsyncData(confirmed);
+    } catch (e) {
+      // 실패 시 롤백
+      state = AsyncData(current);
+      rethrow;
+    }
   }
 }
 
 final supplyInventoryProvider =
-    StateNotifierProvider<SupplyInventoryNotifier, List<SupplyItem>>((ref) {
-  return SupplyInventoryNotifier(ref.watch(sharedPreferencesProvider));
-});
+    AsyncNotifierProvider<SupplyInventoryNotifier, List<SupplyItem>>(
+  SupplyInventoryNotifier.new,
+);

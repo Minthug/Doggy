@@ -594,7 +594,7 @@ class _SupplyInventoryCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final items = ref.watch(supplyInventoryProvider);
+    final supplyAsync = ref.watch(supplyInventoryProvider);
     final dogs = ref.watch(myDogsProvider).valueOrNull ?? [];
 
     return Padding(
@@ -615,12 +615,19 @@ class _SupplyInventoryCard extends ConsumerWidget {
             const Text('사료 재고',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 14),
-            ...items.asMap().entries.map(
+            supplyAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, __) => const Text('재고를 불러오지 못했습니다',
+                  style: TextStyle(color: Colors.grey)),
+              data: (items) => Column(
+                children: items.asMap().entries.map(
                   (e) => _SupplyRow(
                     item: e.value,
                     onTap: () => _showEditDialog(context, ref, e.key, e.value, dogs),
                   ),
-                ),
+                ).toList(),
+              ),
+            ),
           ],
         ),
       ),
@@ -635,7 +642,7 @@ class _SupplyInventoryCard extends ConsumerWidget {
         item: item,
         dogs: dogs,
         onSave: (total, current, daily, kcalPerKg) {
-          ref.read(supplyInventoryProvider.notifier).update(
+          ref.read(supplyInventoryProvider.notifier).updateItem(
                 index, current, total, daily, kcalPerKg,
               );
         },
