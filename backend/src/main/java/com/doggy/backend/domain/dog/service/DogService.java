@@ -63,7 +63,15 @@ public class DogService {
 
     public List<DogResponse> getMyDogs(Long userId) {
         Set<Long> favoritedIds = dogFavoriteRepository.findFavoritedDogIdsByUserId(userId);
-        Long householdId = householdService.findHouseholdIdByUserId(userId);
+        Long householdId;
+        try {
+            householdId = householdService.findHouseholdIdByUserId(userId);
+        } catch (ClassCastException e) {
+            // Redis에 Integer 타입으로 저장된 stale 캐시 값 → 캐시 evict 후 DB 재조회
+            log.warn("Household cache type mismatch for userId={}, evicting and retrying", userId);
+            householdService.evictHouseholdCache(userId);
+            householdId = householdService.findHouseholdIdByUserId(userId);
+        }
         List<Dog> dogs = householdId != null
                 ? dogRepository.findAllAccessibleDogs(userId, householdId)
                 : dogRepository.findAllByUserId(userId);

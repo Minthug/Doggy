@@ -34,6 +34,11 @@ public class HouseholdService {
         return householdRepository.findByUserId(userId).map(Household::getId).orElse(null);
     }
 
+    // Redis에서 Integer로 역직렬화된 stale 캐시 수동 제거용
+    @CacheEvict(value = "householdByUserId", key = "#userId")
+    public void evictHouseholdCache(Long userId) {}
+
+
     @CacheEvict(value = "householdByUserId", key = "#userId")
     @Transactional
     public HouseholdResponse create(Long userId, CreateHouseholdRequest request) {
