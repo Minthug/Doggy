@@ -2,6 +2,7 @@ package com.doggy.backend.domain.household.service;
 
 import com.doggy.backend.domain.dog.repository.DogRepository;
 import com.doggy.backend.domain.household.dto.CreateHouseholdRequest;
+import com.doggy.backend.domain.household.dto.HouseholdIdCache;
 import com.doggy.backend.domain.household.dto.HouseholdResponse;
 import com.doggy.backend.domain.household.dto.JoinHouseholdRequest;
 import com.doggy.backend.domain.household.entity.Household;
@@ -28,15 +29,14 @@ public class HouseholdService {
     private final DogRepository dogRepository;
 
     // 캐시 조회 — create/join/leave/refreshInviteCode 시 evict
-    @Cacheable(value = "householdByUserId", key = "#userId", unless = "#result == null")
+    // HouseholdIdCache(non-final class)로 래핑: Jackson NON_FINAL 설정에서 타입 정보 포함 →
+    // Redis 역직렬화 시 Long/Integer 불일치 없음. null household도 id=null로 캐시 가능.
+    @Cacheable(value = "householdByUserId", key = "#userId")
     @Transactional(readOnly = true)
-    public Long findHouseholdIdByUserId(Long userId) {
-        return householdRepository.findByUserId(userId).map(Household::getId).orElse(null);
+    public HouseholdIdCache findHouseholdIdByUserId(Long userId) {
+        Long id = householdRepository.findByUserId(userId).map(Household::getId).orElse(null);
+        return new HouseholdIdCache(id);
     }
-
-    // Redis에서 Integer로 역직렬화된 stale 캐시 수동 제거용
-    @CacheEvict(value = "householdByUserId", key = "#userId")
-    public void evictHouseholdCache(Long userId) {}
 
 
     @CacheEvict(value = "householdByUserId", key = "#userId")

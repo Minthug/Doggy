@@ -79,7 +79,7 @@ public class WalkService {
                 .build();
 
         if (request != null && request.dogIds() != null && !request.dogIds().isEmpty()) {
-            Long householdId = householdService.findHouseholdIdByUserId(userId);
+            Long householdId = householdService.findHouseholdIdByUserId(userId).getId();
             List<Dog> dogs = dogRepository.findAllById(request.dogIds()).stream()
                     .filter(d -> d.getUser().getId().equals(userId)
                             || (householdId != null && d.getHousehold() != null
@@ -215,7 +215,7 @@ public class WalkService {
     }
 
     public List<WalkSessionResponse> getHistory(Long userId, int page, int size) {
-        Long householdId = householdService.findHouseholdIdByUserId(userId);
+        Long householdId = householdService.findHouseholdIdByUserId(userId).getId();
         // Step 1: DB LIMIT 적용된 ID 목록 (JOIN FETCH 없이 정확한 페이지네이션)
         // 한 세션에 가구 강아지가 여럿이면 같은 ID가 중복될 수 있으므로 deduplicate 후 재요청
         List<Long> rawIds = walkSessionRepository.findHistoryIdsByUserId(

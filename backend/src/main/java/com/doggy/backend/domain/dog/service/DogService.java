@@ -14,6 +14,7 @@ import com.doggy.backend.domain.household.repository.HouseholdRepository;
 import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
+import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
 import com.doggy.backend.global.exception.BusinessException;
 import com.doggy.backend.global.image.ImageStorageService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class DogService {
     private final HouseholdMemberRepository householdMemberRepository;
     private final HouseholdService householdService;
     private final ImageStorageService imageStorageService;
+    private final WalkSessionRepository walkSessionRepository;
 
     @Transactional
     public DogResponse create(Long userId, CreateDogRequest request) {
@@ -63,15 +65,7 @@ public class DogService {
 
     public List<DogResponse> getMyDogs(Long userId) {
         Set<Long> favoritedIds = dogFavoriteRepository.findFavoritedDogIdsByUserId(userId);
-        Long householdId;
-        try {
-            householdId = householdService.findHouseholdIdByUserId(userId);
-        } catch (ClassCastException e) {
-            // Redis에 Integer 타입으로 저장된 stale 캐시 값 → 캐시 evict 후 DB 재조회
-            log.warn("Household cache type mismatch for userId={}, evicting and retrying", userId);
-            householdService.evictHouseholdCache(userId);
-            householdId = householdService.findHouseholdIdByUserId(userId);
-        }
+        Long householdId = householdService.findHouseholdIdByUserId(userId).getId();
         List<Dog> dogs = householdId != null
                 ? dogRepository.findAllAccessibleDogs(userId, householdId)
                 : dogRepository.findAllByUserId(userId);
@@ -153,6 +147,7 @@ public class DogService {
             throw BusinessException.forbidden("강아지 소유자 또는 가구 오너만 삭제할 수 있습니다");
         }
         imageStorageService.delete(dog.getProfileImage());
+        walkSessionRepository.removeDogFromAllSessions(dogId);
         dogRepository.delete(dog);
     }
 }
