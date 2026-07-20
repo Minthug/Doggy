@@ -10,7 +10,20 @@
 # Claude Code
 .claude/settings.local.json
 
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+frontend/lib/core/secrets.dart
+backend/src/main/resources/application-local.properties
+backend/src/main/resources/*firebase*adminsdk*.json
+backend/src/main/resources/*-firebase-*.json
+frontend/android/app/google-services.json
+frontend/ios/Runner/GoogleService-Info.plist
+
 # Flutter build output
+frontend/build
 frontend/build/
 **/build/
 
