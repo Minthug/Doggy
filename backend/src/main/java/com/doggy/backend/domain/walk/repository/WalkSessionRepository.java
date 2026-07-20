@@ -3,6 +3,7 @@ package com.doggy.backend.domain.walk.repository;
 import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.entity.WalkSession.Status;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -78,6 +79,10 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long>,
     List<WalkSession> findSessionsWithPointsBefore(
             @Param("before") LocalDateTime before,
             @Param("lim") int lim);
+
+    @Modifying
+    @Query(value = "DELETE FROM walk_session_dogs WHERE dog_id = :dogId", nativeQuery = true)
+    void removeDogFromAllSessions(@Param("dogId") Long dogId);
 
     // findUserIdsNotWalkedSince → WalkSessionRepositoryImpl (QueryDSL)
 
