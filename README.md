@@ -262,3 +262,33 @@ graph TD
 | 배포 | Linux 서버 · systemctl JAR 실행 |
 | 소셜 로그인 | Kakao / Google / Naver OAuth2 |
 | OAuth redirect URI | 환경변수 `${SERVER_BASE_URL}` (IP 하드코딩 제거) |
+
+### 운영 환경 변수
+
+네이버클라우드 서버에는 실제 값을 환경 변수로 주입하고, repo에는 시크릿 값을 커밋하지 않습니다.
+로컬 실행용 `backend/src/main/resources/application.properties`와 `application-local.properties`는 git ignore 대상입니다.
+설정 키 목록은 `backend/src/main/resources/application.properties.example`을 기준으로 관리합니다.
+
+필수:
+- `DB_URL`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `JWT_SECRET`
+- `SERVER_BASE_URL`
+- `KAKAO_CLIENT_ID`
+- `KAKAO_CLIENT_SECRET`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `NAVER_CLIENT_ID`
+- `NAVER_CLIENT_SECRET`
+- `WEATHER_API_KEY`
+- `AIR_STATION_API_KEY`
+
+선택:
+- `PORT`
+- `IMAGE_UPLOAD_DIR`
+- `FCM_CREDENTIALS_PATH` 또는 `FCM_CREDENTIALS_BASE64`
+- `REDIS_HOST`
+- `REDIS_PORT`
+- `REDIS_PASSWORD`
+- `CACHE_TYPE`

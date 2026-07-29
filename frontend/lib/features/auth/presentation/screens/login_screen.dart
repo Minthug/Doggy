@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/api/api_config.dart';
 import '../../domain/providers/auth_provider.dart';
-
-const _oauthBaseUrl = 'http://223.130.158.221.nip.io:8080';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -25,7 +24,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _loginWithSocial(String provider) async {
-    final url = Uri.parse('$_oauthBaseUrl/oauth2/authorization/$provider');
+    final baseUrl = validatedApiBaseUrl();
+    final url = Uri.parse('$baseUrl/oauth2/authorization/$provider');
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
@@ -36,18 +36,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _login() async {
     setState(() => _isLoading = true);
     try {
-      await ref.read(authActionProvider).login(
-            _emailController.text.trim(),
-            _passwordController.text,
-          );
+      await ref
+          .read(authActionProvider)
+          .login(_emailController.text.trim(), _passwordController.text);
       if (mounted) {
         Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이메일 또는 비밀번호를 확인해주세요')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('이메일 또는 비밀번호를 확인해주세요')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -120,14 +119,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
 
               const SizedBox(height: 24),
-              const Row(children: [
-                Expanded(child: Divider()),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('또는', style: TextStyle(color: Colors.grey)),
-                ),
-                Expanded(child: Divider()),
-              ]),
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: Text('또는', style: TextStyle(color: Colors.grey)),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
               const SizedBox(height: 20),
 
               // 카카오 로그인
@@ -136,7 +137,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 backgroundColor: const Color(0xFFFEE500),
                 textColor: const Color(0xFF191919),
                 onTap: () => _loginWithSocial('kakao'),
-                icon: const Text('K', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF191919))),
+                icon: const Text(
+                  'K',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF191919),
+                  ),
+                ),
               ),
               const SizedBox(height: 10),
 
@@ -146,7 +154,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 backgroundColor: const Color(0xFF03C75A),
                 textColor: Colors.white,
                 onTap: () => _loginWithSocial('naver'),
-                icon: const Text('N', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                icon: const Text(
+                  'N',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
               ),
               const SizedBox(height: 10),
 
@@ -157,7 +172,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 textColor: Colors.black87,
                 borderColor: Colors.grey[300],
                 onTap: () => _loginWithSocial('google'),
-                icon: const Icon(Icons.g_mobiledata, size: 24, color: Colors.red),
+                icon: const Icon(
+                  Icons.g_mobiledata,
+                  size: 24,
+                  color: Colors.red,
+                ),
               ),
             ],
           ),
@@ -206,11 +225,14 @@ class _SocialLoginButton extends StatelessWidget {
           children: [
             icon,
             const SizedBox(width: 8),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: textColor)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
           ],
         ),
       ),
