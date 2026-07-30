@@ -43,7 +43,6 @@ public class SecurityConfig {
                                 "/api/auth/**",
                                 "/login/oauth2/**",
                                 "/oauth2/**",
-                                "/api/places/**",
                                 "/api/walks/public",
                                 "/api/weather/**",
                                 "/actuator/health",
