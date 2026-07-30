@@ -143,26 +143,6 @@ public class UserService {
     }
 
     @Transactional
-    public void linkSocialAccount(Long userId, LinkSocialRequest request) {
-        if (userAuthRepository.existsByUser_IdAndAuthTypeIn(userId, SOCIAL_AUTH_TYPES)) {
-            throw BusinessException.badRequest("이미 연결된 소셜 계정이 있습니다");
-        }
-        if (userAuthRepository.findByAuthTypeAndProviderId(request.authType(), request.providerId()).isPresent()) {
-            throw BusinessException.badRequest("이미 다른 계정에 연결된 소셜 계정입니다");
-        }
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
-        userAuthRepository.save(
-                UserAuth.builder()
-                        .user(user)
-                        .authType(request.authType())
-                        .providerId(request.providerId())
-                        .email(request.email())
-                        .build()
-        );
-    }
-
-    @Transactional
     public void unlinkSocialAccount(Long userId) {
         UserAuth socialAuth = userAuthRepository.findByUser_IdAndAuthTypeIn(userId, SOCIAL_AUTH_TYPES)
                 .orElseThrow(() -> BusinessException.notFound("연결된 소셜 계정이 없습니다"));
