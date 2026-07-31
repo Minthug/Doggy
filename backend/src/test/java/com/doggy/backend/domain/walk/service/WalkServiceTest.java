@@ -7,6 +7,7 @@ import com.doggy.backend.domain.user.repository.PushSettingRepository;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.domain.walk.dto.CompleteWalkRequest;
 import com.doggy.backend.domain.walk.dto.StartWalkRequest;
+import com.doggy.backend.domain.walk.dto.WalkPointRequest;
 import com.doggy.backend.domain.walk.dto.WalkSessionResponse;
 import com.doggy.backend.domain.walk.entity.WalkRouteLike;
 import com.doggy.backend.domain.walk.entity.WalkRouteBookmark;
@@ -17,6 +18,7 @@ import com.doggy.backend.domain.walk.repository.WalkRouteBookmarkRepository;
 import com.doggy.backend.domain.walk.repository.WalkRouteLikeRepository;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
 import com.doggy.backend.global.exception.BusinessException;
+import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.fcm.FcmService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -29,6 +31,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -126,6 +129,35 @@ class WalkServiceTest {
             assertThatThrownBy(() -> walkService.complete(1L, 10L, request))
                     .isInstanceOf(BusinessException.class)
                     .hasMessageContaining("이미 완료된 산책입니다");
+        }
+
+        @Test
+        @DisplayName("경로 포인트가 너무 많으면 완료 요청 거부")
+        void fail_tooManyPoints() {
+            WalkPointRequest point = new WalkPointRequest(LocalDateTime.now(), 37.5, 127.0, null);
+            CompleteWalkRequest request = new CompleteWalkRequest(
+                    LocalDateTime.now(),
+                    Collections.nCopies(RequestLimits.MAX_WALK_POINTS + 1, point));
+
+            assertThatThrownBy(() -> walkService.complete(1L, 10L, request))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("포인트");
+
+            verify(walkSessionRepository, never()).findByIdAndUserId(any(), any());
+        }
+
+        @Test
+        @DisplayName("잘못된 좌표가 있으면 완료 요청 거부")
+        void fail_invalidPointCoordinate() {
+            CompleteWalkRequest request = new CompleteWalkRequest(
+                    LocalDateTime.now(),
+                    List.of(new WalkPointRequest(LocalDateTime.now(), 91.0, 127.0, null)));
+
+            assertThatThrownBy(() -> walkService.complete(1L, 10L, request))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("좌표");
+
+            verify(walkSessionRepository, never()).findByIdAndUserId(any(), any());
         }
     }
 

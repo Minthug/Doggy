@@ -15,6 +15,7 @@ import com.doggy.backend.domain.walk.repository.WalkPointRepository;
 import com.doggy.backend.domain.walk.repository.WalkRouteBookmarkRepository;
 import com.doggy.backend.domain.walk.repository.WalkRouteLikeRepository;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
+import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.exception.BusinessException;
 import com.doggy.backend.global.fcm.FcmService;
 import lombok.RequiredArgsConstructor;
@@ -94,6 +95,7 @@ public class WalkService {
 
     @Transactional(readOnly = false)
     public WalkDetailResponse complete(Long userId, Long sessionId, CompleteWalkRequest request) {
+        validateCompleteWalkRequest(request);
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
 
@@ -216,10 +218,12 @@ public class WalkService {
 
     public List<WalkSessionResponse> getHistory(Long userId, int page, int size) {
         Long householdId = householdService.findHouseholdIdByUserId(userId).getId();
+        int safePage = RequestLimits.clampPage(page);
+        int safeSize = RequestLimits.clampPageSize(size);
         // Step 1: DB LIMIT 적용된 ID 목록 (JOIN FETCH 없이 정확한 페이지네이션)
         // 한 세션에 가구 강아지가 여럿이면 같은 ID가 중복될 수 있으므로 deduplicate 후 재요청
         List<Long> rawIds = walkSessionRepository.findHistoryIdsByUserId(
-                userId, householdId, PageRequest.of(page, size));
+                userId, householdId, PageRequest.of(safePage, safeSize));
         if (rawIds.isEmpty()) return List.of();
         List<Long> ids = rawIds.stream().distinct().toList();
         // Step 2: dogs 배치 로드 (IN 절 1회, N+1 없음)
@@ -283,9 +287,14 @@ public class WalkService {
 
     // 공개 경로 피드
     public List<PublicRouteResponse> getPublicRoutes(Long userId, Double lat, Double lng, int page, int size) {
+        int safePage = RequestLimits.clampPage(page);
+        int safeSize = RequestLimits.clampPageSize(size);
+        if (lat != null || lng != null) {
+            RequestLimits.validateLatLng(lat, lng);
+        }
         List<WalkSession> sessions = (lat != null && lng != null)
-                ? walkSessionRepository.findPublicRoutesNearby(lat, lng, PUBLIC_ROUTE_RADIUS_METERS, size, page * size)
-                : walkSessionRepository.findPublicRoutesByLikes(size, page * size);
+                ? walkSessionRepository.findPublicRoutesNearby(lat, lng, PUBLIC_ROUTE_RADIUS_METERS, safeSize, safePage * safeSize)
+                : walkSessionRepository.findPublicRoutesByLikes(safeSize, safePage * safeSize);
 
         if (sessions.isEmpty()) return List.of();
 
@@ -386,5 +395,14 @@ public class WalkService {
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                 * Math.sin(dLng / 2) * Math.sin(dLng / 2);
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    private void validateCompleteWalkRequest(CompleteWalkRequest request) {
+        if (request.points().size() > RequestLimits.MAX_WALK_POINTS) {
+            throw BusinessException.badRequest("산책 경로 포인트는 최대 " + RequestLimits.MAX_WALK_POINTS + "개까지 저장할 수 있습니다");
+        }
+        for (WalkPointRequest point : request.points()) {
+            RequestLimits.validateLatLng(point.lat(), point.lng());
+        }
     }
 }

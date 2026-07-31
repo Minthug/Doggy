@@ -12,6 +12,7 @@ import com.doggy.backend.domain.place.repository.PlaceVoteRepository;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.common.GeometryUtil;
+import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -28,24 +29,24 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PlaceService {
 
-    private static final double DEFAULT_RADIUS_METERS = 1000;
-
     private final PlaceRepository placeRepository;
     private final PlaceVoteRepository placeVoteRepository;
     private final UserRepository userRepository;
 
     @Cacheable(value = "places",
-            key = "T(Math).round(#lat * 1000) + ':' + T(Math).round(#lng * 1000) + ':' + (#radiusMeters != null ? #radiusMeters.intValue() : 1000)")
+            key = "T(Math).round(#lat * 1000) + ':' + T(Math).round(#lng * 1000) + ':' + T(Math).round(T(com.doggy.backend.global.common.RequestLimits).clampRadiusMeters(#radiusMeters))")
     public List<PlaceResponse> findNearby(double lat, double lng, Double radiusMeters) {
-        double radius = radiusMeters != null ? radiusMeters : DEFAULT_RADIUS_METERS;
+        RequestLimits.validateLatLng(lat, lng);
+        double radius = RequestLimits.clampRadiusMeters(radiusMeters);
         List<Place> places = placeRepository.findNearby(lat, lng, radius);
         return toResponses(places);
     }
 
     @Cacheable(value = "placesByCategory",
-            key = "T(Math).round(#lat * 1000) + ':' + T(Math).round(#lng * 1000) + ':' + (#radiusMeters != null ? #radiusMeters.intValue() : 1000) + ':' + #category.name()")
+            key = "T(Math).round(#lat * 1000) + ':' + T(Math).round(#lng * 1000) + ':' + T(Math).round(T(com.doggy.backend.global.common.RequestLimits).clampRadiusMeters(#radiusMeters)) + ':' + #category.name()")
     public List<PlaceResponse> findNearbyByCategory(double lat, double lng, Double radiusMeters, Category category) {
-        double radius = radiusMeters != null ? radiusMeters : DEFAULT_RADIUS_METERS;
+        RequestLimits.validateLatLng(lat, lng);
+        double radius = RequestLimits.clampRadiusMeters(radiusMeters);
         List<Place> places = placeRepository.findNearbyByCategory(lat, lng, radius, category.name());
         return toResponses(places);
     }
@@ -58,6 +59,7 @@ public class PlaceService {
 
     @Transactional(readOnly = false)
     public PlaceResponse create(Long userId, CreatePlaceRequest request) {
+        RequestLimits.validateLatLng(request.lat(), request.lng());
         userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
 

@@ -94,6 +94,7 @@ public class DogService {
     public void toggleFavorite(Long userId, Long dogId) {
         Dog dog = dogRepository.findById(dogId)
                 .orElseThrow(() -> BusinessException.notFound("반려견을 찾을 수 없습니다"));
+        checkAccess(userId, dog);
         if (dogFavoriteRepository.existsByUserIdAndDogId(userId, dogId)) {
             dogFavoriteRepository.deleteByUserIdAndDogId(userId, dogId);
         } else {

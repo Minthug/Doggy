@@ -7,6 +7,7 @@ import com.doggy.backend.domain.community.entity.CommunityPost.PostType;
 import com.doggy.backend.domain.community.repository.CommunityPostRepository;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
+import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -24,7 +25,7 @@ public class CommunityService {
     private final UserRepository userRepository;
 
     public List<CommunityPostResponse> getPosts(PostType type, int page, int size) {
-        var pageable = PageRequest.of(page, size);
+        var pageable = PageRequest.of(RequestLimits.clampPage(page), RequestLimits.clampPageSize(size));
         List<CommunityPost> posts = type == null
                 ? postRepository.findAllWithUser(pageable)
                 : postRepository.findByTypeWithUser(type, pageable);

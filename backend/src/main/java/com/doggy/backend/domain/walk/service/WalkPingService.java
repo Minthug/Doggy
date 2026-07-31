@@ -11,6 +11,7 @@ import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.repository.WalkLocationRepository;
 import com.doggy.backend.domain.walk.repository.WalkPingLogRepository;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
+import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.exception.BusinessException;
 import com.doggy.backend.global.fcm.FcmService;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,7 @@ public class WalkPingService {
 
     @Transactional
     public void updateLocationAndPing(Long userId, Long sessionId, double lat, double lng) {
+        RequestLimits.validateLatLng(lat, lng);
         WalkSession session = walkSessionRepository.findById(sessionId)
                 .orElseThrow(() -> BusinessException.notFound("산책 세션을 찾을 수 없습니다"));
 
