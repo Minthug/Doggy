@@ -73,7 +73,7 @@ public class UserService {
     }
 
     public TokenResponse refresh(String refreshToken) {
-        if (!jwtProvider.validate(refreshToken)) {
+        if (!jwtProvider.validateRefreshToken(refreshToken)) {
             throw BusinessException.unauthorized("유효하지 않은 리프레시 토큰입니다");
         }
 

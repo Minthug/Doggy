@@ -1,26 +1,28 @@
 import 'package:app_links/app_links.dart';
+import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/api/api_config.dart';
 import 'core/naver_map_init.dart';
 import 'core/storage/token_storage.dart';
 import 'firebase_options.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/auth/presentation/screens/signup_screen.dart';
 import 'features/home/presentation/screens/main_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
-        .timeout(const Duration(seconds: 10));
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    ).timeout(const Duration(seconds: 10));
   } catch (e) {
     debugPrint('[Firebase init error] $e');
   }
   // initNaverMap은 네트워크 검증을 하므로 runApp을 막지 않게 비동기로 실행
   initNaverMap().catchError((e) => debugPrint('[NaverMap init error] $e'));
-  runApp(const ProviderScope(
-    child: DoggyApp(),
-  ));
+  runApp(const ProviderScope(child: DoggyApp()));
 }
 
 class DoggyApp extends StatefulWidget {
@@ -52,15 +54,27 @@ class _DoggyAppState extends State<DoggyApp> {
     if (uri.scheme == 'doggy' &&
         uri.host == 'auth' &&
         uri.path == '/callback') {
-      final accessToken = uri.queryParameters['accessToken'];
-      final refreshToken = uri.queryParameters['refreshToken'];
-      if (accessToken != null && refreshToken != null) {
-        await TokenStorage.saveTokens(
-          accessToken: accessToken,
-          refreshToken: refreshToken,
-        );
-        navigatorKey.currentState
-            ?.pushNamedAndRemoveUntil('/home', (_) => false);
+      final code = uri.queryParameters['code'];
+      if (code != null && code.isNotEmpty) {
+        try {
+          final response = await Dio().post<Map<String, dynamic>>(
+            '${validatedApiBaseUrl()}/api/auth/oauth2/exchange',
+            data: {'code': code},
+            options: Options(headers: {'Content-Type': 'application/json'}),
+          );
+          final data = response.data!;
+          await TokenStorage.saveTokens(
+            accessToken: data['accessToken'] as String,
+            refreshToken: data['refreshToken'] as String,
+          );
+          navigatorKey.currentState?.pushNamedAndRemoveUntil(
+            '/home',
+            (_) => false,
+          );
+        } catch (e) {
+          debugPrint('[OAuth exchange error] $e');
+          await TokenStorage.clear();
+        }
       }
     }
   }
@@ -110,10 +124,7 @@ class _SplashScreen extends StatelessWidget {
             SizedBox(height: 8),
             Text(
               '반려견 산책 기록',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white70,
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.white70),
             ),
           ],
         ),
@@ -148,8 +159,6 @@ class _AuthGateState extends State<_AuthGate> {
     if (_isLoggedIn == null) {
       return const _SplashScreen();
     }
-    return _isLoggedIn!
-        ? const MainScreen()
-        : const LoginScreen();
+    return _isLoggedIn! ? const MainScreen() : const LoginScreen();
   }
 }

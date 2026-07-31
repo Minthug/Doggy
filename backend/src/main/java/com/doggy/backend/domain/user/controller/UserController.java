@@ -3,6 +3,7 @@ package com.doggy.backend.domain.user.controller;
 import com.doggy.backend.domain.user.dto.*;
 import com.doggy.backend.domain.user.service.UserService;
 import com.doggy.backend.global.security.UserPrincipal;
+import com.doggy.backend.global.security.oauth2.OAuth2LoginCodeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
+    private final OAuth2LoginCodeService oAuth2LoginCodeService;
 
     @PostMapping("/api/auth/signup")
     public ResponseEntity<TokenResponse> signUp(@Valid @RequestBody SignUpRequest request) {
@@ -29,6 +31,12 @@ public class UserController {
     @PostMapping("/api/auth/refresh")
     public ResponseEntity<TokenResponse> refresh(@RequestHeader("Refresh-Token") String refreshToken) {
         return ResponseEntity.ok(userService.refresh(refreshToken));
+    }
+
+    @PostMapping("/api/auth/oauth2/exchange")
+    public ResponseEntity<TokenResponse> exchangeOAuth2Code(
+            @Valid @RequestBody OAuth2CodeExchangeRequest request) {
+        return ResponseEntity.ok(oAuth2LoginCodeService.exchange(request.code()));
     }
 
     @GetMapping("/api/users/me")

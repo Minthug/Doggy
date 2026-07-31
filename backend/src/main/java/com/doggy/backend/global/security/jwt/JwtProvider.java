@@ -14,6 +14,8 @@ import java.util.Date;
 @Component
 public class JwtProvider {
 
+    private static final String TOKEN_TYPE_CLAIM = "tokenType";
+
     private final SecretKey secretKey;
     private final long accessTokenExpiry;
     private final long refreshTokenExpiry;
@@ -29,17 +31,18 @@ public class JwtProvider {
     }
 
     public String generateAccessToken(Long userId) {
-        return generateToken(userId, accessTokenExpiry);
+        return generateToken(userId, accessTokenExpiry, TokenType.ACCESS);
     }
 
     public String generateRefreshToken(Long userId) {
-        return generateToken(userId, refreshTokenExpiry);
+        return generateToken(userId, refreshTokenExpiry, TokenType.REFRESH);
     }
 
-    private String generateToken(Long userId, long expiry) {
+    private String generateToken(Long userId, long expiry, TokenType tokenType) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .claim(TOKEN_TYPE_CLAIM, tokenType.name())
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expiry))
                 .signWith(secretKey)
@@ -50,10 +53,18 @@ public class JwtProvider {
         return Long.parseLong(parseClaims(token).getSubject());
     }
 
-    public boolean validate(String token) {
+    public boolean validateAccessToken(String token) {
+        return validate(token, TokenType.ACCESS);
+    }
+
+    public boolean validateRefreshToken(String token) {
+        return validate(token, TokenType.REFRESH);
+    }
+
+    private boolean validate(String token, TokenType expectedType) {
         try {
-            parseClaims(token);
-            return true;
+            Claims claims = parseClaims(token);
+            return expectedType.name().equals(claims.get(TOKEN_TYPE_CLAIM, String.class));
         } catch (ExpiredJwtException e) {
             log.debug("만료된 JWT 토큰: {}", e.getMessage());
         } catch (JwtException | IllegalArgumentException e) {
@@ -68,5 +79,9 @@ public class JwtProvider {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+    }
+
+    private enum TokenType {
+        ACCESS, REFRESH
     }
 }

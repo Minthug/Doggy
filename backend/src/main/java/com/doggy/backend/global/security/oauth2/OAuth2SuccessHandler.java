@@ -1,7 +1,6 @@
 package com.doggy.backend.global.security.oauth2;
 
 import com.doggy.backend.global.security.UserPrincipal;
-import com.doggy.backend.global.security.jwt.JwtProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +14,7 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-    private final JwtProvider jwtProvider;
+    private final OAuth2LoginCodeService loginCodeService;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -23,13 +22,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                                         Authentication authentication) throws IOException {
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
 
-        String accessToken = jwtProvider.generateAccessToken(principal.getId());
-        String refreshToken = jwtProvider.generateRefreshToken(principal.getId());
+        String code = loginCodeService.createCode(principal.getId());
 
-        // Flutter 앱으로 토큰 전달 (딥링크 or 쿼리파라미터)
-        String redirectUrl = "doggy://auth/callback"
-                + "?accessToken=" + accessToken
-                + "&refreshToken=" + refreshToken;
+        String redirectUrl = "doggy://auth/callback?code=" + code;
 
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }

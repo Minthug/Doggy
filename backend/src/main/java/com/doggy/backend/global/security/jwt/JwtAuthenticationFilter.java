@@ -29,7 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         String token = extractToken(request);
 
-        if (StringUtils.hasText(token) && jwtProvider.validate(token)) {
+        if (StringUtils.hasText(token) && jwtProvider.validateAccessToken(token)) {
             Long userId = jwtProvider.getUserId(token);
             User user = userRepository.findById(userId).orElse(null);
 
