@@ -2,8 +2,10 @@ package com.doggy.backend.domain.user.controller;
 
 import com.doggy.backend.domain.user.dto.*;
 import com.doggy.backend.domain.user.service.UserService;
+import com.doggy.backend.global.ratelimit.RateLimitService;
 import com.doggy.backend.global.security.UserPrincipal;
 import com.doggy.backend.global.security.oauth2.OAuth2LoginCodeService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,25 +19,37 @@ public class UserController {
 
     private final UserService userService;
     private final OAuth2LoginCodeService oAuth2LoginCodeService;
+    private final RateLimitService rateLimitService;
 
     @PostMapping("/api/auth/signup")
-    public ResponseEntity<TokenResponse> signUp(@Valid @RequestBody SignUpRequest request) {
+    public ResponseEntity<TokenResponse> signUp(
+            HttpServletRequest servletRequest,
+            @Valid @RequestBody SignUpRequest request) {
+        rateLimitService.checkSignup(servletRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.signUp(request));
     }
 
     @PostMapping("/api/auth/login")
-    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<TokenResponse> login(
+            HttpServletRequest servletRequest,
+            @Valid @RequestBody LoginRequest request) {
+        rateLimitService.checkLogin(servletRequest, request.email());
         return ResponseEntity.ok(userService.login(request));
     }
 
     @PostMapping("/api/auth/refresh")
-    public ResponseEntity<TokenResponse> refresh(@RequestHeader("Refresh-Token") String refreshToken) {
+    public ResponseEntity<TokenResponse> refresh(
+            HttpServletRequest servletRequest,
+            @RequestHeader("Refresh-Token") String refreshToken) {
+        rateLimitService.checkRefresh(servletRequest);
         return ResponseEntity.ok(userService.refresh(refreshToken));
     }
 
     @PostMapping("/api/auth/oauth2/exchange")
     public ResponseEntity<TokenResponse> exchangeOAuth2Code(
+            HttpServletRequest servletRequest,
             @Valid @RequestBody OAuth2CodeExchangeRequest request) {
+        rateLimitService.checkOAuth2Exchange(servletRequest);
         return ResponseEntity.ok(oAuth2LoginCodeService.exchange(request.code()));
     }
 
