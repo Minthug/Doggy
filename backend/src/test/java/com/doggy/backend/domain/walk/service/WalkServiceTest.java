@@ -6,6 +6,7 @@ import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.PushSettingRepository;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.domain.walk.dto.CompleteWalkRequest;
+import com.doggy.backend.domain.walk.dto.PublishRouteRequest;
 import com.doggy.backend.domain.walk.dto.StartWalkRequest;
 import com.doggy.backend.domain.walk.dto.WalkPointRequest;
 import com.doggy.backend.domain.walk.dto.WalkSessionResponse;
@@ -189,6 +190,42 @@ class WalkServiceTest {
             WalkSessionResponse response = walkService.resume(1L, 10L);
 
             assertThat(response.status()).isEqualTo(Status.IN_PROGRESS);
+        }
+    }
+
+    @Nested
+    @DisplayName("publish")
+    class Publish {
+
+        @Test
+        @DisplayName("경로 공개 안내 동의가 없으면 공개 불가")
+        void fail_withoutDisclosureAcceptance() {
+            User user = makeUser(1L);
+            WalkSession session = makeSession(10L, user, Status.COMPLETED);
+
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+
+            assertThatThrownBy(() -> walkService.publish(1L, 10L, new PublishRouteRequest("공개 코스", false)))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("공개 안내");
+
+            assertThat(session.isPublic()).isFalse();
+            verify(walkPointRepository, never()).findRouteGeoJsonBySessionId(any());
+        }
+
+        @Test
+        @DisplayName("경로 공개 안내에 동의하면 공개 처리")
+        void success_withDisclosureAcceptance() {
+            User user = makeUser(1L);
+            WalkSession session = makeSession(10L, user, Status.COMPLETED);
+
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+            given(walkPointRepository.findRouteGeoJsonBySessionId(10L)).willReturn(null);
+
+            walkService.publish(1L, 10L, new PublishRouteRequest("공개 코스", true));
+
+            assertThat(session.isPublic()).isTrue();
+            assertThat(session.getTitle()).isEqualTo("공개 코스");
         }
     }
 

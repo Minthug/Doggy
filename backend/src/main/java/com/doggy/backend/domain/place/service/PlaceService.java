@@ -15,8 +15,6 @@ import com.doggy.backend.global.common.GeometryUtil;
 import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,8 +31,6 @@ public class PlaceService {
     private final PlaceVoteRepository placeVoteRepository;
     private final UserRepository userRepository;
 
-    @Cacheable(value = "places",
-            key = "T(Math).round(#lat * 1000) + ':' + T(Math).round(#lng * 1000) + ':' + T(Math).round(T(com.doggy.backend.global.common.RequestLimits).clampRadiusMeters(#radiusMeters))")
     public List<PlaceResponse> findNearby(double lat, double lng, Double radiusMeters) {
         RequestLimits.validateLatLng(lat, lng);
         double radius = RequestLimits.clampRadiusMeters(radiusMeters);
@@ -42,8 +38,6 @@ public class PlaceService {
         return toResponses(places);
     }
 
-    @Cacheable(value = "placesByCategory",
-            key = "T(Math).round(#lat * 1000) + ':' + T(Math).round(#lng * 1000) + ':' + T(Math).round(T(com.doggy.backend.global.common.RequestLimits).clampRadiusMeters(#radiusMeters)) + ':' + #category.name()")
     public List<PlaceResponse> findNearbyByCategory(double lat, double lng, Double radiusMeters, Category category) {
         RequestLimits.validateLatLng(lat, lng);
         double radius = RequestLimits.clampRadiusMeters(radiusMeters);
@@ -83,7 +77,6 @@ public class PlaceService {
     }
 
     @Transactional(readOnly = false)
-    @CacheEvict(value = {"places", "placesByCategory"}, allEntries = true)
     public void vote(Long userId, Long placeId, VoteRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));

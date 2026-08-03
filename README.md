@@ -30,10 +30,6 @@ graph TB
         SVC --> REPO_B
     end
 
-    subgraph Cache["⚡ Redis 7.0"]
-        REDIS["walkIndex · walkForecast\nhouseholdByUserId\nplaces · placesByCategory"]
-    end
-
     subgraph DB["🗄️ PostgreSQL 16 + PostGIS"]
         USER_T["users"]
         DOG_T["dogs"]
@@ -50,7 +46,6 @@ graph TB
     end
 
     REPO_F -->|"HTTPS REST"| CTRL
-    SVC <-->|"캐시 read/write"| Cache
     REPO_B --> DB
     SVC -->|"OAuth2 로그인"| KAKAO
     SVC -->|"푸시 발송"| FCM
@@ -167,8 +162,6 @@ graph LR
         H_S["HouseholdService"]
         H_R["HouseholdRepository"]
         H_C --> H_S --> H_R
-        H_CACHE["Redis\nhouseholdByUserId (10분)"]
-        H_S <--> H_CACHE
     end
 
     subgraph place["📍 Place"]
@@ -176,8 +169,6 @@ graph LR
         P_S["PlaceService"]
         P_R["PlaceRepository\n(PostGIS ST_DWithin)"]
         P_C --> P_S --> P_R
-        P_CACHE["Redis\nplaces · placesByCategory (3분)"]
-        P_S <--> P_CACHE
     end
 
     subgraph community["💬 Community"]
@@ -187,8 +178,8 @@ graph LR
         C_C --> C_S --> C_R
     end
 
-    W_S -->|"가구 캐시 조회"| H_S
-    D_S -->|"가구 캐시 조회"| H_S
+    W_S -->|"가구 조회"| H_S
+    D_S -->|"가구 조회"| H_S
 ```
 
 ---
@@ -238,7 +229,6 @@ graph TD
 | ORM | Spring Data JPA + Hibernate Spatial |
 | 쿼리 빌더 | QueryDSL 5.1 (타입 안전 동적 쿼리) |
 | 인증 | Spring Security + OAuth2 + JWT |
-| 캐시 | Redis 7.0 (분산 캐시, Spring Cache 추상화) |
 | 커넥션 풀 | HikariCP |
 | 푸시 알림 | Firebase Admin SDK (FCM) |
 | 배치 | Spring Batch (생일 · 건강검진 알림) |
@@ -258,7 +248,6 @@ graph TD
 | 분류 | 기술 |
 |------|------|
 | 로컬 개발 DB | Docker Compose (postgis/postgis:16-3.4) |
-| 캐시 서버 | Redis 7.0 (systemctl, 단일 노드 → 멀티 인스턴스 대응 가능) |
 | 배포 | Linux 서버 · systemctl JAR 실행 |
 | 소셜 로그인 | Kakao / Google / Naver OAuth2 |
 | OAuth redirect URI | 환경변수 `${SERVER_BASE_URL}` (IP 하드코딩 제거) |
@@ -268,6 +257,7 @@ graph TD
 네이버클라우드 서버에는 실제 값을 환경 변수로 주입하고, repo에는 시크릿 값을 커밋하지 않습니다.
 로컬 실행용 `backend/src/main/resources/application.properties`와 `application-local.properties`는 git ignore 대상입니다.
 설정 키 목록은 `backend/src/main/resources/application.properties.example`을 기준으로 관리합니다.
+Redis는 현재 운영에서 사용하지 않습니다. 재도입 시에는 `docs/redis-cache.md`의 보안 가이드를 먼저 반영합니다.
 
 필수:
 - `DB_URL`

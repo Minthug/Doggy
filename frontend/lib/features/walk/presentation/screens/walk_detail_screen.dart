@@ -6,13 +6,17 @@ import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
 import '../../../dog/data/repositories/dog_repository.dart';
 
-final _walkDetailProvider =
-    FutureProvider.family<WalkDetail, int>((ref, sessionId) {
+final _walkDetailProvider = FutureProvider.family<WalkDetail, int>((
+  ref,
+  sessionId,
+) {
   return ref.watch(walkRepositoryProvider).getDetail(sessionId);
 });
 
-final _walkMeetsProvider =
-    FutureProvider.family<List<WalkMeet>, int>((ref, sessionId) {
+final _walkMeetsProvider = FutureProvider.family<List<WalkMeet>, int>((
+  ref,
+  sessionId,
+) {
   return ref.watch(walkRepositoryProvider).getMeets(sessionId);
 });
 
@@ -30,15 +34,18 @@ class WalkDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text('산책 상세',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          '산책 상세',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         actions: [
           TextButton.icon(
             onPressed: () => _showPublishDialog(context, ref),
             icon: const Icon(Icons.share_outlined, size: 18),
             label: const Text('공개'),
             style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF4CAF50)),
+              foregroundColor: const Color(0xFF4CAF50),
+            ),
           ),
         ],
       ),
@@ -56,22 +63,35 @@ class WalkDetailScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('경로 공개하기'),
-        content: TextField(
-          controller: titleController,
-          decoration: const InputDecoration(
-            hintText: '예) 한강 야경 코스, 북한산 둘레길',
-            labelText: '경로 제목',
-          ),
-          autofocus: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '산책 경로를 공개하면 다른 사용자가 지도에서 경로를 볼 수 있습니다. 시작 지점과 종료 지점으로 생활권이 추정될 수 있으니 공개 전에 확인해주세요.',
+              style: TextStyle(fontSize: 14, height: 1.45),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                hintText: '예) 한강 야경 코스, 북한산 둘레길',
+                labelText: '경로 제목',
+              ),
+              autofocus: true,
+            ),
+          ],
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('취소')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
-                foregroundColor: Colors.white),
+              backgroundColor: const Color(0xFF4CAF50),
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               if (titleController.text.trim().isEmpty) return;
               Navigator.pop(ctx);
@@ -80,15 +100,15 @@ class WalkDetailScreen extends ConsumerWidget {
                     .read(walkRepositoryProvider)
                     .publish(sessionId, titleController.text.trim());
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('경로가 공개됐습니다')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('경로가 공개됐습니다')));
                 }
               } catch (_) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('공개에 실패했습니다')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('공개에 실패했습니다')));
                 }
               }
             },
@@ -119,10 +139,7 @@ class _DetailBody extends ConsumerWidget {
     return Column(
       children: [
         // 지도 (경로 표시)
-        SizedBox(
-          height: 300,
-          child: _RouteMap(geoJson: detail.routeGeoJson),
-        ),
+        SizedBox(height: 300, child: _RouteMap(geoJson: detail.routeGeoJson)),
 
         // 통계
         Expanded(
@@ -131,9 +148,10 @@ class _DetailBody extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(dateText,
-                    style: const TextStyle(
-                        color: Colors.grey, fontSize: 13)),
+                Text(
+                  dateText,
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
                 const SizedBox(height: 16),
 
                 // 통계 카드
@@ -144,29 +162,34 @@ class _DetailBody extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 8),
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                      ),
                     ],
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _StatItem(
-                          icon: Icons.straighten,
-                          label: '거리',
-                          value: detail.distanceText),
+                        icon: Icons.straighten,
+                        label: '거리',
+                        value: detail.distanceText,
+                      ),
                       _divider(),
                       _StatItem(
-                          icon: Icons.timer,
-                          label: '시간',
-                          value: detail.durationText),
+                        icon: Icons.timer,
+                        label: '시간',
+                        value: detail.durationText,
+                      ),
                       _divider(),
                       _StatItem(
-                          icon: Icons.speed,
-                          label: '평균속도',
-                          value: _avgSpeed(
-                              detail.distanceMeters,
-                              detail.durationSeconds)),
+                        icon: Icons.speed,
+                        label: '평균속도',
+                        value: _avgSpeed(
+                          detail.distanceMeters,
+                          detail.durationSeconds,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -176,8 +199,7 @@ class _DetailBody extends ConsumerWidget {
                 // 만난 강아지들
                 const Text(
                   '이번 산책에서 만난 강아지들',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
                 meetsAsync.when(
@@ -188,9 +210,9 @@ class _DetailBody extends ConsumerWidget {
                               .map((m) => _MeetCard(meet: m))
                               .toList(),
                         ),
-                  loading: () => const Center(
-                      child: CircularProgressIndicator()),
-                  error: (_, __) => const _EmptyMeets(),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, stackTrace) => const _EmptyMeets(),
                 ),
               ],
             ),
@@ -248,39 +270,43 @@ class _RouteMapState extends State<_RouteMap> {
 
     try {
       final geoJson = jsonDecode(widget.geoJson!);
-      final coordinates =
-          geoJson['coordinates'] as List<dynamic>?;
+      final coordinates = geoJson['coordinates'] as List<dynamic>?;
 
       if (coordinates == null || coordinates.isEmpty) return;
 
       final coords = coordinates
-          .map((c) => NLatLng(
-                (c[1] as num).toDouble(),
-                (c[0] as num).toDouble(),
-              ))
+          .map(
+            (c) => NLatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
+          )
           .toList();
 
       // 경로 폴리라인
-      _controller!.addOverlay(NPolylineOverlay(
-        id: 'route',
-        coords: coords,
-        color: const Color(0xFF4CAF50),
-        width: 5,
-      ));
+      _controller!.addOverlay(
+        NPolylineOverlay(
+          id: 'route',
+          coords: coords,
+          color: const Color(0xFF4CAF50),
+          width: 5,
+        ),
+      );
 
       // 시작 마커
-      _controller!.addOverlay(NMarker(
-        id: 'start',
-        position: coords.first,
-        caption: const NOverlayCaption(text: '시작'),
-      ));
+      _controller!.addOverlay(
+        NMarker(
+          id: 'start',
+          position: coords.first,
+          caption: const NOverlayCaption(text: '시작'),
+        ),
+      );
 
       // 종료 마커
-      _controller!.addOverlay(NMarker(
-        id: 'end',
-        position: coords.last,
-        caption: const NOverlayCaption(text: '종료'),
-      ));
+      _controller!.addOverlay(
+        NMarker(
+          id: 'end',
+          position: coords.last,
+          caption: const NOverlayCaption(text: '종료'),
+        ),
+      );
 
       // 경로 전체가 보이도록 카메라 조정
       if (!mounted || _controller == null) return;
@@ -317,16 +343,17 @@ class _EmptyMeets extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
         ],
       ),
       child: const Column(
         children: [
           Text('🐾', style: TextStyle(fontSize: 28)),
           SizedBox(height: 8),
-          Text('만난 강아지가 없어요',
-              style: TextStyle(color: Colors.grey, fontSize: 14)),
+          Text(
+            '만난 강아지가 없어요',
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+          ),
         ],
       ),
     );
@@ -349,8 +376,10 @@ class _MeetCardState extends ConsumerState<_MeetCard> {
   @override
   void initState() {
     super.initState();
-    _favoritedDogIds =
-        widget.meet.dogs.where((d) => d.isFavorited).map((d) => d.id).toSet();
+    _favoritedDogIds = widget.meet.dogs
+        .where((d) => d.isFavorited)
+        .map((d) => d.id)
+        .toSet();
   }
 
   Future<void> _toggleFavorite(int dogId) async {
@@ -380,8 +409,7 @@ class _MeetCardState extends ConsumerState<_MeetCard> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
         ],
       ),
       child: Row(
@@ -402,9 +430,13 @@ class _MeetCardState extends ConsumerState<_MeetCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.meet.user.nickname,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(
+                  widget.meet.user.nickname,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 if (widget.meet.dogs.isNotEmpty)
                   Column(
@@ -418,14 +450,18 @@ class _MeetCardState extends ConsumerState<_MeetCard> {
                                   ? '${dog.name} · ${dog.breed}'
                                   : dog.name,
                               style: const TextStyle(
-                                  color: Colors.grey, fontSize: 13),
+                                color: Colors.grey,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                           GestureDetector(
                             onTap: () => _toggleFavorite(dog.id),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 4, vertical: 2),
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
                               child: Icon(
                                 isFav ? Icons.star : Icons.star_border,
                                 size: 20,
@@ -446,18 +482,25 @@ class _MeetCardState extends ConsumerState<_MeetCard> {
                   children: widget.meet.dogs
                       .expand((d) => d.warnings)
                       .toSet()
-                      .map((w) => Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF3E0),
-                              borderRadius: BorderRadius.circular(20),
+                      .map(
+                        (w) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF3E0),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '⚠️ ${_warningLabel(w)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFFE65100),
                             ),
-                            child: Text('⚠️ ${_warningLabel(w)}',
-                                style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Color(0xFFE65100))),
-                          ))
+                          ),
+                        ),
+                      )
                       .toList(),
                 ),
               ],
@@ -469,13 +512,13 @@ class _MeetCardState extends ConsumerState<_MeetCard> {
   }
 
   String _warningLabel(String warning) => switch (warning) {
-        'AGGRESSIVE' => '사나움',
-        'BITING' => '물림 주의',
-        'JUMPING' => '달려듦',
-        'ESCAPING' => '도주 주의',
-        'BARKING' => '짖음 주의',
-        _ => warning,
-      };
+    'AGGRESSIVE' => '사나움',
+    'BITING' => '물림 주의',
+    'JUMPING' => '달려듦',
+    'ESCAPING' => '도주 주의',
+    'BARKING' => '짖음 주의',
+    _ => warning,
+  };
 }
 
 class _StatItem extends StatelessWidget {
@@ -483,8 +526,11 @@ class _StatItem extends StatelessWidget {
   final String label;
   final String value;
 
-  const _StatItem(
-      {required this.icon, required this.label, required this.value});
+  const _StatItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -492,14 +538,16 @@ class _StatItem extends StatelessWidget {
       children: [
         Icon(icon, color: const Color(0xFF4CAF50), size: 20),
         const SizedBox(height: 6),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF4CAF50))),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF4CAF50),
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(label,
-            style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
       ],
     );
   }

@@ -3,7 +3,6 @@ package com.doggy.backend.global.weather;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -35,9 +34,6 @@ public class WeatherService {
     private static final double DEFAULT_LAT = 37.218392;
     private static final double DEFAULT_LNG = 126.944858;
 
-    // 소수점 1자리 반올림 → 약 10km 단위로 캐시 공유
-    private static final String CACHE_KEY_WEATHER = "T(Math).round(#lat * 10) + ':' + T(Math).round(#lng * 10)";
-
     @Value("${weather.api.key}")
     private String apiKey;
 
@@ -54,17 +50,14 @@ public class WeatherService {
 
     // ── 공개 API ────────────────────────────────────────────────
 
-    @Cacheable(value = "walkIndex", key = "'default'")
     public WalkIndexResponse getWalkIndex() {
         return doGetWalkIndex(DEFAULT_LAT, DEFAULT_LNG);
     }
 
-    @Cacheable(value = "walkIndex", key = CACHE_KEY_WEATHER)
     public WalkIndexResponse getWalkIndex(double lat, double lng, String sido) {
         return doGetWalkIndex(lat, lng);
     }
 
-    @Cacheable(value = "walkIndex", key = CACHE_KEY_WEATHER)
     public WalkIndexResponse getWalkIndex(double lat, double lng) {
         return doGetWalkIndex(lat, lng);
     }
@@ -92,12 +85,10 @@ public class WeatherService {
                 air.pm10(), air.pm25(), air.pm10Grade(), air.pm25Grade());
     }
 
-    @Cacheable(value = "walkForecast", key = "'default'")
     public WalkForecastResponse getWalkForecast() {
         return doGetWalkForecast(DEFAULT_LAT, DEFAULT_LNG);
     }
 
-    @Cacheable(value = "walkForecast", key = CACHE_KEY_WEATHER)
     public WalkForecastResponse getWalkForecast(double lat, double lng) {
         return doGetWalkForecast(lat, lng);
     }

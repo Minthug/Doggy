@@ -54,10 +54,10 @@ class WalkRepository {
   }
 
   Future<List<WalkSession>> getHistory({int page = 0, int size = 20}) async {
-    final response = await _dio.get('/api/walks', queryParameters: {
-      'page': page,
-      'size': size,
-    });
+    final response = await _dio.get(
+      '/api/walks',
+      queryParameters: {'page': page, 'size': size},
+    );
     return (response.data as List).map((e) => WalkSession.fromJson(e)).toList();
   }
 
@@ -67,7 +67,10 @@ class WalkRepository {
   }
 
   Future<void> publish(int sessionId, String title) async {
-    await _dio.patch('/api/walks/$sessionId/publish', data: {'title': title});
+    await _dio.patch(
+      '/api/walks/$sessionId/publish',
+      data: {'title': title, 'routeDisclosureAccepted': true},
+    );
   }
 
   Future<void> unpublish(int sessionId) async {
@@ -80,12 +83,18 @@ class WalkRepository {
     double? lat,
     double? lng,
   }) async {
-    final response = await _dio.get('/api/walks/public', queryParameters: {
-      'page': page,
-      'size': size,
-      if (lat != null) 'lat': lat,
-      if (lng != null) 'lng': lng,
-    });
+    final queryParameters = <String, dynamic>{'page': page, 'size': size};
+    if (lat != null) {
+      queryParameters['lat'] = lat;
+    }
+    if (lng != null) {
+      queryParameters['lng'] = lng;
+    }
+
+    final response = await _dio.get(
+      '/api/walks/public',
+      queryParameters: queryParameters,
+    );
     return (response.data as List).map((e) => PublicRoute.fromJson(e)).toList();
   }
 
@@ -98,10 +107,10 @@ class WalkRepository {
   }
 
   Future<void> updateLocation(int sessionId, double lat, double lng) async {
-    await _dio.patch('/api/walks/$sessionId/location', data: {
-      'lat': lat,
-      'lng': lng,
-    });
+    await _dio.patch(
+      '/api/walks/$sessionId/location',
+      data: {'lat': lat, 'lng': lng},
+    );
   }
 
   Future<List<WalkMeet>> getMeets(int sessionId) async {

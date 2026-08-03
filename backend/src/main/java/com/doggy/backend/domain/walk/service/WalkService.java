@@ -262,6 +262,9 @@ public class WalkService {
         if (session.getStatus() != Status.COMPLETED) {
             throw BusinessException.badRequest("완료된 산책만 공개할 수 있습니다");
         }
+        if (!Boolean.TRUE.equals(request.routeDisclosureAccepted())) {
+            throw BusinessException.badRequest("산책 경로 공개 안내에 동의해야 합니다");
+        }
         session.makePublic(request.title());
         String routeGeoJson = session.getRouteGeoJson();
         if (routeGeoJson == null) {
@@ -338,12 +341,13 @@ public class WalkService {
                     String routeGeoJson = s.getRouteGeoJson() != null
                             ? s.getRouteGeoJson()
                             : batchGeoJsonMap.get(s.getId());
+                    String publicRouteGeoJson = PublicRoutePrivacy.minimizeGeoJson(routeGeoJson);
                     return PublicRouteResponse.of(
                             s,
                             likeCounts.getOrDefault(s.getId(), 0L),
                             likedIds.contains(s.getId()),
                             bookmarkedIds.contains(s.getId()),
-                            routeGeoJson);
+                            publicRouteGeoJson);
                 })
                 .toList();
     }

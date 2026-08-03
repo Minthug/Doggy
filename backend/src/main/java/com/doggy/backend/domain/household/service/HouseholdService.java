@@ -14,8 +14,6 @@ import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,10 +26,6 @@ public class HouseholdService {
     private final UserRepository userRepository;
     private final DogRepository dogRepository;
 
-    // 캐시 조회 — create/join/leave/refreshInviteCode 시 evict
-    // HouseholdIdCache(non-final class)로 래핑: Jackson NON_FINAL 설정에서 타입 정보 포함 →
-    // Redis 역직렬화 시 Long/Integer 불일치 없음. null household도 id=null로 캐시 가능.
-    @Cacheable(value = "householdByUserId", key = "#userId")
     @Transactional(readOnly = true)
     public HouseholdIdCache findHouseholdIdByUserId(Long userId) {
         Long id = householdRepository.findByUserId(userId).map(Household::getId).orElse(null);
@@ -39,7 +33,6 @@ public class HouseholdService {
     }
 
 
-    @CacheEvict(value = "householdByUserId", key = "#userId")
     @Transactional
     public HouseholdResponse create(Long userId, CreateHouseholdRequest request) {
         if (householdRepository.findByUserId(userId).isPresent()) {
@@ -75,7 +68,6 @@ public class HouseholdService {
         return HouseholdResponse.from(household);
     }
 
-    @CacheEvict(value = "householdByUserId", key = "#userId")
     @Transactional
     public HouseholdResponse join(Long userId, JoinHouseholdRequest request) {
         if (householdRepository.findByUserId(userId).isPresent()) {
@@ -102,7 +94,6 @@ public class HouseholdService {
         return HouseholdResponse.from(household);
     }
 
-    @CacheEvict(value = "householdByUserId", key = "#userId")
     @Transactional
     public String refreshInviteCode(Long userId) {
         Household household = householdRepository.findByUserId(userId)
@@ -120,7 +111,6 @@ public class HouseholdService {
         return household.getInviteCode();
     }
 
-    @CacheEvict(value = "householdByUserId", key = "#userId")
     @Transactional
     public void leave(Long userId) {
         Household household = householdRepository.findByUserId(userId)
