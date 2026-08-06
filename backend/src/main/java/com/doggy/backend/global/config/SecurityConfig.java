@@ -6,6 +6,7 @@ import com.doggy.backend.global.security.oauth2.HttpCookieOAuth2AuthorizationReq
 import com.doggy.backend.global.security.oauth2.OAuth2SuccessHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,7 @@ import java.util.Map;
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
+@Slf4j
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -60,6 +62,8 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         // 인증 없이 보호된 API 접근 시 401
                         .authenticationEntryPoint((request, response, e) -> {
+                            log.warn("authentication_required path={} clientIp={}",
+                                    request.getRequestURI(), clientIp(request));
                             response.setStatus(HttpStatus.UNAUTHORIZED.value());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");
                             response.getWriter().write(
@@ -68,6 +72,8 @@ public class SecurityConfig {
                         })
                         // 권한 없을 시 403
                         .accessDeniedHandler((request, response, e) -> {
+                            log.warn("access_denied path={} clientIp={}",
+                                    request.getRequestURI(), clientIp(request));
                             response.setStatus(HttpStatus.FORBIDDEN.value());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");
                             response.getWriter().write(
@@ -83,5 +89,25 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    private String clientIp(jakarta.servlet.http.HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return cleanIp(forwardedFor.split(",")[0]);
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return cleanIp(realIp);
+        }
+        return cleanIp(request.getRemoteAddr());
+    }
+
+    private String cleanIp(String value) {
+        if (value == null || value.isBlank()) {
+            return "unknown";
+        }
+        String clean = value.trim();
+        return clean.length() <= 128 ? clean : clean.substring(0, 128);
     }
 }

@@ -1,6 +1,7 @@
 package com.doggy.backend.global.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -20,9 +21,18 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private final Environment environment;
+
+    public GlobalExceptionHandler(Environment environment) {
+        this.environment = environment;
+    }
+
     // 비즈니스 예외
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Map<String, String>> handleBusinessException(BusinessException e) {
+        if (e.getStatus().is5xxServerError()) {
+            log.warn("business_exception status={} message={}", e.getStatus().value(), e.getMessage());
+        }
         return ResponseEntity.status(e.getStatus())
                 .body(Map.of("message", e.getMessage()));
     }
@@ -63,6 +73,7 @@ public class GlobalExceptionHandler {
     // 인증 없이 보호된 API 접근
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException e) {
+        log.warn("access_denied message={}", e.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("message", "접근 권한이 없습니다"));
     }
@@ -79,6 +90,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleException(Exception e) {
         log.error("Unhandled exception: {}", e.getMessage(), e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("message", "서버 오류가 발생했습니다"));
+                .body(errorBody("서버 오류가 발생했습니다"));
+    }
+
+    private Map<String, String> errorBody(String message) {
+        String requestId = org.slf4j.MDC.get("requestId");
+        if (requestId != null && !requestId.isBlank() && includeRequestIdInErrorResponse()) {
+            return Map.of("message", message, "requestId", requestId);
+        }
+        return Map.of("message", message);
+    }
+
+    private boolean includeRequestIdInErrorResponse() {
+        return environment.getProperty("app.error.include-request-id", Boolean.class, true);
     }
 }

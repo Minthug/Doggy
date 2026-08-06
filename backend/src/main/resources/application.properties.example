@@ -85,7 +85,16 @@ image.upload.dir=${IMAGE_UPLOAD_DIR:/var/doggy/images}
 spring.servlet.multipart.max-file-size=5MB
 spring.servlet.multipart.max-request-size=5MB
 
+# Logging / Observability
+logging.file.name=${LOG_FILE:logs/doggy-api.log}
+logging.logback.rollingpolicy.max-file-size=20MB
+logging.logback.rollingpolicy.max-history=14
+logging.pattern.level=%5p [${spring.application.name:doggy},%X{requestId:-}]
+app.error.include-request-id=${ERROR_INCLUDE_REQUEST_ID:true}
+app.access-log.success-enabled=${ACCESS_LOG_SUCCESS_ENABLED:false}
+app.access-log.slow-threshold-ms=${ACCESS_LOG_SLOW_THRESHOLD_MS:500}
+
 # Actuator
-management.endpoints.web.exposure.include=health
+management.endpoints.web.exposure.include=health,info,metrics
 management.endpoint.health.show-details=never
 management.health.db.enabled=false

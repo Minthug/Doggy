@@ -2,6 +2,7 @@ package com.doggy.backend.global.ratelimit;
 
 import com.doggy.backend.global.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -9,6 +10,7 @@ import java.time.Duration;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @Service
 public class RateLimitService {
 
@@ -26,27 +28,28 @@ public class RateLimitService {
     private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();
 
     public void checkLogin(HttpServletRequest request, String email) {
-        check("login:" + clientIp(request) + ":" + normalize(email), LOGIN_LIMIT, LOGIN_WINDOW);
+        check("login", "login:" + clientIp(request) + ":" + normalize(email), LOGIN_LIMIT, LOGIN_WINDOW, request);
     }
 
     public void checkSignup(HttpServletRequest request) {
-        check("signup:" + clientIp(request), SIGNUP_LIMIT, SIGNUP_WINDOW);
+        check("signup", "signup:" + clientIp(request), SIGNUP_LIMIT, SIGNUP_WINDOW, request);
     }
 
     public void checkRefresh(HttpServletRequest request) {
-        check("refresh:" + clientIp(request), REFRESH_LIMIT, REFRESH_WINDOW);
+        check("refresh", "refresh:" + clientIp(request), REFRESH_LIMIT, REFRESH_WINDOW, request);
     }
 
     public void checkOAuth2Exchange(HttpServletRequest request) {
-        check("oauth2-exchange:" + clientIp(request), OAUTH2_EXCHANGE_LIMIT, OAUTH2_EXCHANGE_WINDOW);
+        check("oauth2-exchange", "oauth2-exchange:" + clientIp(request), OAUTH2_EXCHANGE_LIMIT,
+                OAUTH2_EXCHANGE_WINDOW, request);
     }
 
     public void checkImageUpload(Long userId, HttpServletRequest request) {
         String subject = userId != null ? "user:" + userId : "ip:" + clientIp(request);
-        check("image-upload:" + subject, IMAGE_UPLOAD_LIMIT, IMAGE_UPLOAD_WINDOW);
+        check("image-upload", "image-upload:" + subject, IMAGE_UPLOAD_LIMIT, IMAGE_UPLOAD_WINDOW, request);
     }
 
-    private void check(String key, int maxRequests, Duration window) {
+    private void check(String event, String key, int maxRequests, Duration window, HttpServletRequest request) {
         long now = System.currentTimeMillis();
         long windowMillis = window.toMillis();
         Bucket bucket = buckets.compute(key, (ignored, current) -> {
@@ -58,6 +61,8 @@ public class RateLimitService {
         });
 
         if (bucket.count() > maxRequests) {
+            log.warn("rate_limit_exceeded event={} path={} clientIp={} limit={} windowSeconds={}",
+                    event, request.getRequestURI(), clientIp(request), maxRequests, window.toSeconds());
             throw BusinessException.tooManyRequests("요청이 너무 많습니다. 잠시 후 다시 시도해주세요");
         }
     }
