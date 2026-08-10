@@ -94,6 +94,15 @@ app.error.include-request-id=${ERROR_INCLUDE_REQUEST_ID:true}
 app.access-log.success-enabled=${ACCESS_LOG_SUCCESS_ENABLED:false}
 app.access-log.slow-threshold-ms=${ACCESS_LOG_SLOW_THRESHOLD_MS:500}
 
+# Alerts
+alert.discord.webhook-url=${ALERT_DISCORD_WEBHOOK_URL:}
+alert.window-seconds=${ALERT_WINDOW_SECONDS:300}
+alert.cooldown-seconds=${ALERT_COOLDOWN_SECONDS:300}
+alert.server-error.threshold=${ALERT_SERVER_ERROR_THRESHOLD:10}
+alert.db-error.threshold=${ALERT_DB_ERROR_THRESHOLD:1}
+alert.rate-limit.threshold=${ALERT_RATE_LIMIT_THRESHOLD:50}
+alert.image-storage.threshold=${ALERT_IMAGE_STORAGE_THRESHOLD:3}
+
 # Actuator
 management.endpoints.web.exposure.include=health,info,metrics
 management.endpoint.health.show-details=never

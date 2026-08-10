@@ -1,5 +1,6 @@
 package com.doggy.backend.global.ratelimit;
 
+import com.doggy.backend.global.alert.AlertService;
 import com.doggy.backend.global.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +26,12 @@ public class RateLimitService {
     private static final int IMAGE_UPLOAD_LIMIT = 10;
     private static final Duration IMAGE_UPLOAD_WINDOW = Duration.ofMinutes(1);
 
+    private final AlertService alertService;
     private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();
+
+    public RateLimitService(AlertService alertService) {
+        this.alertService = alertService;
+    }
 
     public void checkLogin(HttpServletRequest request, String email) {
         check("login", "login:" + clientIp(request) + ":" + normalize(email), LOGIN_LIMIT, LOGIN_WINDOW, request);
@@ -63,6 +69,7 @@ public class RateLimitService {
         if (bucket.count() > maxRequests) {
             log.warn("rate_limit_exceeded event={} path={} clientIp={} limit={} windowSeconds={}",
                     event, request.getRequestURI(), clientIp(request), maxRequests, window.toSeconds());
+            alertService.recordRateLimitExceeded(event, request.getRequestURI(), clientIp(request));
             throw BusinessException.tooManyRequests("요청이 너무 많습니다. 잠시 후 다시 시도해주세요");
         }
     }

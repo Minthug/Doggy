@@ -1,5 +1,6 @@
 package com.doggy.backend.global.ratelimit;
 
+import com.doggy.backend.global.alert.AlertService;
 import com.doggy.backend.global.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -9,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RateLimitServiceTest {
 
-    private final RateLimitService rateLimitService = new RateLimitService();
+    private final RateLimitService rateLimitService = new RateLimitService(AlertService.noop());
 
     @Test
     void loginBlocksAfterLimitForSameIpAndEmail() {

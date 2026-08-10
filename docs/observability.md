@@ -15,6 +15,7 @@
 - `authentication_required`: 인증 없이 보호 API에 접근한 요청입니다.
 - `access_denied`: 인증은 됐지만 권한이 부족한 요청입니다.
 - `Unhandled exception`: 예상하지 못한 5xx 오류입니다.
+- `Doggy API Alert`: Discord로 전송되는 운영자 알림입니다.
 
 ## 권장 알림 기준
 
@@ -32,6 +33,13 @@ LOG_FILE=/var/log/doggy/doggy-api.log
 ERROR_INCLUDE_REQUEST_ID=true
 ACCESS_LOG_SUCCESS_ENABLED=false
 ACCESS_LOG_SLOW_THRESHOLD_MS=500
+ALERT_DISCORD_WEBHOOK_URL=
+ALERT_WINDOW_SECONDS=300
+ALERT_COOLDOWN_SECONDS=300
+ALERT_SERVER_ERROR_THRESHOLD=10
+ALERT_DB_ERROR_THRESHOLD=1
+ALERT_RATE_LIMIT_THRESHOLD=50
+ALERT_IMAGE_STORAGE_THRESHOLD=3
 ```
 
 컨테이너 기반 배포에서는 파일 로그와 함께 표준 출력 로그도 수집해야 합니다. 네이버클라우드에서 로그 수집기를 붙일 때는 `requestId`, `http_request`, `rate_limit_exceeded`, `Unhandled exception` 키워드를 기준으로 검색/알림을 구성합니다.
@@ -44,6 +52,16 @@ ACCESS_LOG_SLOW_THRESHOLD_MS=500
 - 정상 응답이라도 `ACCESS_LOG_SLOW_THRESHOLD_MS` 이상 걸리면 `INFO`로 기록합니다.
 - 장애 조사 기간에만 `ACCESS_LOG_SUCCESS_ENABLED=true`로 정상 요청 전체 로그를 켭니다.
 - 로그 파일은 `logging.logback.rollingpolicy.max-file-size`와 `max-history`로 보관량을 제한합니다.
+
+## Discord 알림 정책
+
+- `ALERT_DISCORD_WEBHOOK_URL`이 없으면 알림은 비활성화됩니다.
+- 5xx 서버 에러는 `ALERT_SERVER_ERROR_THRESHOLD` 기준을 넘으면 알림을 보냅니다.
+- DB 연결 계열 에러는 `ALERT_DB_ERROR_THRESHOLD` 기준을 넘으면 알림을 보냅니다.
+- rate limit 초과는 `ALERT_RATE_LIMIT_THRESHOLD` 기준을 넘으면 알림을 보냅니다.
+- 이미지 저장 실패는 `ALERT_IMAGE_STORAGE_THRESHOLD` 기준을 넘으면 알림을 보냅니다.
+- 같은 유형 알림은 `ALERT_COOLDOWN_SECONDS` 동안 다시 보내지 않습니다.
+- Discord webhook URL은 시크릿이므로 코드, 문서, git에 실제 값을 남기지 않습니다.
 
 ## 주의사항
 

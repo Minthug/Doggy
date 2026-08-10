@@ -1,5 +1,6 @@
 package com.doggy.backend.global.image;
 
+import com.doggy.backend.global.alert.AlertService;
 import com.doggy.backend.global.exception.BusinessException;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +26,12 @@ public class LocalImageStorageService implements ImageStorageService {
     @Value("${SERVER_BASE_URL:http://localhost:8080}")
     private String serverBaseUrl;
 
+    private final AlertService alertService;
     private Path uploadPath;
+
+    public LocalImageStorageService(AlertService alertService) {
+        this.alertService = alertService;
+    }
 
     @PostConstruct
     public void init() {
@@ -48,6 +54,7 @@ public class LocalImageStorageService implements ImageStorageService {
             file.transferTo(dest);
         } catch (IOException e) {
             log.error("이미지 저장 실패: {}", filename, e);
+            alertService.recordImageStorageFailure(e.getMessage());
             throw BusinessException.internalError("이미지 저장에 실패했습니다");
         }
 

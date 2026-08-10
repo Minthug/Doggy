@@ -1,5 +1,6 @@
 package com.doggy.backend.global.image;
 
+import com.doggy.backend.global.alert.AlertService;
 import com.doggy.backend.global.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ class LocalImageStorageServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new LocalImageStorageService();
+        service = new LocalImageStorageService(AlertService.noop());
         ReflectionTestUtils.setField(service, "uploadDir", tempDir.toString());
         ReflectionTestUtils.setField(service, "serverBaseUrl", SERVER_BASE_URL);
         service.init();

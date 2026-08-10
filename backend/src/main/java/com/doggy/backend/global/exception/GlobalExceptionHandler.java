@@ -1,5 +1,7 @@
 package com.doggy.backend.global.exception;
 
+import com.doggy.backend.global.alert.AlertService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
@@ -22,16 +24,20 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     private final Environment environment;
+    private final AlertService alertService;
 
-    public GlobalExceptionHandler(Environment environment) {
+    public GlobalExceptionHandler(Environment environment, AlertService alertService) {
         this.environment = environment;
+        this.alertService = alertService;
     }
 
     // 비즈니스 예외
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<Map<String, String>> handleBusinessException(BusinessException e) {
+    public ResponseEntity<Map<String, String>> handleBusinessException(BusinessException e,
+                                                                        HttpServletRequest request) {
         if (e.getStatus().is5xxServerError()) {
             log.warn("business_exception status={} message={}", e.getStatus().value(), e.getMessage());
+            alertService.recordServerError(request.getRequestURI(), e, requestId());
         }
         return ResponseEntity.status(e.getStatus())
                 .body(Map.of("message", e.getMessage()));
@@ -87,18 +93,23 @@ public class GlobalExceptionHandler {
 
     // 그 외 예상치 못한 예외
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, String>> handleException(Exception e) {
+    public ResponseEntity<Map<String, String>> handleException(Exception e, HttpServletRequest request) {
         log.error("Unhandled exception: {}", e.getMessage(), e);
+        alertService.recordServerError(request.getRequestURI(), e, requestId());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(errorBody("서버 오류가 발생했습니다"));
     }
 
     private Map<String, String> errorBody(String message) {
-        String requestId = org.slf4j.MDC.get("requestId");
+        String requestId = requestId();
         if (requestId != null && !requestId.isBlank() && includeRequestIdInErrorResponse()) {
             return Map.of("message", message, "requestId", requestId);
         }
         return Map.of("message", message);
+    }
+
+    private String requestId() {
+        return org.slf4j.MDC.get("requestId");
     }
 
     private boolean includeRequestIdInErrorResponse() {
