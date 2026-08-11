@@ -6,7 +6,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,9 +25,10 @@ class LocalImageStorageServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new LocalImageStorageService(AlertService.noop());
-        ReflectionTestUtils.setField(service, "uploadDir", tempDir.toString());
-        ReflectionTestUtils.setField(service, "serverBaseUrl", SERVER_BASE_URL);
+        ImageStorageProperties properties = new ImageStorageProperties();
+        properties.getUpload().setDir(tempDir.toString());
+        properties.setPublicBaseUrl(SERVER_BASE_URL);
+        service = new LocalImageStorageService(AlertService.noop(), properties);
         service.init();
     }
 

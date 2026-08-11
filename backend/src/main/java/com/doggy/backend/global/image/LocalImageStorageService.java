@@ -4,42 +4,34 @@ import com.doggy.backend.global.alert.AlertService;
 import com.doggy.backend.global.exception.BusinessException;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.UUID;
 
 @Slf4j
 @Service
 public class LocalImageStorageService implements ImageStorageService {
 
-    private static final long MAX_SIZE = 5 * 1024 * 1024L; // 5MB
-
-    @Value("${image.upload.dir:/var/doggy/images}")
-    private String uploadDir;
-
-    @Value("${SERVER_BASE_URL:http://localhost:8080}")
-    private String serverBaseUrl;
-
     private final AlertService alertService;
+    private final ImageStorageProperties properties;
     private Path uploadPath;
 
-    public LocalImageStorageService(AlertService alertService) {
+    public LocalImageStorageService(AlertService alertService, ImageStorageProperties properties) {
         this.alertService = alertService;
+        this.properties = properties;
     }
 
     @PostConstruct
     public void init() {
-        uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
+        uploadPath = properties.uploadPath();
         try {
             Files.createDirectories(uploadPath);
         } catch (IOException e) {
-            throw new IllegalStateException("이미지 업로드 디렉터리 생성 실패: " + uploadDir, e);
+            throw new IllegalStateException("이미지 업로드 디렉터리 생성 실패: " + properties.getUpload().getDir(), e);
         }
     }
 
@@ -58,15 +50,15 @@ public class LocalImageStorageService implements ImageStorageService {
             throw BusinessException.internalError("이미지 저장에 실패했습니다");
         }
 
-        return serverBaseUrl + "/images/" + filename;
+        return properties.publicUrl(filename);
     }
 
     @Override
     public void delete(String imageUrl) {
-        if (imageUrl == null || !imageUrl.startsWith(serverBaseUrl + "/images/")) {
+        String filename = properties.stripPublicPrefix(imageUrl);
+        if (filename == null) {
             return;
         }
-        String filename = imageUrl.substring((serverBaseUrl + "/images/").length());
         Path target = uploadPath.resolve(filename).normalize();
         if (!target.startsWith(uploadPath)) {
             log.warn("이미지 삭제 경로가 업로드 디렉터리 밖을 가리킵니다: {}", filename);
@@ -83,8 +75,8 @@ public class LocalImageStorageService implements ImageStorageService {
         if (file == null || file.isEmpty()) {
             throw BusinessException.badRequest("파일이 비어 있습니다");
         }
-        if (file.getSize() > MAX_SIZE) {
-            throw BusinessException.badRequest("파일 크기는 5MB 이하여야 합니다");
+        if (file.getSize() > properties.getMaxSizeBytes()) {
+            throw BusinessException.badRequest("파일 크기는 " + maxSizeMb() + "MB 이하여야 합니다");
         }
         String contentType = file.getContentType();
         ImageType imageType = detectImageType(file);
@@ -141,6 +133,10 @@ public class LocalImageStorageService implements ImageStorageService {
 
     private int unsigned(byte b) {
         return b & 0xFF;
+    }
+
+    private long maxSizeMb() {
+        return properties.getMaxSizeBytes() / (1024 * 1024);
     }
 
     private enum ImageType {

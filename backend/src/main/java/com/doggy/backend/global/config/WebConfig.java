@@ -1,19 +1,20 @@
 package com.doggy.backend.global.config;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.doggy.backend.global.image.ImageStorageProperties;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
+@RequiredArgsConstructor
 public class WebConfig implements WebMvcConfigurer {
 
-    @Value("${image.upload.dir:/var/doggy/images}")
-    private String uploadDir;
+    private final ImageStorageProperties imageStorageProperties;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/images/**")
-                .addResourceLocations("file:" + uploadDir + "/");
+        registry.addResourceHandler(imageStorageProperties.getPublicPath() + "/**")
+                .addResourceLocations(imageStorageProperties.uploadPath().toUri().toString());
     }
 }
