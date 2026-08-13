@@ -26,7 +26,7 @@ public class UserController {
             HttpServletRequest servletRequest,
             @Valid @RequestBody SignUpRequest request) {
         rateLimitService.checkSignup(servletRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(userService.signUp(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.signUp(request, deviceId(servletRequest)));
     }
 
     @PostMapping("/api/auth/login")
@@ -34,7 +34,7 @@ public class UserController {
             HttpServletRequest servletRequest,
             @Valid @RequestBody LoginRequest request) {
         rateLimitService.checkLogin(servletRequest, request.email());
-        return ResponseEntity.ok(userService.login(request));
+        return ResponseEntity.ok(userService.login(request, deviceId(servletRequest)));
     }
 
     @PostMapping("/api/auth/refresh")
@@ -42,7 +42,13 @@ public class UserController {
             HttpServletRequest servletRequest,
             @RequestHeader("Refresh-Token") String refreshToken) {
         rateLimitService.checkRefresh(servletRequest);
-        return ResponseEntity.ok(userService.refresh(refreshToken));
+        return ResponseEntity.ok(userService.refresh(refreshToken, deviceId(servletRequest)));
+    }
+
+    @PostMapping("/api/auth/logout")
+    public ResponseEntity<Void> logout(@RequestHeader(value = "Refresh-Token", required = false) String refreshToken) {
+        userService.logout(refreshToken);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/api/auth/oauth2/exchange")
@@ -50,7 +56,7 @@ public class UserController {
             HttpServletRequest servletRequest,
             @Valid @RequestBody OAuth2CodeExchangeRequest request) {
         rateLimitService.checkOAuth2Exchange(servletRequest);
-        return ResponseEntity.ok(oAuth2LoginCodeService.exchange(request.code()));
+        return ResponseEntity.ok(oAuth2LoginCodeService.exchange(request.code(), deviceId(servletRequest)));
     }
 
     @GetMapping("/api/users/me")
@@ -95,5 +101,9 @@ public class UserController {
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody UpdatePushSettingRequest request) {
         return ResponseEntity.ok(userService.updatePushSetting(principal.getId(), request));
+    }
+
+    private String deviceId(HttpServletRequest request) {
+        return request.getHeader("X-Device-Id");
     }
 }

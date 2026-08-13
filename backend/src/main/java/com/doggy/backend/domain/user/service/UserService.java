@@ -10,7 +10,7 @@ import com.doggy.backend.domain.user.repository.UserAuthRepository;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
 import com.doggy.backend.global.image.ImageStorageService;
-import com.doggy.backend.global.security.jwt.JwtProvider;
+import com.doggy.backend.global.security.jwt.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -30,11 +30,11 @@ public class UserService {
     private final UserAuthRepository userAuthRepository;
     private final PushSettingRepository pushSettingRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtProvider jwtProvider;
+    private final RefreshTokenService refreshTokenService;
     private final ImageStorageService imageStorageService;
 
     @Transactional
-    public TokenResponse signUp(SignUpRequest request) {
+    public TokenResponse signUp(SignUpRequest request, String deviceId) {
         if (userAuthRepository.existsByAuthTypeAndEmail(AuthType.LOCAL, request.email())) {
             throw BusinessException.badRequest("이미 사용 중인 이메일입니다");
         }
@@ -57,10 +57,11 @@ public class UserService {
                         .build()
         );
 
-        return issueTokens(user.getId());
+        return refreshTokenService.issueTokens(user, deviceId);
     }
 
-    public TokenResponse login(LoginRequest request) {
+    @Transactional
+    public TokenResponse login(LoginRequest request, String deviceId) {
         UserAuth userAuth = userAuthRepository
                 .findByAuthTypeAndEmail(AuthType.LOCAL, request.email())
                 .orElseThrow(() -> BusinessException.unauthorized("이메일 또는 비밀번호가 올바르지 않습니다"));
@@ -69,19 +70,15 @@ public class UserService {
             throw BusinessException.unauthorized("이메일 또는 비밀번호가 올바르지 않습니다");
         }
 
-        return issueTokens(userAuth.getUser().getId());
+        return refreshTokenService.issueTokens(userAuth.getUser(), deviceId);
     }
 
-    public TokenResponse refresh(String refreshToken) {
-        if (!jwtProvider.validateRefreshToken(refreshToken)) {
-            throw BusinessException.unauthorized("유효하지 않은 리프레시 토큰입니다");
-        }
+    public TokenResponse refresh(String refreshToken, String deviceId) {
+        return refreshTokenService.rotate(refreshToken, deviceId);
+    }
 
-        Long userId = jwtProvider.getUserId(refreshToken);
-        userRepository.findById(userId)
-                .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
-
-        return issueTokens(userId);
+    public void logout(String refreshToken) {
+        refreshTokenService.revoke(refreshToken);
     }
 
     public UserProfileResponse getProfile(Long userId) {
@@ -149,10 +146,4 @@ public class UserService {
         userAuthRepository.delete(socialAuth);
     }
 
-    private TokenResponse issueTokens(Long userId) {
-        return new TokenResponse(
-                jwtProvider.generateAccessToken(userId),
-                jwtProvider.generateRefreshToken(userId)
-        );
-    }
 }

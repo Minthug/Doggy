@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'api_config.dart';
+import '../storage/device_id_storage.dart';
 import '../storage/token_storage.dart';
 
 final dioProvider = Provider<Dio>((ref) {
@@ -54,6 +55,8 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
+        options.headers['X-Device-Id'] =
+            await DeviceIdStorage.getOrCreateDeviceId();
         final token = await TokenStorage.getAccessToken();
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
@@ -75,9 +78,15 @@ final dioProvider = Provider<Dio>((ref) {
           final refreshToken = await TokenStorage.getRefreshToken();
           if (refreshToken != null) {
             try {
+              final deviceId = await DeviceIdStorage.getOrCreateDeviceId();
               final response = await Dio().post(
                 '$baseUrl/api/auth/refresh',
-                options: Options(headers: {'Refresh-Token': refreshToken}),
+                options: Options(
+                  headers: {
+                    'Refresh-Token': refreshToken,
+                    'X-Device-Id': deviceId,
+                  },
+                ),
               );
               final newAccessToken = response.data['accessToken'];
               final newRefreshToken = response.data['refreshToken'];

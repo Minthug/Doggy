@@ -4,7 +4,7 @@ import com.doggy.backend.domain.user.dto.TokenResponse;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
-import com.doggy.backend.global.security.jwt.JwtProvider;
+import com.doggy.backend.global.security.jwt.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -28,7 +28,7 @@ public class OAuth2LoginCodeService {
 
     private final OAuth2LoginCodeRepository codeRepository;
     private final UserRepository userRepository;
-    private final JwtProvider jwtProvider;
+    private final RefreshTokenService refreshTokenService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Transactional
@@ -46,7 +46,7 @@ public class OAuth2LoginCodeService {
     }
 
     @Transactional
-    public TokenResponse exchange(String code) {
+    public TokenResponse exchange(String code, String deviceId) {
         OAuth2LoginCode loginCode = codeRepository.findByCodeHash(hash(code))
                 .orElseThrow(() -> BusinessException.unauthorized("유효하지 않은 OAuth2 로그인 코드입니다"));
 
@@ -56,11 +56,7 @@ public class OAuth2LoginCodeService {
         }
 
         loginCode.markUsed(now);
-        Long userId = loginCode.getUser().getId();
-        return new TokenResponse(
-                jwtProvider.generateAccessToken(userId),
-                jwtProvider.generateRefreshToken(userId)
-        );
+        return refreshTokenService.issueTokens(loginCode.getUser(), deviceId);
     }
 
     @Transactional

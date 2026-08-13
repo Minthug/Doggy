@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.util.Base64;
 import java.util.Date;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -41,6 +42,7 @@ public class JwtProvider {
     private String generateToken(Long userId, long expiry, TokenType tokenType) {
         Date now = new Date();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(userId))
                 .claim(TOKEN_TYPE_CLAIM, tokenType.name())
                 .issuedAt(now)
@@ -51,6 +53,14 @@ public class JwtProvider {
 
     public Long getUserId(String token) {
         return Long.parseLong(parseClaims(token).getSubject());
+    }
+
+    public String getTokenId(String token) {
+        return parseClaims(token).getId();
+    }
+
+    public Date getExpiration(String token) {
+        return parseClaims(token).getExpiration();
     }
 
     public boolean validateAccessToken(String token) {

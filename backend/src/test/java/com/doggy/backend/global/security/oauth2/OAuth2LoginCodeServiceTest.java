@@ -5,6 +5,8 @@ import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
 import com.doggy.backend.global.security.jwt.JwtProvider;
+import com.doggy.backend.global.security.jwt.RefreshTokenRepository;
+import com.doggy.backend.global.security.jwt.RefreshTokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +30,7 @@ class OAuth2LoginCodeServiceTest {
 
     @Mock OAuth2LoginCodeRepository codeRepository;
     @Mock UserRepository userRepository;
+    @Mock RefreshTokenRepository refreshTokenRepository;
 
     private JwtProvider jwtProvider;
     private OAuth2LoginCodeService service;
@@ -39,7 +42,8 @@ class OAuth2LoginCodeServiceTest {
                 3_600_000L,
                 2_592_000_000L
         );
-        service = new OAuth2LoginCodeService(codeRepository, userRepository, jwtProvider);
+        RefreshTokenService refreshTokenService = new RefreshTokenService(jwtProvider, refreshTokenRepository, userRepository);
+        service = new OAuth2LoginCodeService(codeRepository, userRepository, refreshTokenService);
     }
 
     @Test
@@ -58,7 +62,7 @@ class OAuth2LoginCodeServiceTest {
         String rawCode = service.createCode(1L);
         given(codeRepository.findByCodeHash(anyString())).willReturn(Optional.of(savedCode.get()));
 
-        TokenResponse tokens = service.exchange(rawCode);
+        TokenResponse tokens = service.exchange(rawCode, "ios-device");
 
         assertThat(jwtProvider.validateAccessToken(tokens.accessToken())).isTrue();
         assertThat(jwtProvider.validateRefreshToken(tokens.refreshToken())).isTrue();
@@ -81,9 +85,9 @@ class OAuth2LoginCodeServiceTest {
         String rawCode = service.createCode(1L);
         given(codeRepository.findByCodeHash(anyString())).willReturn(Optional.of(savedCode.get()));
 
-        service.exchange(rawCode);
+        service.exchange(rawCode, null);
 
-        assertThatThrownBy(() -> service.exchange(rawCode))
+        assertThatThrownBy(() -> service.exchange(rawCode, null))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("이미 사용");
     }

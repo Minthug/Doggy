@@ -21,14 +21,16 @@ class AuthRepository {
     String? address,
     String? birthDate,
   }) async {
-    final response = await _dio.post('/api/auth/signup', data: {
+    final data = <String, dynamic>{
       'email': email,
       'password': password,
       'nickname': nickname,
-      if (phone != null && phone.isNotEmpty) 'phone': phone,
-      if (address != null && address.isNotEmpty) 'address': address,
-      if (birthDate != null) 'birthDate': birthDate,
-    });
+    };
+    if (phone != null && phone.isNotEmpty) data['phone'] = phone;
+    if (address != null && address.isNotEmpty) data['address'] = address;
+    if (birthDate != null) data['birthDate'] = birthDate;
+
+    final response = await _dio.post('/api/auth/signup', data: data);
     return TokenResponse.fromJson(response.data);
   }
 
@@ -36,10 +38,10 @@ class AuthRepository {
     required String email,
     required String password,
   }) async {
-    final response = await _dio.post('/api/auth/login', data: {
-      'email': email,
-      'password': password,
-    });
+    final response = await _dio.post(
+      '/api/auth/login',
+      data: {'email': email, 'password': password},
+    );
     return TokenResponse.fromJson(response.data);
   }
 
@@ -55,5 +57,17 @@ class AuthRepository {
     return token != null;
   }
 
-  Future<void> logout() => TokenStorage.clear();
+  Future<void> logout() async {
+    final refreshToken = await TokenStorage.getRefreshToken();
+    try {
+      if (refreshToken != null) {
+        await _dio.post(
+          '/api/auth/logout',
+          options: Options(headers: {'Refresh-Token': refreshToken}),
+        );
+      }
+    } finally {
+      await TokenStorage.clear();
+    }
+  }
 }

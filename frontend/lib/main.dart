@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/api/api_config.dart';
 import 'core/naver_map_init.dart';
+import 'core/storage/device_id_storage.dart';
 import 'core/storage/token_storage.dart';
 import 'firebase_options.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
@@ -60,7 +61,12 @@ class _DoggyAppState extends State<DoggyApp> {
           final response = await Dio().post<Map<String, dynamic>>(
             '${validatedApiBaseUrl()}/api/auth/oauth2/exchange',
             data: {'code': code},
-            options: Options(headers: {'Content-Type': 'application/json'}),
+            options: Options(
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Device-Id': await DeviceIdStorage.getOrCreateDeviceId(),
+              },
+            ),
           );
           final data = response.data!;
           await TokenStorage.saveTokens(
