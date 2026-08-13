@@ -1,7 +1,8 @@
 package com.doggy.backend.global.config;
 
-import com.doggy.backend.global.security.jwt.JwtAuthenticationFilter;
+import com.doggy.backend.global.appversion.AppVersionFilter;
 import com.doggy.backend.global.security.InternalApiTokenFilter;
+import com.doggy.backend.global.security.jwt.JwtAuthenticationFilter;
 import com.doggy.backend.global.security.oauth2.CustomOAuth2UserService;
 import com.doggy.backend.global.security.oauth2.HttpCookieOAuth2AuthorizationRequestRepository;
 import com.doggy.backend.global.security.oauth2.OAuth2SuccessHandler;
@@ -31,6 +32,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final InternalApiTokenFilter internalApiTokenFilter;
+    private final AppVersionFilter appVersionFilter;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
@@ -45,6 +47,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/**",
+                                "/api/app/version",
                                 "/login/oauth2/**",
                                 "/oauth2/**",
                                 "/api/walks/public",
@@ -90,6 +93,7 @@ public class SecurityConfig {
                         })
                 )
                 .addFilterBefore(internalApiTokenFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(appVersionFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

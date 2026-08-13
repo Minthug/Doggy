@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../app/app_metadata.dart';
 import 'api_config.dart';
 import '../storage/device_id_storage.dart';
 import '../storage/token_storage.dart';
@@ -55,6 +56,7 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
+        options.headers.addAll(AppMetadata.headers());
         options.headers['X-Device-Id'] =
             await DeviceIdStorage.getOrCreateDeviceId();
         final token = await TokenStorage.getAccessToken();
@@ -85,6 +87,7 @@ final dioProvider = Provider<Dio>((ref) {
                   headers: {
                     'Refresh-Token': refreshToken,
                     'X-Device-Id': deviceId,
+                    ...AppMetadata.headers(),
                   },
                 ),
               );

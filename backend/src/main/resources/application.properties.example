@@ -98,6 +98,16 @@ app.access-log.success-enabled=${ACCESS_LOG_SUCCESS_ENABLED:false}
 app.access-log.slow-threshold-ms=${ACCESS_LOG_SLOW_THRESHOLD_MS:500}
 app.internal-api.token=${INTERNAL_API_TOKEN:}
 
+# App version compatibility
+app.version.check-enabled=${APP_VERSION_CHECK_ENABLED:true}
+app.version.enforce-minimum=${APP_VERSION_ENFORCE_MINIMUM:false}
+app.version.android.minimum=${APP_VERSION_ANDROID_MINIMUM:1.0.0}
+app.version.android.latest=${APP_VERSION_ANDROID_LATEST:1.0.0}
+app.version.android.store-url=${APP_VERSION_ANDROID_STORE_URL:}
+app.version.ios.minimum=${APP_VERSION_IOS_MINIMUM:1.0.0}
+app.version.ios.latest=${APP_VERSION_IOS_LATEST:1.0.0}
+app.version.ios.store-url=${APP_VERSION_IOS_STORE_URL:}
+
 # Alerts
 alert.discord.webhook-url=${ALERT_DISCORD_WEBHOOK_URL:}
 alert.window-seconds=${ALERT_WINDOW_SECONDS:300}

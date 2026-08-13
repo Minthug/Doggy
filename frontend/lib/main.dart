@@ -3,7 +3,10 @@ import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'core/api/api_config.dart';
+import 'core/app/app_metadata.dart';
+import 'core/app/app_version_check.dart';
 import 'core/naver_map_init.dart';
 import 'core/storage/device_id_storage.dart';
 import 'core/storage/token_storage.dart';
@@ -65,6 +68,7 @@ class _DoggyAppState extends State<DoggyApp> {
               headers: {
                 'Content-Type': 'application/json',
                 'X-Device-Id': await DeviceIdStorage.getOrCreateDeviceId(),
+                ...AppMetadata.headers(),
               },
             ),
           );
@@ -148,23 +152,92 @@ class _AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<_AuthGate> {
   bool? _isLoggedIn;
+  AppVersionStatus? _versionStatus;
 
   @override
   void initState() {
     super.initState();
-    _checkLogin();
+    _checkAppState();
   }
 
-  Future<void> _checkLogin() async {
+  Future<void> _checkAppState() async {
+    final versionStatus = await AppVersionCheckClient().check();
     final token = await TokenStorage.getAccessToken();
-    if (mounted) setState(() => _isLoggedIn = token != null);
+    if (mounted) {
+      setState(() {
+        _versionStatus = versionStatus;
+        _isLoggedIn = token != null;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoggedIn == null) {
+    if (_isLoggedIn == null || _versionStatus == null) {
       return const _SplashScreen();
     }
+    if (_versionStatus!.updateRequired) {
+      return _UpdateRequiredScreen(status: _versionStatus!);
+    }
     return _isLoggedIn! ? const MainScreen() : const LoginScreen();
+  }
+}
+
+class _UpdateRequiredScreen extends StatelessWidget {
+  final AppVersionStatus status;
+
+  const _UpdateRequiredScreen({required this.status});
+
+  Future<void> _openStore() async {
+    final url = Uri.tryParse(status.storeUrl);
+    if (url != null && await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasStoreUrl = status.storeUrl.isNotEmpty;
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Icon(
+                Icons.system_update,
+                size: 56,
+                color: Color(0xFF4CAF50),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                status.message.isNotEmpty ? status.message : '앱 업데이트가 필요합니다',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '현재 버전에서는 일부 기능을 사용할 수 없습니다.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black54),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: hasStoreUrl ? _openStore : null,
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('업데이트'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
