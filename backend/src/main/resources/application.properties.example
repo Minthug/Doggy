@@ -96,6 +96,7 @@ logging.pattern.level=%5p [${spring.application.name:doggy},%X{requestId:-}]
 app.error.include-request-id=${ERROR_INCLUDE_REQUEST_ID:true}
 app.access-log.success-enabled=${ACCESS_LOG_SUCCESS_ENABLED:false}
 app.access-log.slow-threshold-ms=${ACCESS_LOG_SLOW_THRESHOLD_MS:500}
+app.internal-api.token=${INTERNAL_API_TOKEN:}
 
 # Alerts
 alert.discord.webhook-url=${ALERT_DISCORD_WEBHOOK_URL:}

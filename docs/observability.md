@@ -6,7 +6,8 @@
 - 클라이언트가 `X-Request-Id`를 보내면 같은 값을 사용하고, 없으면 서버가 새로 만듭니다.
 - 로그 패턴에는 request id가 포함됩니다.
 - `/actuator/health`는 공개 상태 확인용입니다.
-- `/actuator/metrics`는 인증된 운영자 확인용으로만 사용합니다.
+- `/actuator/metrics`, `/actuator/info`는 `X-Internal-Token` 헤더가 맞는 운영자 요청만 사용합니다.
+- 운영 서버에는 `INTERNAL_API_TOKEN` 환경변수를 설정해야 합니다. 비어 있으면 내부 API는 기본 차단됩니다.
 
 ## 운영에서 먼저 보는 로그
 
