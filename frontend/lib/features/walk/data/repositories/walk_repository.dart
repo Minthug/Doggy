@@ -3,15 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/api/api_client.dart';
 import '../models/walk_model.dart';
 
-// UTC 포맷: 서버가 UTC 기준으로 startedAt을 저장하므로 맞춰야 함
 String _formatDateTime(DateTime dt) {
-  final utc = dt.toUtc();
-  return '${utc.year.toString().padLeft(4, '0')}'
-      '-${utc.month.toString().padLeft(2, '0')}'
-      '-${utc.day.toString().padLeft(2, '0')}'
-      'T${utc.hour.toString().padLeft(2, '0')}'
-      ':${utc.minute.toString().padLeft(2, '0')}'
-      ':${utc.second.toString().padLeft(2, '0')}';
+  return '${dt.year.toString().padLeft(4, '0')}'
+      '-${dt.month.toString().padLeft(2, '0')}'
+      '-${dt.day.toString().padLeft(2, '0')}'
+      'T${dt.hour.toString().padLeft(2, '0')}'
+      ':${dt.minute.toString().padLeft(2, '0')}'
+      ':${dt.second.toString().padLeft(2, '0')}';
 }
 
 final walkRepositoryProvider = Provider<WalkRepository>((ref) {
@@ -41,16 +39,34 @@ class WalkRepository {
     return WalkSession.fromJson(response.data);
   }
 
-  Future<void> complete({
+  Future<WalkDetail> complete({
     required int sessionId,
     required List<Map<String, dynamic>> points,
     required DateTime endedAt,
   }) async {
-    await _dio.post(
+    final response = await _dio.post(
       '/api/walks/$sessionId/complete',
       data: {'endedAt': _formatDateTime(endedAt), 'points': points},
       options: Options(receiveTimeout: const Duration(seconds: 30)),
     );
+    return WalkDetail.fromJson(response.data);
+  }
+
+  Future<MarkingSpot> shareMarkingSpot({
+    required int sessionId,
+    required MarkingSpotCandidate candidate,
+    required List<int> dogIds,
+  }) async {
+    final response = await _dio.post(
+      '/api/walks/$sessionId/marking-spots',
+      data: {
+        'lat': candidate.lat,
+        'lng': candidate.lng,
+        'detectedAt': candidate.detectedAt,
+        'dogIds': dogIds,
+      },
+    );
+    return MarkingSpot.fromJson(response.data);
   }
 
   Future<List<WalkSession>> getHistory({int page = 0, int size = 20}) async {

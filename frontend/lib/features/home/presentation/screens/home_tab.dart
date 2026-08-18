@@ -62,9 +62,8 @@ class HomeTab extends ConsumerWidget {
               builder: (context, ref, _) {
                 final dogsAsync = ref.watch(myDogsProvider);
                 return dogsAsync.when(
-                  data: (dogs) => dogs.isEmpty
-                      ? _EmptyDogCard()
-                      : _DogListCard(dogs: dogs),
+                  data: (dogs) =>
+                      dogs.isEmpty ? _EmptyDogCard() : _DogListCard(dogs: dogs),
                   loading: () => _DogCardSkeleton(),
                   error: (e, _) => _EmptyDogCard(),
                 );
@@ -93,12 +92,22 @@ class HomeTab extends ConsumerWidget {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const WalkHistoryScreen()),
+                      builder: (_) => const WalkHistoryScreen(),
+                    ),
                   ),
                   child: statsAsync.when(
-                    data: (stats) => _TodayWalkCard(stats: stats),
-                    loading: () => _TodayWalkCard(stats: null),
-                    error: (e, _) => _TodayWalkCard(stats: null),
+                    data: (stats) => _TodayWalkCard(
+                      stats: stats,
+                      onViewAll: () => _openWalkHistory(context),
+                    ),
+                    loading: () => _TodayWalkCard(
+                      stats: null,
+                      onViewAll: () => _openWalkHistory(context),
+                    ),
+                    error: (e, _) => _TodayWalkCard(
+                      stats: null,
+                      onViewAll: () => _openWalkHistory(context),
+                    ),
                   ),
                 );
               },
@@ -112,7 +121,7 @@ class HomeTab extends ConsumerWidget {
                 return meetsAsync.when(
                   data: (meets) => _TodayMeetsCard(meets: meets),
                   loading: () => const SizedBox.shrink(),
-                  error: (_, _e) => const SizedBox.shrink(),
+                  error: (error, stackTrace) => const SizedBox.shrink(),
                 );
               },
             ),
@@ -123,10 +132,17 @@ class HomeTab extends ConsumerWidget {
             const SizedBox(height: 16),
 
             // 산책 시작 버튼
-            _StartWalkButton(),
+            const _WalkActionButtons(),
           ],
         ),
       ),
+    );
+  }
+
+  static void _openWalkHistory(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const WalkHistoryScreen()),
     );
   }
 }
@@ -152,7 +168,10 @@ class _GreetingCard extends StatelessWidget {
           Text(
             '$greeting, $nickname님!',
             style: const TextStyle(
-                color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 4),
           const Text(
@@ -188,12 +207,15 @@ class _EmptyDogCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('반려견을 등록해주세요',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(
+                    '반려견을 등록해주세요',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
                   SizedBox(height: 4),
-                  Text('반려견 정보를 등록하고 함께 산책을 기록해요',
-                      style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  Text(
+                    '반려견 정보를 등록하고 함께 산책을 기록해요',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
                 ],
               ),
             ),
@@ -222,11 +244,15 @@ class _DogListCard extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Row(
             children: [
-              const Text('내 반려견',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const Text(
+                '내 반려견',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
               const SizedBox(width: 6),
-              Text('${dogs.length}마리',
-                  style: const TextStyle(color: Colors.grey, fontSize: 13)),
+              Text(
+                '${dogs.length}마리',
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
+              ),
             ],
           ),
         ),
@@ -237,7 +263,7 @@ class _DogListCard extends ConsumerWidget {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 4),
             itemCount: dogs.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemBuilder: (context, i) {
               final dog = dogs[i];
               final burned = caloriesMap[dog.id] ?? 0;
@@ -295,17 +321,25 @@ class _DogSliderItem extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(dog.name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      dog.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     if (dog.breed != null)
-                      Text(dog.breed!,
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 11),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
+                      Text(
+                        dog.breed!,
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                   ],
                 ),
               ),
@@ -315,22 +349,30 @@ class _DogSliderItem extends StatelessWidget {
           if (recommended != null) ...[
             Row(
               children: [
-                Text('🔥 ${burned}kcal',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: burned > 0 ? barColor : Colors.grey)),
+                Text(
+                  '🔥 ${burned}kcal',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: burned > 0 ? barColor : Colors.grey,
+                  ),
+                ),
                 if (isDone)
-                  const Text(' ✓',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF4CAF50),
-                          fontWeight: FontWeight.bold)),
+                  const Text(
+                    ' ✓',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF4CAF50),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 2),
-            Text('목표 ${recommended}kcal',
-                style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            Text(
+              '목표 ${recommended}kcal',
+              style: const TextStyle(fontSize: 10, color: Colors.grey),
+            ),
             const SizedBox(height: 6),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
@@ -342,65 +384,13 @@ class _DogSliderItem extends StatelessWidget {
               ),
             ),
           ] else ...[
-            const Text('칼로리 정보 없음',
-                style: TextStyle(fontSize: 11, color: Colors.grey)),
+            const Text(
+              '칼로리 정보 없음',
+              style: TextStyle(fontSize: 11, color: Colors.grey),
+            ),
           ],
         ],
       ),
-    );
-  }
-}
-
-class _CalorieBar extends StatelessWidget {
-  final int burned;
-  final int recommended;
-  const _CalorieBar({required this.burned, required this.recommended});
-
-  @override
-  Widget build(BuildContext context) {
-    final ratio = (burned / recommended).clamp(0.0, 1.0);
-    final isDone = burned >= recommended;
-    final barColor =
-        isDone ? const Color(0xFF4CAF50) : const Color(0xFFFFA726);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              '🔥 ${burned}kcal',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: burned > 0 ? barColor : Colors.grey,
-              ),
-            ),
-            Text(
-              ' / ${recommended}kcal',
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-            if (isDone) ...[
-              const SizedBox(width: 4),
-              const Text('✓',
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF4CAF50),
-                      fontWeight: FontWeight.bold)),
-            ],
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: ratio,
-            minHeight: 5,
-            backgroundColor: const Color(0xFFEEEEEE),
-            valueColor: AlwaysStoppedAnimation<Color>(barColor),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -431,7 +421,9 @@ class _DogCardSkeleton extends StatelessWidget {
 // 오늘 산책 카드
 class _TodayWalkCard extends StatelessWidget {
   final TodayWalkStats? stats;
-  const _TodayWalkCard({required this.stats});
+  final VoidCallback onViewAll;
+
+  const _TodayWalkCard({required this.stats, required this.onViewAll});
 
   @override
   Widget build(BuildContext context) {
@@ -439,20 +431,34 @@ class _TodayWalkCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('오늘의 산책',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  '오늘의 산책',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: onViewAll,
+                icon: const Icon(Icons.history, size: 18),
+                label: const Text('전체 보기'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF4CAF50),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _StatItem(
-                  label: '거리', value: stats?.distanceText ?? '0m'),
+              _StatItem(label: '거리', value: stats?.distanceText ?? '0m'),
               _divider(),
-              _StatItem(
-                  label: '시간', value: stats?.durationText ?? '0분'),
+              _StatItem(label: '시간', value: stats?.durationText ?? '0분'),
               _divider(),
-              _StatItem(
-                  label: '횟수', value: '${stats?.walkCount ?? 0}회'),
+              _StatItem(label: '횟수', value: '${stats?.walkCount ?? 0}회'),
             ],
           ),
         ],
@@ -465,24 +471,58 @@ class _TodayWalkCard extends StatelessWidget {
 }
 
 // 산책 시작 버튼
-class _StartWalkButton extends StatelessWidget {
+class _WalkActionButtons extends StatelessWidget {
+  const _WalkActionButtons();
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton.icon(
-        onPressed: () => MainScreen.jumpToTab(context, 1),
-        icon: const Icon(Icons.directions_walk),
-        label: const Text('산책 시작',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF4CAF50),
-          foregroundColor: Colors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 56,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const WalkHistoryScreen()),
+              ),
+              icon: const Icon(Icons.history),
+              label: const Text(
+                '산책 기록',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF4CAF50),
+                side: const BorderSide(color: Color(0xFF4CAF50)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
         ),
-      ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: SizedBox(
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: () => MainScreen.jumpToTab(context, 1),
+              icon: const Icon(Icons.directions_walk),
+              label: const Text(
+                '산책 시작',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -517,11 +557,16 @@ class _WalkIndexCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const Text('오늘의 산책 지수',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const Text(
+                '오늘의 산책 지수',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: indexColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
@@ -538,14 +583,24 @@ class _WalkIndexCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(description,
-              style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Text(
+            description,
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
+          ),
           const SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _WeatherItem(icon: Icons.thermostat, label: '기온', value: '$tmp°C'),
-              _WeatherItem(icon: Icons.water_drop_outlined, label: '날씨', value: precipitation),
+              _WeatherItem(
+                icon: Icons.thermostat,
+                label: '기온',
+                value: '$tmp°C',
+              ),
+              _WeatherItem(
+                icon: Icons.water_drop_outlined,
+                label: '날씨',
+                value: precipitation,
+              ),
               _WeatherItem(icon: Icons.air, label: '미세먼지', value: pm10Grade),
               _WeatherItem(icon: Icons.grain, label: '초미세먼지', value: pm25Grade),
             ],
@@ -555,7 +610,7 @@ class _WalkIndexCard extends ConsumerWidget {
                 ? const SizedBox.shrink()
                 : _ForecastTimeline(slots: slots),
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (error, stackTrace) => const SizedBox.shrink(),
           ),
         ],
       ),
@@ -576,8 +631,14 @@ class _ForecastTimeline extends StatelessWidget {
           padding: EdgeInsets.only(top: 14, bottom: 10),
           child: Divider(height: 1, color: Color(0xFFEEEEEE)),
         ),
-        const Text('앞으로 2시간',
-            style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
+        const Text(
+          '앞으로 2시간',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(height: 10),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -626,9 +687,11 @@ class _ForecastSlot extends StatelessWidget {
         children: [
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(timeLabel,
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
-                textAlign: TextAlign.center),
+            child: Text(
+              timeLabel,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
           ),
           const SizedBox(height: 6),
           Container(
@@ -637,9 +700,14 @@ class _ForecastSlot extends StatelessWidget {
             decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
           const SizedBox(height: 6),
-          Text('$tmp°',
-              style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.bold, color: dotColor)),
+          Text(
+            '$tmp°',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: dotColor,
+            ),
+          ),
           const SizedBox(height: 4),
           Text(
             isRaining ? (isSnow ? '❄️' : '☂️') : (isNight ? '🌙' : '☀️'),
@@ -655,7 +723,11 @@ class _WeatherItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _WeatherItem({required this.icon, required this.label, required this.value});
+  const _WeatherItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   Color _valueColor() {
     if (value == '나쁨' || value == '매우나쁨') return const Color(0xFFE53935);
@@ -669,13 +741,15 @@ class _WeatherItem extends StatelessWidget {
       children: [
         Icon(icon, size: 20, color: Colors.grey),
         const SizedBox(height: 4),
-        Text(value,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: _valueColor())),
-        Text(label,
-            style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: _valueColor(),
+          ),
+        ),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
       ],
     );
   }
@@ -690,8 +764,7 @@ Widget _card({required Widget child}) {
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
-        BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+        BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
       ],
     ),
     child: child,
@@ -738,8 +811,11 @@ class _ShoppingShortcutsCard extends StatelessWidget {
   Future<void> _open(String query) async {
     final encoded = Uri.encodeComponent(query);
     final uri = Uri.parse(
-        'https://search.shopping.naver.com/search/all?query=$encoded');
-    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+      'https://search.shopping.naver.com/search/all?query=$encoded',
+    );
+    if (await canLaunchUrl(uri)) {
+      launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
@@ -750,22 +826,25 @@ class _ShoppingShortcutsCard extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Text('반려견 쇼핑',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(
+                '반려견 쇼핑',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
               SizedBox(width: 6),
-              Text('네이버쇼핑',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Text('네이버쇼핑', style: TextStyle(fontSize: 11, color: Colors.grey)),
             ],
           ),
           const SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: _categories
-                .map((c) => _CategoryItem(
-                      emoji: c.emoji,
-                      label: c.label,
-                      onTap: () => _open(c.query),
-                    ))
+                .map(
+                  (c) => _CategoryItem(
+                    emoji: c.emoji,
+                    label: c.label,
+                    onTap: () => _open(c.query),
+                  ),
+                )
                 .toList(),
           ),
         ],
@@ -778,7 +857,11 @@ class _CategoryItem extends StatelessWidget {
   final String emoji;
   final String label;
   final VoidCallback onTap;
-  const _CategoryItem({required this.emoji, required this.label, required this.onTap});
+  const _CategoryItem({
+    required this.emoji,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -798,8 +881,10 @@ class _CategoryItem extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Text(label,
-              style: const TextStyle(fontSize: 12, color: Colors.black87)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: Colors.black87),
+          ),
         ],
       ),
     );
@@ -815,14 +900,16 @@ class _StatItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(value,
-            style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF4CAF50))),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF4CAF50),
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(label,
-            style: const TextStyle(color: Colors.grey, fontSize: 13)),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
       ],
     );
   }
@@ -839,15 +926,19 @@ class _TodayMeetsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('오늘 만난 강아지들',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const Text(
+            '오늘 만난 강아지들',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
           const SizedBox(height: 12),
           if (meets.isEmpty)
             const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
-                child: Text('오늘은 아직 만난 강아지가 없어요 🐾',
-                    style: TextStyle(color: Colors.grey, fontSize: 14)),
+                child: Text(
+                  '오늘은 아직 만난 강아지가 없어요 🐾',
+                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                ),
               ),
             )
           else
@@ -877,17 +968,26 @@ class _MeetItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(meet.user.nickname,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 14)),
-                Text(dogNames.isEmpty ? '강아지 정보 없음' : dogNames,
-                    style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                Text(
+                  meet.user.nickname,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  dogNames.isEmpty ? '강아지 정보 없음' : dogNames,
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
               ],
             ),
           ),
           if (hasWarnings)
-            const Icon(Icons.warning_amber_rounded,
-                color: Colors.orange, size: 18),
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.orange,
+              size: 18,
+            ),
         ],
       ),
     );

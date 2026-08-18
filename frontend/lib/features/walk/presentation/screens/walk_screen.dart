@@ -5,9 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../dog/data/models/dog_model.dart';
 import '../../../dog/domain/providers/dog_provider.dart';
+import '../../data/models/walk_model.dart';
 import '../../domain/breed_walk_guide.dart';
 import '../../domain/providers/walk_active_provider.dart';
 import '../../domain/providers/walk_provider.dart';
+import 'walk_detail_screen.dart';
+import 'walk_history_screen.dart';
 
 class WalkScreen extends ConsumerStatefulWidget {
   const WalkScreen({super.key});
@@ -91,73 +94,79 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       autofocus: true,
       onKeyEvent: _handleKey,
       child: Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // 지도
-          NaverMap(
-            options: const NaverMapViewOptions(
-              locationButtonEnable: true,
-              consumeSymbolTapEvents: false,
+        backgroundColor: Colors.white,
+        body: Stack(
+          children: [
+            // 지도
+            NaverMap(
+              options: const NaverMapViewOptions(
+                locationButtonEnable: true,
+                consumeSymbolTapEvents: false,
+              ),
+              onMapReady: (controller) {
+                _mapController = controller;
+                _moveToCurrentLocation();
+              },
+              // 사용자가 직접 지도를 움직이면(animated=false) 팔로우 모드 해제
+              onCameraChange: (position, animated) {
+                if (!animated && _followCamera) {
+                  setState(() => _followCamera = false);
+                }
+              },
             ),
-            onMapReady: (controller) {
-              _mapController = controller;
-              _moveToCurrentLocation();
-            },
-            // 사용자가 직접 지도를 움직이면(animated=false) 팔로우 모드 해제
-            onCameraChange: (position, animated) {
-              if (!animated && _followCamera) {
-                setState(() => _followCamera = false);
-              }
-            },
-          ),
 
-          // 상단 통계 (상단 pill 스위처 아래에 배치)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 60,
-            left: 16,
-            right: 16,
-            child: _StatsCard(walkState: walkState),
-          ),
+            // 상단 통계 (상단 pill 스위처 아래에 배치)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 60,
+              left: 16,
+              right: 16,
+              child: _StatsCard(walkState: walkState),
+            ),
 
-          // 내 위치 버튼 (팔로우 모드 아닐 때 강조 표시)
-          Positioned(
-            bottom: 120,
-            right: 16,
-            child: FloatingActionButton.small(
-              onPressed: _moveToCurrentLocation,
-              backgroundColor: _followCamera ? const Color(0xFF4CAF50) : Colors.white,
-              child: Icon(
-                _followCamera ? Icons.my_location : Icons.location_searching,
-                color: _followCamera ? Colors.white : const Color(0xFF4CAF50),
+            // 내 위치 버튼 (팔로우 모드 아닐 때 강조 표시)
+            Positioned(
+              bottom: 120,
+              right: 16,
+              child: FloatingActionButton.small(
+                heroTag: 'walk-current-location',
+                onPressed: _moveToCurrentLocation,
+                backgroundColor: _followCamera
+                    ? const Color(0xFF4CAF50)
+                    : Colors.white,
+                child: Icon(
+                  _followCamera ? Icons.my_location : Icons.location_searching,
+                  color: _followCamera ? Colors.white : const Color(0xFF4CAF50),
+                ),
               ),
             ),
-          ),
 
-          // 하단 버튼
-          Positioned(
-            bottom: 32,
-            left: 16,
-            right: 16,
-            child: _ControlButtons(
-              walkState: walkState,
-              onStart: () => _startWalkWithDogPicker(context),
-              onSimulate: () => _startSimulatedWalkWithDogPicker(context),
-              onPause: () => ref.read(walkActiveProvider.notifier).pauseWalk(),
-              onResume: () =>
-                  ref.read(walkActiveProvider.notifier).resumeWalk(),
-              onComplete: () => _confirmComplete(context),
+            // 하단 버튼
+            Positioned(
+              bottom: 32,
+              left: 16,
+              right: 16,
+              child: _ControlButtons(
+                walkState: walkState,
+                onStart: () => _startWalkWithDogPicker(context),
+                onSimulate: () => _startSimulatedWalkWithDogPicker(context),
+                onPause: () =>
+                    ref.read(walkActiveProvider.notifier).pauseWalk(),
+                onResume: () =>
+                    ref.read(walkActiveProvider.notifier).resumeWalk(),
+                onComplete: () => _confirmComplete(context),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 
   Future<void> _startWalkWithDogPicker(BuildContext context) async {
-    final dogs = await ref.read(myDogsProvider.future).catchError((_) => <Dog>[]);
-    if (!mounted) return;
+    final dogs = await ref
+        .read(myDogsProvider.future)
+        .catchError((_) => <Dog>[]);
+    if (!context.mounted) return;
 
     List<Dog> selected;
     if (dogs.isEmpty) {
@@ -166,7 +175,6 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     } else if (dogs.length == 1) {
       selected = dogs;
     } else {
-      // ignore: use_build_context_synchronously
       final picked = await showModalBottomSheet<List<Dog>>(
         context: context,
         isScrollControlled: true,
@@ -183,8 +191,10 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
   }
 
   Future<void> _startSimulatedWalkWithDogPicker(BuildContext context) async {
-    final dogs = await ref.read(myDogsProvider.future).catchError((_) => <Dog>[]);
-    if (!mounted) return;
+    final dogs = await ref
+        .read(myDogsProvider.future)
+        .catchError((_) => <Dog>[]);
+    if (!context.mounted) return;
 
     List<Dog> selected;
     if (dogs.isEmpty) {
@@ -193,7 +203,6 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     } else if (dogs.length == 1) {
       selected = dogs;
     } else {
-      // ignore: use_build_context_synchronously
       final picked = await showModalBottomSheet<List<Dog>>(
         context: context,
         isScrollControlled: true,
@@ -214,10 +223,14 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     try {
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) return;
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (!mounted || _mapController == null) return;
       _mapController!.updateCamera(
@@ -268,9 +281,9 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50)),
-            child:
-                const Text('완료', style: TextStyle(color: Colors.white)),
+              backgroundColor: const Color(0xFF4CAF50),
+            ),
+            child: const Text('완료', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -279,17 +292,19 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     if (confirm == true) {
       final notifier = ref.read(walkActiveProvider.notifier);
       final walkState = ref.read(walkActiveProvider);
+      WalkDetail? completedDetail;
       try {
-        await notifier.completeWalk();
+        completedDetail = await notifier.completeWalk();
       } catch (_) {
-        if (!mounted) return;
-        // ignore: use_build_context_synchronously
+        if (!context.mounted) return;
         final retry = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
             title: const Text('저장 실패'),
-            content: const Text('네트워크 문제로 산책 기록 저장에 실패했습니다.\n다시 시도하시겠어요?\n(경로 데이터는 유지됩니다)'),
+            content: const Text(
+              '네트워크 문제로 산책 기록 저장에 실패했습니다.\n다시 시도하시겠어요?\n(경로 데이터는 유지됩니다)',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -297,7 +312,9 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                ),
                 child: const Text('재시도', style: TextStyle(color: Colors.white)),
               ),
             ],
@@ -311,7 +328,10 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       }
       if (!mounted) return;
       // ignore: use_build_context_synchronously
-      await _showWalkResult(context, walkState);
+      final openHistory = await _showWalkResult(context, walkState);
+      if (!mounted) return;
+      // ignore: use_build_context_synchronously
+      await _showMarkingSpotCandidates(context);
       notifier.resetWalk();
       // walkHistoryProvider + 파생 프로바이더 모두 명시적으로 무효화
       // (홈 탭이 트리에 없을 때 cascade가 동작 안 할 수 있으므로 직접 지정)
@@ -319,10 +339,23 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       ref.invalidate(todayWalkStatsProvider);
       ref.invalidate(todayMeetsProvider);
       ref.invalidate(todayDogCaloriesProvider);
+      if (openHistory && context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => completedDetail != null
+                ? WalkDetailScreen(sessionId: completedDetail.id)
+                : const WalkHistoryScreen(),
+          ),
+        );
+      }
     }
   }
 
-  Future<void> _showWalkResult(BuildContext context, WalkState walkState) async {
+  Future<bool> _showWalkResult(
+    BuildContext context,
+    WalkState walkState,
+  ) async {
     final distance = walkState.distanceMeters;
     final seconds = walkState.elapsedSeconds;
     final minutes = seconds ~/ 60;
@@ -334,13 +367,15 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     final guide = dogs.isEmpty
         ? getWalkGuide()
         : dogs
-            .map((d) => getWalkGuide(breed: d.breed, weightKg: d.weightKg))
-            .reduce((a, b) => a.maxDistanceKm < b.maxDistanceKm ? a : b);
+              .map((d) => getWalkGuide(breed: d.breed, weightKg: d.weightKg))
+              .reduce((a, b) => a.maxDistanceKm < b.maxDistanceKm ? a : b);
 
     // 칼로리: 모든 강아지 합산
     final calories = dogs.isEmpty
         ? (minutes * 5.0 * 0.3).round()
-        : dogs.map((d) => (minutes * (d.weightKg ?? 5.0) * 0.3).round()).reduce((a, b) => a + b);
+        : dogs
+              .map((d) => (minutes * (d.weightKg ?? 5.0) * 0.3).round())
+              .reduce((a, b) => a + b);
 
     final distanceStr = distance >= 1000
         ? '${distanceKm.toStringAsFixed(2)} km'
@@ -355,7 +390,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     final metTime = minutes >= guide.minMinutes;
     final achieved = metDistance && metTime;
 
-    await showDialog(
+    final openHistory = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => Dialog(
@@ -365,13 +400,17 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(achieved ? '🎉' : '🐾',
-                  style: const TextStyle(fontSize: 48)),
+              Text(
+                achieved ? '🎉' : '🐾',
+                style: const TextStyle(fontSize: 48),
+              ),
               const SizedBox(height: 8),
               Text(
                 achieved ? '권장 산책 달성!' : '산책 완료!',
-                style:
-                    const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               if (dogs.isNotEmpty) ...[
                 const SizedBox(height: 4),
@@ -385,13 +424,16 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _ResultItem(
-                      label: '거리', value: distanceStr, icon: Icons.route),
+                    label: '거리',
+                    value: distanceStr,
+                    icon: Icons.route,
+                  ),
+                  _ResultItem(label: '시간', value: timeStr, icon: Icons.timer),
                   _ResultItem(
-                      label: '시간', value: timeStr, icon: Icons.timer),
-                  _ResultItem(
-                      label: '칼로리',
-                      value: '${calories}kcal',
-                      icon: Icons.local_fire_department),
+                    label: '칼로리',
+                    value: '${calories}kcal',
+                    icon: Icons.local_fire_department,
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -399,7 +441,9 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: achieved
                       ? const Color(0xFF4CAF50).withValues(alpha: 0.1)
@@ -423,41 +467,222 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                     Text(
                       '거리 ${guide.distanceRange}  ·  시간 ${guide.timeRange}',
                       style: const TextStyle(
-                          fontSize: 13, color: Colors.black87),
+                        fontSize: 13,
+                        color: Colors.black87,
+                      ),
                     ),
                     if (!achieved) ...[
                       const SizedBox(height: 4),
                       Text(
-                        achieved
-                            ? ''
-                            : '오늘은 조금 부족했어요. 내일 더 함께해요! 💪',
+                        achieved ? '' : '오늘은 조금 부족했어요. 내일 더 함께해요! 💪',
                         style: const TextStyle(
-                            fontSize: 12, color: Colors.orange),
+                          fontSize: 12,
+                          color: Colors.orange,
+                        ),
                       ),
                     ],
                   ],
                 ),
               ),
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      icon: const Icon(Icons.history),
+                      label: const Text('기록 보기'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF4CAF50),
+                        side: const BorderSide(color: Color(0xFF4CAF50)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
                   ),
-                  child: const Text('확인',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CAF50),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text(
+                        '확인',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
+      ),
+    );
+    return openHistory ?? false;
+  }
+
+  Future<void> _showMarkingSpotCandidates(BuildContext context) async {
+    final state = ref.read(walkActiveProvider);
+    final candidates = state.markingSpotCandidates;
+    if (candidates.isEmpty || state.selectedDogs.isEmpty) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.pets, color: Color(0xFF4CAF50)),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        '발자국 후보',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '산책 중 잠시 머문 곳이에요. 맞는 곳만 공유해주세요.',
+                  style: TextStyle(fontSize: 13, color: Colors.black54),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: candidates.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (itemContext, index) {
+                      final candidate = candidates[index];
+                      return _MarkingCandidateTile(
+                        index: index + 1,
+                        dwellText: candidate.dwellText,
+                        nearbyVisitCount: candidate.nearbyVisitCount,
+                        onShare: () async {
+                          try {
+                            await ref
+                                .read(walkActiveProvider.notifier)
+                                .shareMarkingSpot(candidate);
+                            if (!itemContext.mounted) return;
+                            ScaffoldMessenger.of(itemContext).showSnackBar(
+                              const SnackBar(content: Text('발자국을 남겼어요')),
+                            );
+                          } catch (_) {
+                            if (!itemContext.mounted) return;
+                            ScaffoldMessenger.of(itemContext).showSnackBar(
+                              const SnackBar(content: Text('발자국 저장에 실패했습니다')),
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('나중에 할게요'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MarkingCandidateTile extends StatelessWidget {
+  final int index;
+  final String dwellText;
+  final int nearbyVisitCount;
+  final Future<void> Function() onShare;
+
+  const _MarkingCandidateTile({
+    required this.index,
+    required this.dwellText,
+    required this.nearbyVisitCount,
+    required this.onShare,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+            foregroundColor: const Color(0xFF4CAF50),
+            child: Text('$index'),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$dwellText 머문 곳',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  nearbyVisitCount > 0
+                      ? '근처에 $nearbyVisitCount개의 발자국이 있어요'
+                      : '새로운 발자국 스팟이에요',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: onShare,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4CAF50),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('남기기'),
+          ),
+        ],
       ),
     );
   }
@@ -476,8 +701,7 @@ class _StatsCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1), blurRadius: 10),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10),
         ],
       ),
       child: Row(
@@ -635,14 +859,16 @@ class _ControlButtons extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: onTap,
         icon: Icon(icon),
-        label: Text(label,
-            style:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: Colors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
       ),
     );
@@ -658,14 +884,16 @@ class _StatItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(value,
-            style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF4CAF50))),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF4CAF50),
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(label,
-            style: const TextStyle(color: Colors.grey, fontSize: 13)),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
       ],
     );
   }
@@ -675,7 +903,11 @@ class _ResultItem extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-  const _ResultItem({required this.label, required this.value, required this.icon});
+  const _ResultItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -683,14 +915,16 @@ class _ResultItem extends StatelessWidget {
       children: [
         Icon(icon, color: const Color(0xFF4CAF50), size: 28),
         const SizedBox(height: 6),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF212121))),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF212121),
+          ),
+        ),
         const SizedBox(height: 2),
-        Text(label,
-            style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
       ],
     );
   }
@@ -745,7 +979,10 @@ class _DogPickerSheetState extends State<_DogPickerSheet> {
               }),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? const Color(0xFF4CAF50).withValues(alpha: 0.08)
@@ -761,13 +998,15 @@ class _DogPickerSheetState extends State<_DogPickerSheet> {
                 child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor:
-                          const Color(0xFF4CAF50).withValues(alpha: 0.15),
+                      backgroundColor: const Color(
+                        0xFF4CAF50,
+                      ).withValues(alpha: 0.15),
                       child: Text(
                         dog.name.isNotEmpty ? dog.name[0] : '🐶',
                         style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF4CAF50)),
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF4CAF50),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -775,12 +1014,20 @@ class _DogPickerSheetState extends State<_DogPickerSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(dog.name,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 15)),
-                          Text(dog.breed ?? '견종 미등록',
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 12)),
+                          Text(
+                            dog.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          Text(
+                            dog.breed ?? '견종 미등록',
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -788,7 +1035,8 @@ class _DogPickerSheetState extends State<_DogPickerSheet> {
                       value: isSelected,
                       activeColor: const Color(0xFF4CAF50),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                       onChanged: (_) => setState(() {
                         if (isSelected) {
                           _selected.remove(dog.id);
@@ -820,14 +1068,17 @@ class _DogPickerSheetState extends State<_DogPickerSheet> {
                 disabledBackgroundColor: Colors.grey[300],
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               child: Text(
                 _selected.isEmpty
                     ? '강아지를 선택하세요'
                     : '${_selected.length}마리와 산책 시작',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),

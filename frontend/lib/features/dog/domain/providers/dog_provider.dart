@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/storage/local_cache.dart';
 import '../../data/models/dog_model.dart';
@@ -15,10 +14,11 @@ final myDogsProvider = FutureProvider<List<Dog>>((ref) async {
       try {
         final fresh = await ref.read(dogRepositoryProvider).getMyDogs();
         await LocalCache.write(_cacheKey, fresh.map(_dogToJson).toList());
-        ref.invalidateSelf();
       } catch (_) {}
     });
-    return (cached as List).map((e) => Dog.fromJson(e as Map<String, dynamic>)).toList();
+    return (cached as List)
+        .map((e) => Dog.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   // 2. 캐시 없으면 서버에서 가져와서 저장
@@ -28,16 +28,16 @@ final myDogsProvider = FutureProvider<List<Dog>>((ref) async {
 });
 
 Map<String, dynamic> _dogToJson(Dog d) => {
-      'id': d.id,
-      'name': d.name,
-      'breed': d.breed,
-      'profileImage': d.profileImage,
-      'gender': d.gender,
-      'isNeutered': d.isNeutered,
-      'weightKg': d.weightKg,
-      'birthDate': d.birthDate?.toIso8601String().split('T').first,
-      'warnings': d.warnings,
-      'isFavorited': d.isFavorited,
-    };
+  'id': d.id,
+  'name': d.name,
+  'breed': d.breed,
+  'profileImage': d.profileImage,
+  'gender': d.gender,
+  'isNeutered': d.isNeutered,
+  'weightKg': d.weightKg,
+  'birthDate': d.birthDate?.toIso8601String().split('T').first,
+  'warnings': d.warnings,
+  'isFavorited': d.isFavorited,
+};
 
 Future<void> clearDogsCache() => LocalCache.remove(_cacheKey);

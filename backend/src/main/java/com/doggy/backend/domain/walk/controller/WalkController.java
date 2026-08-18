@@ -1,6 +1,7 @@
 package com.doggy.backend.domain.walk.controller;
 
 import com.doggy.backend.domain.walk.dto.*;
+import com.doggy.backend.domain.walk.service.MarkingSpotService;
 import com.doggy.backend.domain.walk.service.WalkMeetService;
 import com.doggy.backend.domain.walk.service.WalkPingService;
 import com.doggy.backend.domain.walk.service.WalkService;
@@ -22,6 +23,7 @@ public class WalkController {
     private final WalkService walkService;
     private final WalkPingService walkPingService;
     private final WalkMeetService walkMeetService;
+    private final MarkingSpotService markingSpotService;
 
     @PostMapping
     public ResponseEntity<WalkSessionResponse> start(
@@ -109,6 +111,21 @@ public class WalkController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long sessionId) {
         return ResponseEntity.ok(walkMeetService.getMeets(principal.getId(), sessionId));
+    }
+
+    @PostMapping("/{sessionId}/marking-spots")
+    public ResponseEntity<MarkingSpotResponse> createMarkingSpotVisit(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId,
+            @Valid @RequestBody CreateMarkingSpotVisitRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(markingSpotService.createVisit(principal.getId(), sessionId, request));
+    }
+
+    @GetMapping("/marking-spots/{spotId}")
+    public ResponseEntity<MarkingSpotDetailResponse> getMarkingSpot(
+            @PathVariable Long spotId) {
+        return ResponseEntity.ok(markingSpotService.getDetail(spotId));
     }
 
     @PostMapping("/{sessionId}/like")

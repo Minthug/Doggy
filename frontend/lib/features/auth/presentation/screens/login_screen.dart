@@ -12,9 +12,23 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
+  static const _autofillTestLogin = bool.fromEnvironment(
+    'AUTOFILL_TEST_LOGIN',
+    defaultValue: false,
+  );
+
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_autofillTestLogin) {
+      _emailController.text = 'test@test.com';
+      _passwordController.text = 'password123';
+    }
+  }
 
   @override
   void dispose() {
@@ -57,129 +71,147 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 로고
-              const Text(
-                '🐶 Doggy',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '반려견 산책 기록',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 48),
-
-              // 이메일
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: '이메일',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // 비밀번호
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: '비밀번호',
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => _login(),
-              ),
-              const SizedBox(height: 24),
-
-              // 로그인 버튼
-              ElevatedButton(
-                onPressed: _isLoading ? null : _login,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('로그인', style: TextStyle(fontSize: 16)),
-              ),
-              const SizedBox(height: 12),
-
-              // 회원가입 이동
-              TextButton(
-                onPressed: () => Navigator.pushNamed(context, '/signup'),
-                child: const Text('계정이 없으신가요? 회원가입'),
-              ),
-
-              const SizedBox(height: 24),
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('또는', style: TextStyle(color: Colors.grey)),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // 카카오 로그인
-              _SocialLoginButton(
-                label: '카카오로 로그인',
-                backgroundColor: const Color(0xFFFEE500),
-                textColor: const Color(0xFF191919),
-                onTap: () => _loginWithSocial('kakao'),
-                icon: const Text(
-                  'K',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF191919),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: (constraints.maxHeight - 48).clamp(
+                    0.0,
+                    double.infinity,
                   ),
                 ),
-              ),
-              const SizedBox(height: 10),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 로고
+                    const Text(
+                      '🐶 Doggy',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '반려견 산책 기록',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 48),
 
-              // 네이버 로그인
-              _SocialLoginButton(
-                label: '네이버로 로그인',
-                backgroundColor: const Color(0xFF03C75A),
-                textColor: Colors.white,
-                onTap: () => _loginWithSocial('naver'),
-                icon: const Text(
-                  'N',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                    // 이메일
+                    TextField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: '이메일',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 비밀번호
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: '비밀번호',
+                        border: OutlineInputBorder(),
+                      ),
+                      onSubmitted: (_) => _login(),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // 로그인 버튼
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _login,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator()
+                          : const Text('로그인', style: TextStyle(fontSize: 16)),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // 회원가입 이동
+                    TextButton(
+                      onPressed: () => Navigator.pushNamed(context, '/signup'),
+                      child: const Text('계정이 없으신가요? 회원가입'),
+                    ),
+
+                    const SizedBox(height: 24),
+                    const Row(
+                      children: [
+                        Expanded(child: Divider()),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            '또는',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                        Expanded(child: Divider()),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // 카카오 로그인
+                    _SocialLoginButton(
+                      label: '카카오로 로그인',
+                      backgroundColor: const Color(0xFFFEE500),
+                      textColor: const Color(0xFF191919),
+                      onTap: () => _loginWithSocial('kakao'),
+                      icon: const Text(
+                        'K',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF191919),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // 네이버 로그인
+                    _SocialLoginButton(
+                      label: '네이버로 로그인',
+                      backgroundColor: const Color(0xFF03C75A),
+                      textColor: Colors.white,
+                      onTap: () => _loginWithSocial('naver'),
+                      icon: const Text(
+                        'N',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // 구글 로그인
+                    _SocialLoginButton(
+                      label: 'Google로 로그인',
+                      backgroundColor: Colors.white,
+                      textColor: Colors.black87,
+                      borderColor: Colors.grey[300],
+                      onTap: () => _loginWithSocial('google'),
+                      icon: const Icon(
+                        Icons.g_mobiledata,
+                        size: 24,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-
-              // 구글 로그인
-              _SocialLoginButton(
-                label: 'Google로 로그인',
-                backgroundColor: Colors.white,
-                textColor: Colors.black87,
-                borderColor: Colors.grey[300],
-                onTap: () => _loginWithSocial('google'),
-                icon: const Icon(
-                  Icons.g_mobiledata,
-                  size: 24,
-                  color: Colors.red,
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

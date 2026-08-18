@@ -10,13 +10,12 @@ import '../../data/repositories/walk_repository.dart';
 import 'walk_provider.dart';
 
 String _formatDateTime(DateTime dt) {
-  final utc = dt.toUtc();
-  return '${utc.year.toString().padLeft(4, '0')}'
-      '-${utc.month.toString().padLeft(2, '0')}'
-      '-${utc.day.toString().padLeft(2, '0')}'
-      'T${utc.hour.toString().padLeft(2, '0')}'
-      ':${utc.minute.toString().padLeft(2, '0')}'
-      ':${utc.second.toString().padLeft(2, '0')}';
+  return '${dt.year.toString().padLeft(4, '0')}'
+      '-${dt.month.toString().padLeft(2, '0')}'
+      '-${dt.day.toString().padLeft(2, '0')}'
+      'T${dt.hour.toString().padLeft(2, '0')}'
+      ':${dt.minute.toString().padLeft(2, '0')}'
+      ':${dt.second.toString().padLeft(2, '0')}';
 }
 
 enum WalkStatus { idle, inProgress, paused, completed }
@@ -30,6 +29,7 @@ class WalkState {
   final Position? currentPosition;
   final List<Dog> selectedDogs;
   final bool isSimulating;
+  final List<MarkingSpotCandidate> markingSpotCandidates;
 
   const WalkState({
     this.status = WalkStatus.idle,
@@ -40,6 +40,7 @@ class WalkState {
     this.currentPosition,
     this.selectedDogs = const [],
     this.isSimulating = false,
+    this.markingSpotCandidates = const [],
   });
 
   WalkState copyWith({
@@ -51,17 +52,18 @@ class WalkState {
     Position? currentPosition,
     List<Dog>? selectedDogs,
     bool? isSimulating,
-  }) =>
-      WalkState(
-        status: status ?? this.status,
-        session: session ?? this.session,
-        points: points ?? this.points,
-        elapsedSeconds: elapsedSeconds ?? this.elapsedSeconds,
-        distanceMeters: distanceMeters ?? this.distanceMeters,
-        currentPosition: currentPosition ?? this.currentPosition,
-        selectedDogs: selectedDogs ?? this.selectedDogs,
-        isSimulating: isSimulating ?? this.isSimulating,
-      );
+    List<MarkingSpotCandidate>? markingSpotCandidates,
+  }) => WalkState(
+    status: status ?? this.status,
+    session: session ?? this.session,
+    points: points ?? this.points,
+    elapsedSeconds: elapsedSeconds ?? this.elapsedSeconds,
+    distanceMeters: distanceMeters ?? this.distanceMeters,
+    currentPosition: currentPosition ?? this.currentPosition,
+    selectedDogs: selectedDogs ?? this.selectedDogs,
+    isSimulating: isSimulating ?? this.isSimulating,
+    markingSpotCandidates: markingSpotCandidates ?? this.markingSpotCandidates,
+  );
 
   String get elapsedText {
     final m = elapsedSeconds ~/ 60;
@@ -85,16 +87,17 @@ class WalkPoint {
   WalkPoint({required this.lat, required this.lng, required this.recordedAt});
 
   Map<String, dynamic> toJson() => {
-        'lat': lat,
-        'lng': lng,
-        'recordedAt': _formatDateTime(recordedAt),
-      };
+    'lat': lat,
+    'lng': lng,
+    'recordedAt': _formatDateTime(recordedAt),
+  };
 }
 
-final walkActiveProvider =
-    StateNotifierProvider<WalkActiveNotifier, WalkState>((ref) {
-  return WalkActiveNotifier(ref.watch(walkRepositoryProvider), ref);
-});
+final walkActiveProvider = StateNotifierProvider<WalkActiveNotifier, WalkState>(
+  (ref) {
+    return WalkActiveNotifier(ref.watch(walkRepositoryProvider), ref);
+  },
+);
 
 class WalkActiveNotifier extends StateNotifier<WalkState> {
   final WalkRepository _repository;
@@ -145,7 +148,9 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   WalkActiveNotifier(this._repository, this._ref) : super(const WalkState());
 
   Future<void> startWalk({List<Dog> dogs = const []}) async {
-    final session = await _repository.start(dogIds: dogs.map((d) => d.id).toList());
+    final session = await _repository.start(
+      dogIds: dogs.map((d) => d.id).toList(),
+    );
     _walkStartedAt = DateTime.now();
     _pausedSeconds = 0;
     _pausedAt = null;
@@ -164,7 +169,9 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   }
 
   Future<void> startSimulatedWalk({List<Dog> dogs = const []}) async {
-    final session = await _repository.start(dogIds: dogs.map((d) => d.id).toList());
+    final session = await _repository.start(
+      dogIds: dogs.map((d) => d.id).toList(),
+    );
     _simIndex = 0;
     _walkStartedAt = DateTime.now();
     _pausedSeconds = 0;
@@ -201,18 +208,21 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   // 시뮬레이션 모드 전용: 실제 GPS가 없으니 타이머로 핑
   void _startSimPingTimer() {
     _simPingTimer?.cancel();
-    _simPingTimer = Timer.periodic(const Duration(seconds: _pingIntervalSeconds), (_) {
-      final pos = state.currentPosition;
-      final session = state.session;
-      if (pos == null || session == null) return;
-      if (state.status != WalkStatus.inProgress) return;
-      _repository
-          .updateLocation(session.id, pos.latitude, pos.longitude)
-          .catchError((e) {
-        debugPrint('[핑] 위치 업데이트 실패: $e');
-        _handlePingError(e);
-      });
-    });
+    _simPingTimer = Timer.periodic(
+      const Duration(seconds: _pingIntervalSeconds),
+      (_) {
+        final pos = state.currentPosition;
+        final session = state.session;
+        if (pos == null || session == null) return;
+        if (state.status != WalkStatus.inProgress) return;
+        _repository
+            .updateLocation(session.id, pos.latitude, pos.longitude)
+            .catchError((e) {
+              debugPrint('[핑] 위치 업데이트 실패: $e');
+              _handlePingError(e);
+            });
+      },
+    );
   }
 
   void _handlePingError(Object e) {
@@ -286,8 +296,8 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     }
   }
 
-  Future<void> completeWalk() async {
-    if (state.session == null) return;
+  Future<WalkDetail?> completeWalk() async {
+    if (state.session == null) return null;
     _timer?.cancel();
     _simTimer?.cancel();
     _simPingTimer?.cancel();
@@ -300,14 +310,17 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     Object? lastError;
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
-        await _repository.complete(
+        final detail = await _repository.complete(
           sessionId: sessionId,
           points: points,
           endedAt: endedAt,
         );
-        state = state.copyWith(status: WalkStatus.completed);
+        state = state.copyWith(
+          status: WalkStatus.completed,
+          markingSpotCandidates: detail.markingSpotCandidates,
+        );
         _ref.invalidate(walkHistoryProvider);
-        return;
+        return detail;
       } catch (e) {
         lastError = e;
         debugPrint('[산책완료] 저장 실패 (시도 ${attempt + 1}/3): $e');
@@ -315,6 +328,23 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       }
     }
     throw lastError!;
+  }
+
+  Future<void> shareMarkingSpot(MarkingSpotCandidate candidate) async {
+    final session = state.session;
+    if (session == null) return;
+    final dogIds = state.selectedDogs.map((dog) => dog.id).toList();
+    if (dogIds.isEmpty) return;
+    await _repository.shareMarkingSpot(
+      sessionId: session.id,
+      candidate: candidate,
+      dogIds: dogIds,
+    );
+    state = state.copyWith(
+      markingSpotCandidates: state.markingSpotCandidates
+          .where((item) => item.candidateKey != candidate.candidateKey)
+          .toList(),
+    );
   }
 
   static const stepLat = 0.00009;
@@ -340,7 +370,8 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_walkStartedAt == null) return;
-      final elapsed = DateTime.now().difference(_walkStartedAt!).inSeconds - _pausedSeconds;
+      final elapsed =
+          DateTime.now().difference(_walkStartedAt!).inSeconds - _pausedSeconds;
       state = state.copyWith(elapsedSeconds: elapsed < 0 ? 0 : elapsed);
     });
   }
@@ -385,46 +416,54 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
             ),
           );
 
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen((position) {
-      // 포인트 기록 + 거리 계산
-      final newPoint = WalkPoint(
-        lat: position.latitude,
-        lng: position.longitude,
-        recordedAt: DateTime.now(),
-      );
+    _positionSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: locationSettings,
+        ).listen((position) {
+          // 포인트 기록 + 거리 계산
+          final newPoint = WalkPoint(
+            lat: position.latitude,
+            lng: position.longitude,
+            recordedAt: DateTime.now(),
+          );
 
-      double addedDistance = 0;
-      if (state.points.isNotEmpty) {
-        final last = state.points.last;
-        addedDistance = Geolocator.distanceBetween(
-          last.lat, last.lng, position.latitude, position.longitude,
-        );
-      }
+          double addedDistance = 0;
+          if (state.points.isNotEmpty) {
+            final last = state.points.last;
+            addedDistance = Geolocator.distanceBetween(
+              last.lat,
+              last.lng,
+              position.latitude,
+              position.longitude,
+            );
+          }
 
-      state = state.copyWith(
-        points: [...state.points, newPoint],
-        distanceMeters: state.distanceMeters + addedDistance,
-        currentPosition: position,
-      );
+          state = state.copyWith(
+            points: [...state.points, newPoint],
+            distanceMeters: state.distanceMeters + addedDistance,
+            currentPosition: position,
+          );
 
-      // 위치 콜백에서 직접 서버 핑 — 백그라운드에서도 동작
-      final session = state.session;
-      if (session == null || state.status != WalkStatus.inProgress) return;
+          // 위치 콜백에서 직접 서버 핑 — 백그라운드에서도 동작
+          final session = state.session;
+          if (session == null || state.status != WalkStatus.inProgress) return;
 
-      final now = DateTime.now();
-      if (_lastPingAt == null ||
-          now.difference(_lastPingAt!).inSeconds >= _pingIntervalSeconds) {
-        _lastPingAt = now;
-        _repository
-            .updateLocation(session.id, position.latitude, position.longitude)
-            .catchError((e) {
-          debugPrint('[핑] 위치 업데이트 실패: $e');
-          _handlePingError(e);
+          final now = DateTime.now();
+          if (_lastPingAt == null ||
+              now.difference(_lastPingAt!).inSeconds >= _pingIntervalSeconds) {
+            _lastPingAt = now;
+            _repository
+                .updateLocation(
+                  session.id,
+                  position.latitude,
+                  position.longitude,
+                )
+                .catchError((e) {
+                  debugPrint('[핑] 위치 업데이트 실패: $e');
+                  _handlePingError(e);
+                });
+          }
         });
-      }
-    });
   }
 
   @override

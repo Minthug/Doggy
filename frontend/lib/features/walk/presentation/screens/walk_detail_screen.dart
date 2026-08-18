@@ -139,7 +139,13 @@ class _DetailBody extends ConsumerWidget {
     return Column(
       children: [
         // 지도 (경로 표시)
-        SizedBox(height: 300, child: _RouteMap(geoJson: detail.routeGeoJson)),
+        SizedBox(
+          height: 300,
+          child: _RouteMap(
+            geoJson: detail.routeGeoJson,
+            markingSpots: detail.markingSpots,
+          ),
+        ),
 
         // 통계
         Expanded(
@@ -196,6 +202,20 @@ class _DetailBody extends ConsumerWidget {
 
                 const SizedBox(height: 24),
 
+                if (detail.markingSpots.isNotEmpty) ...[
+                  const Text(
+                    '발자국 스팟',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Column(
+                    children: detail.markingSpots
+                        .map((spot) => _MarkingSpotCard(spot: spot))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
                 // 만난 강아지들
                 const Text(
                   '이번 산책에서 만난 강아지들',
@@ -235,8 +255,9 @@ class _DetailBody extends ConsumerWidget {
 // 경로 지도
 class _RouteMap extends StatefulWidget {
   final String? geoJson;
+  final List<MarkingSpot> markingSpots;
 
-  const _RouteMap({this.geoJson});
+  const _RouteMap({this.geoJson, this.markingSpots = const []});
 
   @override
   State<_RouteMap> createState() => _RouteMapState();
@@ -266,68 +287,145 @@ class _RouteMapState extends State<_RouteMap> {
   }
 
   Future<void> _drawRoute() async {
-    if (widget.geoJson == null || _controller == null) return;
+    if (_controller == null) return;
 
     try {
-      final geoJson = jsonDecode(widget.geoJson!);
-      final coordinates = geoJson['coordinates'] as List<dynamic>?;
+      final boundsCoords = <NLatLng>[];
+      final coords = <NLatLng>[];
 
-      if (coordinates == null || coordinates.isEmpty) return;
+      if (widget.geoJson != null) {
+        final geoJson = jsonDecode(widget.geoJson!);
+        final coordinates = geoJson['coordinates'] as List<dynamic>?;
+        if (coordinates != null && coordinates.isNotEmpty) {
+          coords.addAll(
+            coordinates.map(
+              (c) =>
+                  NLatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
+            ),
+          );
+          boundsCoords.addAll(coords);
+        }
+      }
 
-      final coords = coordinates
-          .map(
-            (c) => NLatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
-          )
-          .toList();
+      if (coords.isNotEmpty) {
+        // 경로 폴리라인
+        _controller!.addOverlay(
+          NPolylineOverlay(
+            id: 'route',
+            coords: coords,
+            color: const Color(0xFF4CAF50),
+            width: 5,
+          ),
+        );
 
-      // 경로 폴리라인
-      _controller!.addOverlay(
-        NPolylineOverlay(
-          id: 'route',
-          coords: coords,
-          color: const Color(0xFF4CAF50),
-          width: 5,
-        ),
-      );
+        // 시작 마커
+        _controller!.addOverlay(
+          NMarker(
+            id: 'start',
+            position: coords.first,
+            caption: const NOverlayCaption(text: '시작'),
+          ),
+        );
 
-      // 시작 마커
-      _controller!.addOverlay(
-        NMarker(
-          id: 'start',
-          position: coords.first,
-          caption: const NOverlayCaption(text: '시작'),
-        ),
-      );
+        // 종료 마커
+        _controller!.addOverlay(
+          NMarker(
+            id: 'end',
+            position: coords.last,
+            caption: const NOverlayCaption(text: '종료'),
+          ),
+        );
+      }
 
-      // 종료 마커
-      _controller!.addOverlay(
-        NMarker(
-          id: 'end',
-          position: coords.last,
-          caption: const NOverlayCaption(text: '종료'),
-        ),
-      );
+      for (final spot in widget.markingSpots) {
+        final position = NLatLng(spot.lat, spot.lng);
+        boundsCoords.add(position);
+        _controller!.addOverlay(
+          NMarker(
+            id: 'marking-${spot.id}',
+            position: position,
+            caption: NOverlayCaption(text: '발자국 ${spot.visitCount}'),
+          ),
+        );
+      }
 
       // 경로 전체가 보이도록 카메라 조정
-      if (!mounted || _controller == null) return;
-      await _controller!.updateCamera(
-        NCameraUpdate.fitBounds(
-          NLatLngBounds(
-            southWest: NLatLng(
-              coords.map((c) => c.latitude).reduce((a, b) => a < b ? a : b),
-              coords.map((c) => c.longitude).reduce((a, b) => a < b ? a : b),
+      if (!mounted || _controller == null || boundsCoords.isEmpty) return;
+      if (boundsCoords.length == 1) {
+        await _controller!.updateCamera(
+          NCameraUpdate.scrollAndZoomTo(target: boundsCoords.first, zoom: 16),
+        );
+      } else {
+        await _controller!.updateCamera(
+          NCameraUpdate.fitBounds(
+            NLatLngBounds(
+              southWest: NLatLng(
+                boundsCoords
+                    .map((c) => c.latitude)
+                    .reduce((a, b) => a < b ? a : b),
+                boundsCoords
+                    .map((c) => c.longitude)
+                    .reduce((a, b) => a < b ? a : b),
+              ),
+              northEast: NLatLng(
+                boundsCoords
+                    .map((c) => c.latitude)
+                    .reduce((a, b) => a > b ? a : b),
+                boundsCoords
+                    .map((c) => c.longitude)
+                    .reduce((a, b) => a > b ? a : b),
+              ),
             ),
-            northEast: NLatLng(
-              coords.map((c) => c.latitude).reduce((a, b) => a > b ? a : b),
-              coords.map((c) => c.longitude).reduce((a, b) => a > b ? a : b),
-            ),
+            padding: const EdgeInsets.all(40),
           ),
-          padding: const EdgeInsets.all(40),
-        ),
-      );
+        );
+      }
     } catch (e) {
       // GeoJSON 파싱 실패 시 무시
     }
+  }
+}
+
+class _MarkingSpotCard extends StatelessWidget {
+  final MarkingSpot spot;
+
+  const _MarkingSpotCard({required this.spot});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF4CAF50).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.pets, color: Color(0xFF4CAF50)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '${spot.visitCount}개의 발자국이 남겨진 곳',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: Colors.grey),
+        ],
+      ),
+    );
   }
 }
 

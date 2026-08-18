@@ -49,6 +49,7 @@ public class WalkService {
     private final PushSettingRepository pushSettingRepository;
     private final FcmService fcmService;
     private final WalkPingService walkPingService;
+    private final MarkingSpotService markingSpotService;
     private final JdbcTemplate jdbcTemplate;
 
     @Transactional(readOnly = false)
@@ -116,26 +117,31 @@ public class WalkService {
         }
 
         int distanceMeters = calculateDistance(request.points());
+        LocalDateTime endedAt = request.endedAt().isBefore(session.getStartedAt())
+                ? session.getStartedAt()
+                : request.endedAt();
         int durationSeconds = (int) java.time.Duration.between(
-                session.getStartedAt(), request.endedAt()).getSeconds();
+                session.getStartedAt(), endedAt).getSeconds();
 
-        LocalDateTime now = request.endedAt();
+        LocalDateTime now = endedAt;
         int prevMonthlyMeters = walkSessionRepository.sumDistanceByUserAndMonth(
                 userId, now.getYear(), now.getMonthValue());
 
-        session.complete(request.endedAt(), distanceMeters, durationSeconds);
+        session.complete(endedAt, distanceMeters, durationSeconds);
         walkPingService.removeLocation(sessionId);
 
         sendGoalAchievedNotificationIfNeeded(userId, session.getDogs(), prevMonthlyMeters, prevMonthlyMeters + distanceMeters);
+
+        List<MarkingSpotCandidateResponse> markingCandidates = markingSpotService.detectCandidates(request.points());
 
         // GeoJSON 생성 후 세션에 저장 (트랜잭션 내 — 방금 INSERT한 points 바로 읽음)
         try {
             String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
             if (routeGeoJson != null) session.saveRouteGeoJson(routeGeoJson);
-            return WalkDetailResponse.of(session, routeGeoJson);
+            return WalkDetailResponse.of(session, routeGeoJson, markingCandidates);
         } catch (Exception e) {
             log.warn("경로 GeoJSON 생성 실패: {}", e.getMessage());
-            return WalkDetailResponse.of(session, null);
+            return WalkDetailResponse.of(session, null, markingCandidates);
         }
     }
 
@@ -251,7 +257,7 @@ public class WalkService {
                 log.warn("경로 GeoJSON 생성 실패 (getDetail): {}", e.getMessage());
             }
         }
-        return WalkDetailResponse.of(session, routeGeoJson);
+        return WalkDetailResponse.of(session, routeGeoJson, List.of(), markingSpotService.getSessionSpots(sessionId));
     }
 
     // 경로 공개

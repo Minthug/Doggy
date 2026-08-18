@@ -14,11 +14,26 @@ public record WalkDetailResponse(
         int durationSeconds,
         Status status,
         String routeGeoJson,
-        List<DogInfo> dogs
+        List<DogInfo> dogs,
+        List<MarkingSpotCandidateResponse> markingSpotCandidates,
+        List<MarkingSpotResponse> markingSpots
 ) {
     public record DogInfo(Long id, String name, String breed, String profileImage) {}
 
     public static WalkDetailResponse of(WalkSession session, String routeGeoJson) {
+        return of(session, routeGeoJson, List.of(), List.of());
+    }
+
+    public static WalkDetailResponse of(WalkSession session,
+                                        String routeGeoJson,
+                                        List<MarkingSpotCandidateResponse> markingSpotCandidates) {
+        return of(session, routeGeoJson, markingSpotCandidates, List.of());
+    }
+
+    public static WalkDetailResponse of(WalkSession session,
+                                        String routeGeoJson,
+                                        List<MarkingSpotCandidateResponse> markingSpotCandidates,
+                                        List<MarkingSpotResponse> markingSpots) {
         List<DogInfo> dogInfos = session.getDogs().stream()
                 .map(d -> new DogInfo(d.getId(), d.getName(), d.getBreed(), d.getProfileImage()))
                 .toList();
@@ -30,7 +45,9 @@ public record WalkDetailResponse(
                 session.getDurationSeconds(),
                 session.getStatus(),
                 routeGeoJson,
-                dogInfos
+                dogInfos,
+                markingSpotCandidates != null ? markingSpotCandidates : List.of(),
+                markingSpots != null ? markingSpots : List.of()
         );
     }
 }

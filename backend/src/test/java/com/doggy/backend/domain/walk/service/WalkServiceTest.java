@@ -55,6 +55,7 @@ class WalkServiceTest {
     @Mock PushSettingRepository pushSettingRepository;
     @Mock FcmService fcmService;
     @Mock WalkPingService walkPingService;
+    @Mock MarkingSpotService markingSpotService;
     @Mock JdbcTemplate jdbcTemplate;
 
     @InjectMocks WalkService walkService;

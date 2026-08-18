@@ -25,29 +25,30 @@ class CommunityTab extends ConsumerWidget {
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(child: Text('불러오기 실패: $e')),
                 data: (posts) => ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
-                        itemCount: posts.isEmpty ? 2 : posts.length + 1,
-                        itemBuilder: (ctx, i) {
-                          if (i == 0) return const _PromoBanner();
-                          if (posts.isEmpty) return const _EmptyView();
-                          final post = posts[i - 1];
-                          return _PostCard(
-                            post: post,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => PostDetailScreen(postId: post.id),
-                              ),
-                            ).then((_) => ref.invalidate(communityPostsProvider)),
-                          );
-                        },
-                      ),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                  itemCount: posts.isEmpty ? 2 : posts.length + 1,
+                  itemBuilder: (ctx, i) {
+                    if (i == 0) return const _PromoBanner();
+                    if (posts.isEmpty) return const _EmptyView();
+                    final post = posts[i - 1];
+                    return _PostCard(
+                      post: post,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PostDetailScreen(postId: post.id),
+                        ),
+                      ).then((_) => ref.invalidate(communityPostsProvider)),
+                    );
+                  },
+                ),
               ),
             ),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'community-create-post',
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const CreatePostScreen()),
@@ -71,8 +72,10 @@ class _Header extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('커뮤니티',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          const Text(
+            '커뮤니티',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -81,18 +84,22 @@ class _Header extends ConsumerWidget {
                 _FilterChip(
                   label: '전체',
                   selected: selectedType == null,
-                  onTap: () => ref.read(selectedPostTypeProvider.notifier).state = null,
+                  onTap: () =>
+                      ref.read(selectedPostTypeProvider.notifier).state = null,
                 ),
                 const SizedBox(width: 8),
-                ...PostType.values.map((t) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _FilterChip(
-                        label: _typeIcon(t) + ' ' + t.label,
-                        selected: selectedType == t,
-                        onTap: () => ref.read(selectedPostTypeProvider.notifier).state = t,
-                        color: _typeColor(t),
-                      ),
-                    )),
+                ...PostType.values.map(
+                  (t) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _FilterChip(
+                      label: '${_typeIcon(t)} ${t.label}',
+                      selected: selectedType == t,
+                      onTap: () =>
+                          ref.read(selectedPostTypeProvider.notifier).state = t,
+                      color: _typeColor(t),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -104,17 +111,23 @@ class _Header extends ConsumerWidget {
 
   String _typeIcon(PostType t) {
     switch (t) {
-      case PostType.LOST:     return '🚨';
-      case PostType.FOUND:    return '👀';
-      case PostType.ADOPTION: return '🏠';
+      case PostType.LOST:
+        return '🚨';
+      case PostType.FOUND:
+        return '👀';
+      case PostType.ADOPTION:
+        return '🏠';
     }
   }
 
   Color _typeColor(PostType t) {
     switch (t) {
-      case PostType.LOST:     return Colors.red;
-      case PostType.FOUND:    return Colors.orange;
-      case PostType.ADOPTION: return const Color(0xFF7C4DFF);
+      case PostType.LOST:
+        return Colors.red;
+      case PostType.FOUND:
+        return Colors.orange;
+      case PostType.ADOPTION:
+        return const Color(0xFF7C4DFF);
     }
   }
 }
@@ -190,13 +203,18 @@ class _PostCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 if (isResolved)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey[200],
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text('해결완료',
-                        style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    child: const Text(
+                      '해결완료',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                   ),
                 const Spacer(),
                 Text(
@@ -231,7 +249,10 @@ class _PostCard extends StatelessWidget {
                     _InfoChip(icon: Icons.pets, text: post.dogName!),
                   if (post.lastSeenArea != null) ...[
                     const SizedBox(width: 6),
-                    _InfoChip(icon: Icons.location_on_outlined, text: post.lastSeenArea!),
+                    _InfoChip(
+                      icon: Icons.location_on_outlined,
+                      text: post.lastSeenArea!,
+                    ),
                   ],
                 ],
               ),
@@ -241,15 +262,22 @@ class _PostCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 10,
-                  backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                  backgroundColor: const Color(
+                    0xFF4CAF50,
+                  ).withValues(alpha: 0.2),
                   child: Text(
                     post.nickname.isNotEmpty ? post.nickname[0] : '?',
-                    style: const TextStyle(fontSize: 10, color: Color(0xFF4CAF50)),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF4CAF50),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),
-                Text(post.nickname,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(
+                  post.nickname,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
               ],
             ),
           ],
@@ -276,9 +304,15 @@ class _TypeBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color color;
     switch (type) {
-      case PostType.LOST:     color = Colors.red; break;
-      case PostType.FOUND:    color = Colors.orange; break;
-      case PostType.ADOPTION: color = const Color(0xFF7C4DFF); break;
+      case PostType.LOST:
+        color = Colors.red;
+        break;
+      case PostType.FOUND:
+        color = Colors.orange;
+        break;
+      case PostType.ADOPTION:
+        color = const Color(0xFF7C4DFF);
+        break;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -289,7 +323,11 @@ class _TypeBadge extends StatelessWidget {
       ),
       child: Text(
         type.label,
-        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -361,8 +399,11 @@ class _PromoBanner extends StatelessWidget {
   Future<void> _open(String query) async {
     final encoded = Uri.encodeComponent(query);
     final uri = Uri.parse(
-        'https://search.shopping.naver.com/search/all?query=$encoded');
-    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+      'https://search.shopping.naver.com/search/all?query=$encoded',
+    );
+    if (await canLaunchUrl(uri)) {
+      launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
@@ -374,8 +415,10 @@ class _PromoBanner extends StatelessWidget {
           padding: EdgeInsets.only(bottom: 8, top: 4),
           child: Row(
             children: [
-              Text('추천 쇼핑',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(
+                '추천 쇼핑',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
               SizedBox(width: 6),
               Text('AD', style: TextStyle(fontSize: 10, color: Colors.grey)),
             ],
@@ -386,7 +429,7 @@ class _PromoBanner extends StatelessWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _banners.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            separatorBuilder: (_, index) => const SizedBox(width: 10),
             itemBuilder: (_, i) {
               final b = _banners[i];
               return GestureDetector(
@@ -407,22 +450,32 @@ class _PromoBanner extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(b.title,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14)),
+                            Text(
+                              b.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
                             const SizedBox(height: 4),
-                            Text(b.subtitle,
-                                style: const TextStyle(
-                                    color: Colors.white70, fontSize: 11),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis),
+                            Text(
+                              b.subtitle,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right,
-                          color: Colors.white54, size: 18),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white54,
+                        size: 18,
+                      ),
                     ],
                   ),
                 ),
