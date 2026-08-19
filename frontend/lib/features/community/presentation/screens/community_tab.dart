@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../data/models/community_post_model.dart';
 import '../../domain/providers/community_provider.dart';
@@ -23,7 +24,10 @@ class CommunityTab extends ConsumerWidget {
             Expanded(
               child: postsAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('불러오기 실패: $e')),
+                error: (e, _) => _CommunityErrorView(
+                  error: e,
+                  onRetry: () => ref.invalidate(communityPostsProvider),
+                ),
                 data: (posts) => ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
                   itemCount: posts.isEmpty ? 2 : posts.length + 1,
@@ -57,6 +61,62 @@ class CommunityTab extends ConsumerWidget {
         child: const Icon(Icons.edit, color: Colors.white),
       ),
     );
+  }
+}
+
+class _CommunityErrorView extends StatelessWidget {
+  final Object error;
+  final VoidCallback onRetry;
+
+  const _CommunityErrorView({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final message = _messageFor(error);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: Color(0xFF9E9E9E), size: 36),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF616161),
+                fontSize: 15,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton(onPressed: onRetry, child: const Text('다시 시도')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _messageFor(Object error) {
+    if (error is DioException) {
+      final statusCode = error.response?.statusCode;
+      if (statusCode == 401) {
+        return '로그인이 필요합니다.\n다시 로그인한 뒤 이용해 주세요.';
+      }
+      if (statusCode != null && statusCode >= 500) {
+        return '서버에서 문제가 발생했습니다.\n잠시 후 다시 시도해 주세요.';
+      }
+      if (error.type == DioExceptionType.connectionError ||
+          error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.sendTimeout) {
+        return '서버에 연결하지 못했습니다.\n네트워크 상태를 확인해 주세요.';
+      }
+    }
+
+    return '커뮤니티를 불러오지 못했습니다.\n잠시 후 다시 시도해 주세요.';
   }
 }
 
