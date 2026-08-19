@@ -66,6 +66,20 @@ class MarkingSpotServiceTest {
         assertThat(candidates).isEmpty();
     }
 
+    @Test
+    void detectsUpToFifteenCandidatesOnFiveKilometerRoute() {
+        MarkingSpotService service = service();
+        given(spotRepository.findAllByGridKeyIn(anyCollection())).willReturn(List.of());
+        LocalDateTime base = LocalDateTime.now();
+        List<WalkPointRequest> points = fiveKilometerRouteWithStops(base, 15);
+
+        List<MarkingSpotCandidateResponse> candidates = service.detectCandidates(points);
+
+        assertThat(candidates).hasSize(15);
+        assertThat(candidates).allSatisfy(candidate ->
+                assertThat(candidate.dwellSeconds()).isGreaterThanOrEqualTo(12));
+    }
+
     private MarkingSpotService service() {
         return new MarkingSpotService(
                 spotRepository,
@@ -78,5 +92,33 @@ class MarkingSpotServiceTest {
 
     private WalkPointRequest point(LocalDateTime recordedAt, double lat, double lng) {
         return new WalkPointRequest(recordedAt, lat, lng, null);
+    }
+
+    private List<WalkPointRequest> fiveKilometerRouteWithStops(LocalDateTime base, int stopCount) {
+        List<WalkPointRequest> points = new java.util.ArrayList<>();
+        double startLat = 37.218000;
+        double lng = 126.944000;
+        double latStep = 0.0030; // 약 333m, 15구간이면 약 5km
+        LocalDateTime t = base;
+
+        points.add(point(t, startLat, lng));
+        for (int i = 1; i <= stopCount; i++) {
+            double lat = startLat + latStep * i;
+            double approachLat = lat - 0.00020;
+            double exitLat = lat + 0.00020;
+
+            t = t.plusSeconds(30);
+            points.add(point(t, approachLat, lng));
+            t = t.plusSeconds(5);
+            points.add(point(t, lat, lng));
+            t = t.plusSeconds(8);
+            points.add(point(t, lat + 0.00001, lng + 0.00001));
+            t = t.plusSeconds(8);
+            points.add(point(t, lat - 0.00001, lng - 0.00001));
+            t = t.plusSeconds(5);
+            points.add(point(t, exitLat, lng));
+        }
+        points.add(point(t.plusSeconds(30), startLat + latStep * (stopCount + 1), lng));
+        return points;
     }
 }

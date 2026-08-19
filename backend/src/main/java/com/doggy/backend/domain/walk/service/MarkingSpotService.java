@@ -31,7 +31,7 @@ public class MarkingSpotService {
     private static final int MIN_DWELL_SECONDS = 12;
     private static final int MIN_MOVE_BEFORE_METERS = 8;
     private static final int MIN_MOVE_AFTER_METERS = 8;
-    private static final int MAX_CANDIDATES = 5;
+    private static final int MAX_CANDIDATES = 15;
     private static final int MAX_VISIT_DOGS = 5;
 
     private final MarkingSpotRepository spotRepository;

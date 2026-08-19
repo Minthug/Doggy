@@ -203,15 +203,22 @@ class _DetailBody extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 if (detail.markingSpots.isNotEmpty) ...[
-                  const Text(
-                    '발자국 스팟',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  Text(
+                    '마킹 스팟 ${detail.markingSpots.length}곳',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Column(
-                    children: detail.markingSpots
-                        .map((spot) => _MarkingSpotCard(spot: spot))
-                        .toList(),
+                    children: [
+                      for (int i = 0; i < detail.markingSpots.length; i++)
+                        _MarkingSpotCard(
+                          spot: detail.markingSpots[i],
+                          index: i + 1,
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 24),
                 ],
@@ -264,6 +271,10 @@ class _RouteMap extends StatefulWidget {
 }
 
 class _RouteMapState extends State<_RouteMap> {
+  static const _markingSpotIcon = NOverlayImage.fromAssetImage(
+    'assets/markers/marking_spot_paw.png',
+  );
+
   NaverMapController? _controller;
 
   @override
@@ -274,16 +285,38 @@ class _RouteMapState extends State<_RouteMap> {
 
   @override
   Widget build(BuildContext context) {
-    return NaverMap(
-      options: const NaverMapViewOptions(
-        scrollGesturesEnable: false,
-        zoomGesturesEnable: true,
-      ),
-      onMapReady: (controller) {
-        _controller = controller;
-        _drawRoute();
-      },
+    return Stack(
+      children: [
+        NaverMap(
+          options: const NaverMapViewOptions(
+            scrollGesturesEnable: true,
+            zoomGesturesEnable: true,
+            rotationGesturesEnable: false,
+            tiltGesturesEnable: false,
+          ),
+          onMapReady: (controller) {
+            _controller = controller;
+            _drawRoute();
+          },
+        ),
+        Positioned(
+          right: 12,
+          bottom: 16,
+          child: _MapZoomControls(
+            onZoomIn: () => _zoomBy(1),
+            onZoomOut: () => _zoomBy(-1),
+          ),
+        ),
+      ],
     );
+  }
+
+  Future<void> _zoomBy(double delta) async {
+    final controller = _controller;
+    if (controller == null) return;
+    final update = NCameraUpdate.zoomBy(delta)
+      ..setAnimation(duration: const Duration(milliseconds: 180));
+    await controller.updateCamera(update);
   }
 
   Future<void> _drawRoute() async {
@@ -337,14 +370,19 @@ class _RouteMapState extends State<_RouteMap> {
         );
       }
 
-      for (final spot in widget.markingSpots) {
+      for (int i = 0; i < widget.markingSpots.length; i++) {
+        final spot = widget.markingSpots[i];
         final position = NLatLng(spot.lat, spot.lng);
         boundsCoords.add(position);
         _controller!.addOverlay(
           NMarker(
             id: 'marking-${spot.id}',
             position: position,
-            caption: NOverlayCaption(text: '발자국 ${spot.visitCount}'),
+            icon: _markingSpotIcon,
+            size: const Size(34, 40),
+            anchor: const NPoint(0.5, 1),
+            isForceShowIcon: true,
+            isHideCollidedMarkers: false,
           ),
         );
       }
@@ -386,46 +424,332 @@ class _RouteMapState extends State<_RouteMap> {
   }
 }
 
-class _MarkingSpotCard extends StatelessWidget {
-  final MarkingSpot spot;
+class _MapZoomControls extends StatelessWidget {
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
 
-  const _MarkingSpotCard({required this.spot});
+  const _MapZoomControls({required this.onZoomIn, required this.onZoomOut});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 8),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ZoomButton(icon: Icons.add, onPressed: onZoomIn),
+          Container(width: 28, height: 1, color: const Color(0xFFE0E0E0)),
+          _ZoomButton(icon: Icons.remove, onPressed: onZoomOut),
+        ],
+      ),
+    );
+  }
+}
+
+class _ZoomButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _ZoomButton({required this.icon, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, size: 22),
+        color: const Color(0xFF2E7D32),
+        onPressed: onPressed,
+      ),
+    );
+  }
+}
+
+class _MarkingSpotCard extends ConsumerWidget {
+  final MarkingSpot spot;
+  final int index;
+
+  const _MarkingSpotCard({required this.spot, required this.index});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _showMarkingSpotDetail(context, ref),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.pets, color: Color(0xFF4CAF50)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$index번째 마킹 스팟',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '이곳을 지난 강아지 ${spot.visitCount}마리 보기',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.grey),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMarkingSpotDetail(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: FutureBuilder<MarkingSpotDetail>(
+            future: ref
+                .read(walkRepositoryProvider)
+                .getMarkingSpotDetail(spot.id),
+            builder: (context, snapshot) {
+              final detail = snapshot.data;
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0E0E0),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF4CAF50,
+                            ).withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.pets,
+                            color: Color(0xFF4CAF50),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '$index번째 마킹 스팟',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                detail == null
+                                    ? '방문한 강아지 정보를 불러오는 중'
+                                    : '총 ${detail.visitCount}마리의 발자국',
+                                style: const TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    if (snapshot.connectionState != ConnectionState.done)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 28),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (snapshot.hasError)
+                      const _MarkingSpotDetailMessage(
+                        icon: Icons.error_outline,
+                        text: '마킹 스팟 정보를 불러오지 못했습니다',
+                      )
+                    else if (detail == null || detail.visits.isEmpty)
+                      const _MarkingSpotDetailMessage(
+                        icon: Icons.pets,
+                        text: '아직 이곳을 지난 강아지 정보가 없어요',
+                      )
+                    else ...[
+                      const Text(
+                        '이곳을 지난 강아지',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: detail.visits.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (context, i) {
+                            return _MarkingSpotVisitTile(
+                              visit: detail.visits[i],
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MarkingSpotDetailMessage extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _MarkingSpotDetailMessage({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        child: Column(
+          children: [
+            Icon(icon, color: const Color(0xFF4CAF50), size: 28),
+            const SizedBox(height: 8),
+            Text(text, style: const TextStyle(color: Colors.black54)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MarkingSpotVisitTile extends StatelessWidget {
+  final MarkingSpotVisit visit;
+
+  const _MarkingSpotVisitTile({required this.visit});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
-        ],
+        color: const Color(0xFFF7F7F7),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50).withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.pets, color: Color(0xFF4CAF50)),
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: const Color(0xFFE8F5E9),
+            backgroundImage: visit.dog.profileImage != null
+                ? NetworkImage(visit.dog.profileImage!)
+                : null,
+            child: visit.dog.profileImage == null
+                ? const Icon(Icons.pets, color: Color(0xFF4CAF50), size: 20)
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              '${spot.visitCount}개의 발자국이 남겨진 곳',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  visit.dog.name,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (visit.dog.breed != null && visit.dog.breed!.isNotEmpty)
+                      visit.dog.breed!,
+                    if (visit.visitedAt != null)
+                      _formatVisitTime(visit.visitedAt!),
+                  ].join(' · '),
+                  style: const TextStyle(color: Colors.black54, fontSize: 12),
+                ),
+              ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: Colors.grey),
         ],
       ),
     );
+  }
+}
+
+String _formatVisitTime(String value) {
+  try {
+    final dt = DateTime.parse(value);
+    return '${dt.month}.${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} 방문';
+  } catch (_) {
+    return '최근 방문';
   }
 }
 

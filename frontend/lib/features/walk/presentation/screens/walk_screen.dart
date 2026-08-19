@@ -558,7 +558,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
-                        '발자국 후보',
+                        '마킹 스팟 후보',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -667,7 +667,7 @@ class _MarkingCandidateTile extends StatelessWidget {
                 Text(
                   nearbyVisitCount > 0
                       ? '근처에 $nearbyVisitCount개의 발자국이 있어요'
-                      : '새로운 발자국 스팟이에요',
+                      : '새로운 마킹 스팟이에요',
                   style: const TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ],

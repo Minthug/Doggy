@@ -82,6 +82,11 @@ class WalkRepository {
     return WalkDetail.fromJson(response.data);
   }
 
+  Future<MarkingSpotDetail> getMarkingSpotDetail(int spotId) async {
+    final response = await _dio.get('/api/walks/marking-spots/$spotId');
+    return MarkingSpotDetail.fromJson(response.data);
+  }
+
   Future<void> publish(int sessionId, String title) async {
     await _dio.patch(
       '/api/walks/$sessionId/publish',

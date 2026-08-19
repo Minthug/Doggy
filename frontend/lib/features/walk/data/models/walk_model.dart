@@ -195,6 +195,78 @@ class MarkingSpot {
   }
 }
 
+class MarkingSpotDetail {
+  final int id;
+  final double lat;
+  final double lng;
+  final int visitCount;
+  final String? lastVisitedAt;
+  final List<MarkingSpotVisit> visits;
+
+  const MarkingSpotDetail({
+    required this.id,
+    required this.lat,
+    required this.lng,
+    required this.visitCount,
+    this.lastVisitedAt,
+    this.visits = const [],
+  });
+
+  factory MarkingSpotDetail.fromJson(Map<String, dynamic> json) {
+    return MarkingSpotDetail(
+      id: json['id'],
+      lat: (json['lat'] as num).toDouble(),
+      lng: (json['lng'] as num).toDouble(),
+      visitCount: json['visitCount'] ?? 0,
+      lastVisitedAt: json['lastVisitedAt'],
+      visits:
+          (json['visits'] as List<dynamic>?)
+              ?.map((e) => MarkingSpotVisit.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
+}
+
+class MarkingSpotVisit {
+  final int id;
+  final String? visitedAt;
+  final MarkingSpotVisitDog dog;
+
+  const MarkingSpotVisit({required this.id, this.visitedAt, required this.dog});
+
+  factory MarkingSpotVisit.fromJson(Map<String, dynamic> json) {
+    return MarkingSpotVisit(
+      id: json['id'],
+      visitedAt: json['visitedAt'],
+      dog: MarkingSpotVisitDog.fromJson(json['dog'] as Map<String, dynamic>),
+    );
+  }
+}
+
+class MarkingSpotVisitDog {
+  final int id;
+  final String name;
+  final String? breed;
+  final String? profileImage;
+
+  const MarkingSpotVisitDog({
+    required this.id,
+    required this.name,
+    this.breed,
+    this.profileImage,
+  });
+
+  factory MarkingSpotVisitDog.fromJson(Map<String, dynamic> json) {
+    return MarkingSpotVisitDog(
+      id: json['id'],
+      name: json['name'] ?? '이름 없는 강아지',
+      breed: json['breed'],
+      profileImage: json['profileImage'],
+    );
+  }
+}
+
 class PublicRoute {
   final int sessionId;
   final String title;

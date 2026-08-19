@@ -16,6 +16,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     'AUTOFILL_TEST_LOGIN',
     defaultValue: false,
   );
+  static const _autofillTestEmail = String.fromEnvironment(
+    'AUTOFILL_TEST_EMAIL',
+    defaultValue: 'test@test.com',
+  );
+  static const _autofillTestPassword = String.fromEnvironment(
+    'AUTOFILL_TEST_PASSWORD',
+    defaultValue: 'password123',
+  );
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -25,8 +33,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void initState() {
     super.initState();
     if (_autofillTestLogin) {
-      _emailController.text = 'test@test.com';
-      _passwordController.text = 'password123';
+      _emailController.text = _autofillTestEmail;
+      _passwordController.text = _autofillTestPassword;
     }
   }
 
