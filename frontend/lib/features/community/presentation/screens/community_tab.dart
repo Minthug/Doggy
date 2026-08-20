@@ -177,6 +177,10 @@ class _Header extends ConsumerWidget {
         return '👀';
       case PostType.ADOPTION:
         return '🏠';
+      case PostType.FOOD_REVIEW:
+        return '🍖';
+      case PostType.SUPPLY_REVIEW:
+        return '🧸';
     }
   }
 
@@ -188,6 +192,10 @@ class _Header extends ConsumerWidget {
         return Colors.orange;
       case PostType.ADOPTION:
         return const Color(0xFF7C4DFF);
+      case PostType.FOOD_REVIEW:
+        return const Color(0xFF2E7D32);
+      case PostType.SUPPLY_REVIEW:
+        return const Color(0xFF1565C0);
     }
   }
 }
@@ -301,6 +309,10 @@ class _PostCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
+            if (post.type.isReview) ...[
+              const SizedBox(height: 10),
+              _ReviewPreview(post: post),
+            ],
             if (post.dogName != null || post.lastSeenArea != null) ...[
               const SizedBox(height: 8),
               Row(
@@ -356,6 +368,66 @@ class _PostCard extends StatelessWidget {
   }
 }
 
+class _ReviewPreview extends StatelessWidget {
+  final CommunityPost post;
+  const _ReviewPreview({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final rating = post.ratingPercent ?? 0;
+    final color = _ratingColor(rating);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '$rating%',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  post.productName ?? '제품명 없음',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                if (post.reviewSummary != null)
+                  Text(
+                    post.reviewSummary!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _ratingColor(int rating) {
+    if (rating >= 70) return const Color(0xFF2E7D32);
+    if (rating >= 45) return const Color(0xFFFF9800);
+    return const Color(0xFFD32F2F);
+  }
+}
+
 class _TypeBadge extends StatelessWidget {
   final PostType type;
   const _TypeBadge({required this.type});
@@ -372,6 +444,12 @@ class _TypeBadge extends StatelessWidget {
         break;
       case PostType.ADOPTION:
         color = const Color(0xFF7C4DFF);
+        break;
+      case PostType.FOOD_REVIEW:
+        color = const Color(0xFF2E7D32);
+        break;
+      case PostType.SUPPLY_REVIEW:
+        color = const Color(0xFF1565C0);
         break;
     }
     return Container(

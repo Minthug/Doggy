@@ -18,5 +18,10 @@ public record CreatePostRequest(
         Double lat,
         Double lng,
         String contactInfo,
+        @Size(max = 100) String productName,
+        Integer ratingPercent,
+        @Size(max = 120) String reviewSummary,
+        @Size(max = 300) String pros,
+        @Size(max = 300) String cons,
         Long relatedPostId
 ) {}

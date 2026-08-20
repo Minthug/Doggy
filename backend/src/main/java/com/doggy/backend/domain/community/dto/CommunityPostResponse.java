@@ -21,6 +21,11 @@ public record CommunityPostResponse(
         Double lat,
         Double lng,
         String contactInfo,
+        String productName,
+        Integer ratingPercent,
+        String reviewSummary,
+        String pros,
+        String cons,
         PostStatus status,
         Long relatedPostId,
         LocalDateTime createdAt
@@ -41,6 +46,11 @@ public record CommunityPostResponse(
                 post.getLat(),
                 post.getLng(),
                 post.getContactInfo(),
+                post.getProductName(),
+                post.getRatingPercent(),
+                post.getReviewSummary(),
+                post.getPros(),
+                post.getCons(),
                 post.getStatus(),
                 post.getRelatedPostId(),
                 post.getCreatedAt()

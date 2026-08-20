@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 const apiBaseUrl = String.fromEnvironment(
   'BASE_URL',
-  defaultValue: 'https://223.130.158.221.nip.io:8080',
+  defaultValue: 'https://223.130.158.221.nip.io',
 );
 
 const _allowInsecureHttp = bool.fromEnvironment(

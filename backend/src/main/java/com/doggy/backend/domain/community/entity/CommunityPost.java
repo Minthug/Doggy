@@ -52,6 +52,20 @@ public class CommunityPost extends BaseEntity {
     @Column(length = 100)
     private String contactInfo;
 
+    @Column(length = 100)
+    private String productName;
+
+    private Integer ratingPercent;
+
+    @Column(length = 120)
+    private String reviewSummary;
+
+    @Column(length = 300)
+    private String pros;
+
+    @Column(length = 300)
+    private String cons;
+
     // 목격 제보가 연결된 실종 게시글 ID (FOUND 게시글에서 사용)
     private Long relatedPostId;
 
@@ -63,7 +77,9 @@ public class CommunityPost extends BaseEntity {
     public CommunityPost(User user, PostType type, String title, String content,
                          String dogName, String breed, String lastSeenArea,
                          LocalDateTime lastSeenAt, Double lat, Double lng,
-                         String contactInfo, Long relatedPostId) {
+                         String contactInfo, String productName, Integer ratingPercent,
+                         String reviewSummary, String pros, String cons,
+                         Long relatedPostId) {
         this.user = user;
         this.type = type;
         this.title = title;
@@ -75,6 +91,11 @@ public class CommunityPost extends BaseEntity {
         this.lat = lat;
         this.lng = lng;
         this.contactInfo = contactInfo;
+        this.productName = productName;
+        this.ratingPercent = ratingPercent;
+        this.reviewSummary = reviewSummary;
+        this.pros = pros;
+        this.cons = cons;
         this.relatedPostId = relatedPostId;
     }
 
@@ -83,7 +104,7 @@ public class CommunityPost extends BaseEntity {
     }
 
     public enum PostType {
-        LOST, FOUND, ADOPTION
+        LOST, FOUND, ADOPTION, FOOD_REVIEW, SUPPLY_REVIEW
     }
 
     public enum PostStatus {

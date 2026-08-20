@@ -33,7 +33,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       if (post.type == PostType.LOST) {
         sightings = await repo.getSightings(widget.postId);
       }
-      if (mounted) setState(() { _post = post; _sightings = sightings; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _post = post;
+          _sightings = sightings;
+          _loading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -41,7 +47,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
   Future<void> _resolve() async {
     try {
-      final post = await ref.read(communityRepositoryProvider).resolve(widget.postId);
+      final post = await ref
+          .read(communityRepositoryProvider)
+          .resolve(widget.postId);
       if (mounted) setState(() => _post = post);
     } catch (e) {
       if (mounted) {
@@ -59,7 +67,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         title: const Text('게시글 삭제'),
         content: const Text('삭제하면 복구할 수 없습니다.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -115,8 +126,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   color: Colors.grey[200],
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text('해결완료',
-                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                child: const Text(
+                  '해결완료',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
               ),
             ],
           ],
@@ -144,61 +157,95 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(post.title,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(
+              post.title,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
                 CircleAvatar(
                   radius: 12,
-                  backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                  backgroundColor: const Color(
+                    0xFF4CAF50,
+                  ).withValues(alpha: 0.2),
                   child: Text(
                     post.nickname.isNotEmpty ? post.nickname[0] : '?',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF4CAF50)),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF4CAF50),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(post.nickname,
-                    style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+                Text(
+                  post.nickname,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
                 const SizedBox(width: 8),
-                Text(_timeAgo(post.createdAt),
-                    style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                Text(
+                  _timeAgo(post.createdAt),
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
               ],
             ),
             const SizedBox(height: 20),
+            if (post.type.isReview) ...[
+              _ReviewScorePanel(post: post),
+              const SizedBox(height: 20),
+            ],
             const Divider(),
             const SizedBox(height: 16),
-            Text(post.content, style: const TextStyle(fontSize: 15, height: 1.6)),
-            if (post.type == PostType.LOST || post.type == PostType.FOUND || post.type == PostType.ADOPTION) ...[
+            Text(
+              post.content,
+              style: const TextStyle(fontSize: 15, height: 1.6),
+            ),
+            if (post.type.isReview) ...[
+              const SizedBox(height: 20),
+              _ReviewNotes(post: post),
+            ],
+            if (post.type == PostType.LOST ||
+                post.type == PostType.FOUND ||
+                post.type == PostType.ADOPTION) ...[
               const SizedBox(height: 24),
               const Divider(),
               const SizedBox(height: 16),
-              const Text('상세 정보',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const Text(
+                '상세 정보',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
               const SizedBox(height: 12),
               _InfoRow(
-                  icon: Icons.pets,
-                  label: '이름',
-                  value: post.dogName ?? '-'),
+                icon: Icons.pets,
+                label: '이름',
+                value: post.dogName ?? '-',
+              ),
               _InfoRow(
-                  icon: Icons.info_outline,
-                  label: '견종',
-                  value: post.breed ?? '-'),
+                icon: Icons.info_outline,
+                label: '견종',
+                value: post.breed ?? '-',
+              ),
               if (post.type != PostType.ADOPTION)
                 _InfoRow(
-                    icon: Icons.access_time,
-                    label: '시간',
-                    value: post.lastSeenAt != null
-                        ? _formatDateTime(post.lastSeenAt!)
-                        : '-'),
+                  icon: Icons.access_time,
+                  label: '시간',
+                  value: post.lastSeenAt != null
+                      ? _formatDateTime(post.lastSeenAt!)
+                      : '-',
+                ),
               _InfoRow(
-                  icon: Icons.location_on_outlined,
-                  label: post.type == PostType.ADOPTION ? '지역' : '장소',
-                  value: post.lastSeenArea ?? '-'),
+                icon: Icons.location_on_outlined,
+                label: post.type == PostType.ADOPTION ? '지역' : '장소',
+                value: post.lastSeenArea ?? '-',
+              ),
               _InfoRow(
-                  icon: Icons.phone_outlined,
-                  label: '연락처',
-                  value: post.contactInfo ?? '-'),
+                icon: Icons.phone_outlined,
+                label: '연락처',
+                value: post.contactInfo ?? '-',
+              ),
             ],
             // 목격 제보 목록 (실종 게시글에만)
             if (post.type == PostType.LOST) ...[
@@ -209,7 +256,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 children: [
                   Text(
                     '목격 제보 ${_sightings.length}건',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
                   ),
                   const Spacer(),
                   TextButton.icon(
@@ -225,8 +275,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       foregroundColor: Colors.orange,
                       backgroundColor: Colors.orange.withValues(alpha: 0.1),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
                     ),
                   ),
                 ],
@@ -244,27 +298,34 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     children: [
                       Text('👀', style: TextStyle(fontSize: 28)),
                       SizedBox(height: 6),
-                      Text('아직 목격 제보가 없어요',
-                          style: TextStyle(color: Colors.grey, fontSize: 13)),
+                      Text(
+                        '아직 목격 제보가 없어요',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
                     ],
                   ),
                 )
               else
-                ..._sightings.map((s) => _SightingCard(
-                      sighting: s,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => PostDetailScreen(postId: s.id)),
-                      ).then((_) => _load()),
-                    )),
+                ..._sightings.map(
+                  (s) => _SightingCard(
+                    sighting: s,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PostDetailScreen(postId: s.id),
+                      ),
+                    ).then((_) => _load()),
+                  ),
+                ),
             ],
 
             // 지도 (lat/lng 있을 때만)
             if (post.lat != null && post.lng != null) ...[
               const SizedBox(height: 20),
-              const Text('마지막 목격 위치',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const Text(
+                '마지막 목격 위치',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
               const SizedBox(height: 10),
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
@@ -283,10 +344,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       locationButtonEnable: false,
                     ),
                     onMapReady: (ctrl) {
-                      ctrl.addOverlay(NMarker(
-                        id: 'location',
-                        position: NLatLng(post.lat!, post.lng!),
-                      ));
+                      ctrl.addOverlay(
+                        NMarker(
+                          id: 'location',
+                          position: NLatLng(post.lat!, post.lng!),
+                        ),
+                      );
                     },
                   ),
                 ),
@@ -341,32 +404,50 @@ class _SightingCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(sighting.nickname,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text(
+                        sighting.nickname,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
                       const Spacer(),
                       if (sighting.lastSeenAt != null)
                         Text(
                           _fmt(sighting.lastSeenAt!),
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
                         ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(sighting.content,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                  Text(
+                    sighting.content,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                  ),
                   if (sighting.lastSeenArea != null) ...[
                     const SizedBox(height: 4),
-                    Row(children: [
-                      const Icon(Icons.location_on_outlined,
-                          size: 12, color: Colors.grey),
-                      const SizedBox(width: 2),
-                      Text(sighting.lastSeenArea!,
-                          style:
-                              const TextStyle(fontSize: 11, color: Colors.grey)),
-                    ]),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 12,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          sighting.lastSeenArea!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ],
               ),
@@ -382,6 +463,156 @@ class _SightingCard extends StatelessWidget {
       '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
+class _ReviewScorePanel extends StatelessWidget {
+  final CommunityPost post;
+  const _ReviewScorePanel({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final rating = post.ratingPercent ?? 0;
+    final color = _ratingColor(rating);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: color, width: 4),
+            ),
+            child: Center(
+              child: Text(
+                '$rating%',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 26,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  post.productName ?? '제품명 없음',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  post.reviewSummary ?? '한줄평 없음',
+                  style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: rating / 100,
+                    minHeight: 9,
+                    backgroundColor: Colors.white,
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _ratingColor(int rating) {
+    if (rating >= 70) return const Color(0xFF2E7D32);
+    if (rating >= 45) return const Color(0xFFFF9800);
+    return const Color(0xFFD32F2F);
+  }
+}
+
+class _ReviewNotes extends StatelessWidget {
+  final CommunityPost post;
+  const _ReviewNotes({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _NoteBox(
+            title: '좋았던 점',
+            value: post.pros,
+            color: const Color(0xFF2E7D32),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _NoteBox(
+            title: '아쉬운 점',
+            value: post.cons,
+            color: const Color(0xFFFF9800),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NoteBox extends StatelessWidget {
+  final String title;
+  final String? value;
+  final Color color;
+
+  const _NoteBox({
+    required this.title,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value == null || value!.trim().isEmpty ? '-' : value!,
+            style: const TextStyle(fontSize: 13, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TypeBadge extends StatelessWidget {
   final PostType type;
   const _TypeBadge({required this.type});
@@ -390,9 +621,21 @@ class _TypeBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color color;
     switch (type) {
-      case PostType.LOST:     color = Colors.red; break;
-      case PostType.FOUND:    color = Colors.orange; break;
-      case PostType.ADOPTION: color = const Color(0xFF7C4DFF); break;
+      case PostType.LOST:
+        color = Colors.red;
+        break;
+      case PostType.FOUND:
+        color = Colors.orange;
+        break;
+      case PostType.ADOPTION:
+        color = const Color(0xFF7C4DFF);
+        break;
+      case PostType.FOOD_REVIEW:
+        color = const Color(0xFF2E7D32);
+        break;
+      case PostType.SUPPLY_REVIEW:
+        color = const Color(0xFF1565C0);
+        break;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -400,8 +643,14 @@ class _TypeBadge extends StatelessWidget {
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(type.label,
-          style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold)),
+      child: Text(
+        type.label,
+        style: TextStyle(
+          fontSize: 12,
+          color: color,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
@@ -410,7 +659,11 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -420,10 +673,15 @@ class _InfoRow extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: Colors.grey),
           const SizedBox(width: 8),
-          Text('$label  ', style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          Text(
+            '$label  ',
+            style: const TextStyle(color: Colors.grey, fontSize: 14),
+          ),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),

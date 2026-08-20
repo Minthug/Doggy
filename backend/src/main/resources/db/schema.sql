@@ -131,7 +131,7 @@ CREATE TABLE walk_route_tags (
 CREATE TABLE community_posts (
     id             BIGSERIAL PRIMARY KEY,
     user_id        BIGINT       NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    type           VARCHAR(20)  NOT NULL, -- LOST / FOUND / GENERAL
+    type           VARCHAR(20)  NOT NULL, -- LOST / FOUND / ADOPTION / FOOD_REVIEW / SUPPLY_REVIEW
     title          VARCHAR(100) NOT NULL,
     content        TEXT         NOT NULL,
     dog_name       VARCHAR(50),
@@ -141,10 +141,19 @@ CREATE TABLE community_posts (
     lat            DOUBLE PRECISION,
     lng            DOUBLE PRECISION,
     contact_info    VARCHAR(100),
+    product_name    VARCHAR(100),
+    rating_percent  INTEGER,
+    review_summary  VARCHAR(120),
+    pros            VARCHAR(300),
+    cons            VARCHAR(300),
     related_post_id BIGINT REFERENCES community_posts (id) ON DELETE SET NULL,
     status          VARCHAR(20)  NOT NULL DEFAULT 'OPEN', -- OPEN / RESOLVED
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT community_posts_type_check
+        CHECK (type IN ('LOST', 'FOUND', 'ADOPTION', 'FOOD_REVIEW', 'SUPPLY_REVIEW')),
+    CONSTRAINT chk_community_posts_rating_percent
+        CHECK (rating_percent IS NULL OR (rating_percent >= 0 AND rating_percent <= 100))
 );
 
 CREATE INDEX idx_community_posts_type ON community_posts (type);
