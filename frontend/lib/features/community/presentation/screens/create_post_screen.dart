@@ -484,6 +484,11 @@ class _ReviewForm extends StatelessWidget {
         : ratingPercent >= 45
         ? const Color(0xFFFF9800)
         : const Color(0xFFD32F2F);
+    final verdict = ratingPercent >= 70
+        ? '추천'
+        : ratingPercent >= 45
+        ? '보통'
+        : '비추천';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -503,16 +508,29 @@ class _ReviewForm extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
-                  border: Border.all(color: color.withValues(alpha: 0.35)),
+                  border: Border.all(color: color, width: 3),
                 ),
                 child: Center(
-                  child: Text(
-                    '$ratingPercent%',
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 20,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$ratingPercent%',
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 20,
+                        ),
+                      ),
+                      Text(
+                        verdict,
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -521,12 +539,18 @@ class _ReviewForm extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '추천도',
+                    Text(
+                      '보호자 추천도 $ratingPercent%',
                       style: TextStyle(
+                        color: color,
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '이 제품을 다른 보호자에게 추천할 확률',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                     ),
                     Slider(
                       value: ratingPercent.toDouble(),

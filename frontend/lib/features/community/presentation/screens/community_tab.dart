@@ -376,27 +376,72 @@ class _ReviewPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final rating = post.ratingPercent ?? 0;
     final color = _ratingColor(rating);
+    final verdict = _ratingVerdict(rating);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(
         children: [
-          Text(
-            '$rating%',
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: color, width: 3),
+            ),
+            child: Center(
+              child: Text(
+                '$rating%',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 17,
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  children: [
+                    Text(
+                      '보호자 추천도',
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        verdict,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text(
                   post.productName ?? '제품명 없음',
                   maxLines: 1,
@@ -425,6 +470,12 @@ class _ReviewPreview extends StatelessWidget {
     if (rating >= 70) return const Color(0xFF2E7D32);
     if (rating >= 45) return const Color(0xFFFF9800);
     return const Color(0xFFD32F2F);
+  }
+
+  String _ratingVerdict(int rating) {
+    if (rating >= 70) return '추천';
+    if (rating >= 45) return '보통';
+    return '비추천';
   }
 }
 

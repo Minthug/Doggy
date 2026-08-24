@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,6 +34,8 @@ public class WeatherService {
 
     private static final double DEFAULT_LAT = 37.218392;
     private static final double DEFAULT_LNG = 126.944858;
+    private static final Duration WALK_INDEX_CACHE_TTL = Duration.ofMinutes(5);
+    private static final Duration WALK_FORECAST_CACHE_TTL = Duration.ofMinutes(5);
 
     @Value("${weather.api.key}")
     private String apiKey;
@@ -41,12 +44,15 @@ public class WeatherService {
     private String airStationApiKey;
 
     private final RestTemplate restTemplate = new RestTemplateBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .readTimeout(Duration.ofSeconds(10))
+            .connectTimeout(Duration.ofSeconds(3))
+            .readTimeout(Duration.ofSeconds(5))
             .build();
 
     // 병렬 외부 API 호출용 스레드풀
-    private final ExecutorService executor = Executors.newFixedThreadPool(6);
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
+
+    private final ConcurrentMap<String, CacheEntry<WalkIndexResponse>> walkIndexCache = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, CacheEntry<WalkForecastResponse>> walkForecastCache = new ConcurrentHashMap<>();
 
     // ── 공개 API ────────────────────────────────────────────────
 
@@ -63,6 +69,15 @@ public class WeatherService {
     }
 
     private WalkIndexResponse doGetWalkIndex(double lat, double lng) {
+        return getCached(
+                walkIndexCache,
+                weatherCacheKey("walk-index", lat, lng),
+                WALK_INDEX_CACHE_TTL,
+                () -> fetchWalkIndex(lat, lng)
+        );
+    }
+
+    private WalkIndexResponse fetchWalkIndex(double lat, double lng) {
         int[] grid = KmaGridConverter.toGrid(lat, lng);
 
         CompletableFuture<WeatherData> weatherFuture =
@@ -94,6 +109,15 @@ public class WeatherService {
     }
 
     private WalkForecastResponse doGetWalkForecast(double lat, double lng) {
+        return getCached(
+                walkForecastCache,
+                weatherCacheKey("walk-forecast", lat, lng),
+                WALK_FORECAST_CACHE_TTL,
+                () -> fetchWalkForecast(lat, lng)
+        );
+    }
+
+    private WalkForecastResponse fetchWalkForecast(double lat, double lng) {
         int[] grid = KmaGridConverter.toGrid(lat, lng);
 
         CompletableFuture<AirData> airFuture =
@@ -337,11 +361,38 @@ public class WeatherService {
 
     private <T> T safeGet(CompletableFuture<T> future, T fallback) {
         try {
-            return future.get(12, TimeUnit.SECONDS);
+            return future.get(6, TimeUnit.SECONDS);
         } catch (Exception e) {
             log.warn("병렬 날씨 호출 실패 (fallback 사용): {}", e.getMessage());
             return fallback;
         }
+    }
+
+    private <T> T getCached(
+            ConcurrentMap<String, CacheEntry<T>> cache,
+            String key,
+            Duration ttl,
+            Supplier<T> supplier
+    ) {
+        long now = System.currentTimeMillis();
+        CacheEntry<T> cached = cache.get(key);
+        if (cached != null && cached.isFresh(now)) {
+            return cached.value();
+        }
+
+        synchronized (cache) {
+            cached = cache.get(key);
+            if (cached != null && cached.isFresh(now)) {
+                return cached.value();
+            }
+            T value = supplier.get();
+            cache.put(key, new CacheEntry<>(value, now + ttl.toMillis()));
+            return value;
+        }
+    }
+
+    private String weatherCacheKey(String prefix, double lat, double lng) {
+        return prefix + ":" + Math.round(lat * 100.0) + ":" + Math.round(lng * 100.0);
     }
 
 
@@ -426,4 +477,9 @@ public class WeatherService {
     record WeatherData(int tmp, int pop, int pty) {}
     record AirData(int pm10, int pm25, String pm10Grade, String pm25Grade) {}
     record HourlyForecast(int tmp, int pop, int pty) {}
+    record CacheEntry<T>(T value, long expiresAtMillis) {
+        boolean isFresh(long nowMillis) {
+            return nowMillis < expiresAtMillis;
+        }
+    }
 }

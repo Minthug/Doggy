@@ -471,6 +471,7 @@ class _ReviewScorePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final rating = post.ratingPercent ?? 0;
     final color = _ratingColor(rating);
+    final verdict = _ratingVerdict(rating);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -490,13 +491,26 @@ class _ReviewScorePanel extends StatelessWidget {
               border: Border.all(color: color, width: 4),
             ),
             child: Center(
-              child: Text(
-                '$rating%',
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 26,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$rating%',
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 26,
+                    ),
+                  ),
+                  Text(
+                    verdict,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -505,6 +519,15 @@ class _ReviewScorePanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  '보호자 추천도',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Text(
                   post.productName ?? '제품명 없음',
                   maxLines: 2,
@@ -541,6 +564,12 @@ class _ReviewScorePanel extends StatelessWidget {
     if (rating >= 70) return const Color(0xFF2E7D32);
     if (rating >= 45) return const Color(0xFFFF9800);
     return const Color(0xFFD32F2F);
+  }
+
+  String _ratingVerdict(int rating) {
+    if (rating >= 70) return '추천';
+    if (rating >= 45) return '보통';
+    return '비추천';
   }
 }
 

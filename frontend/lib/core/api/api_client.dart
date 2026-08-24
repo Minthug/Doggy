@@ -12,8 +12,8 @@ final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 20),
       headers: {'Content-Type': 'application/json'},
     ),
   );
@@ -81,7 +81,12 @@ final dioProvider = Provider<Dio>((ref) {
           if (refreshToken != null) {
             try {
               final deviceId = await DeviceIdStorage.getOrCreateDeviceId();
-              final response = await Dio().post(
+              final response = await Dio(
+                BaseOptions(
+                  connectTimeout: const Duration(seconds: 20),
+                  receiveTimeout: const Duration(seconds: 20),
+                ),
+              ).post(
                 '$baseUrl/api/auth/refresh',
                 options: Options(
                   headers: {

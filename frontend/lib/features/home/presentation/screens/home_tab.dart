@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,12 +13,73 @@ import '../../domain/providers/home_provider.dart';
 import '../../../walk/presentation/screens/walk_history_screen.dart';
 import 'main_screen.dart';
 
-class HomeTab extends ConsumerWidget {
+class HomeTab extends ConsumerStatefulWidget {
   const HomeTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends ConsumerState<HomeTab> {
+  Timer? _weatherTimer;
+  Timer? _secondaryTimer;
+  bool _loadWeather = false;
+  bool _loadSecondary = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleDeferredLoads();
+  }
+
+  @override
+  void dispose() {
+    _weatherTimer?.cancel();
+    _secondaryTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleDeferredLoads() {
+    _weatherTimer?.cancel();
+    _secondaryTimer?.cancel();
+    _weatherTimer = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) {
+        setState(() => _loadWeather = true);
+      }
+    });
+    _secondaryTimer = Timer(const Duration(milliseconds: 1100), () {
+      if (mounted) {
+        setState(() => _loadSecondary = true);
+      }
+    });
+  }
+
+  Future<void> _refreshHome() async {
+    _weatherTimer?.cancel();
+    _secondaryTimer?.cancel();
+    setState(() {
+      _loadWeather = false;
+      _loadSecondary = false;
+    });
+
+    ref.invalidate(userProfileProvider);
+    ref.invalidate(myDogsProvider);
+    ref.invalidate(walkHistoryProvider);
+    ref.invalidate(todayWalkStatsProvider);
+    ref.invalidate(todayDogCaloriesProvider);
+    ref.invalidate(walkIndexProvider);
+    ref.invalidate(walkForecastProvider);
+    ref.invalidate(todayMeetsProvider);
+
+    _scheduleDeferredLoads();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final profileAsync = ref.watch(userProfileProvider);
+    final dogCalories = _loadSecondary
+        ? ref.watch(todayDogCaloriesProvider).valueOrNull ?? <int, int>{}
+        : <int, int>{};
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -36,16 +98,7 @@ class HomeTab extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(userProfileProvider);
-          ref.invalidate(myDogsProvider);
-          ref.invalidate(walkHistoryProvider);
-          ref.invalidate(todayWalkStatsProvider);
-          ref.invalidate(todayDogCaloriesProvider);
-          ref.invalidate(walkIndexProvider);
-          ref.invalidate(walkForecastProvider);
-          ref.invalidate(todayMeetsProvider);
-        },
+        onRefresh: _refreshHome,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -62,8 +115,9 @@ class HomeTab extends ConsumerWidget {
               builder: (context, ref, _) {
                 final dogsAsync = ref.watch(myDogsProvider);
                 return dogsAsync.when(
-                  data: (dogs) =>
-                      dogs.isEmpty ? _EmptyDogCard() : _DogListCard(dogs: dogs),
+                  data: (dogs) => dogs.isEmpty
+                      ? _EmptyDogCard()
+                      : _DogListCard(dogs: dogs, caloriesMap: dogCalories),
                   loading: () => _DogCardSkeleton(),
                   error: (e, _) => _EmptyDogCard(),
                 );
@@ -72,16 +126,23 @@ class HomeTab extends ConsumerWidget {
             const SizedBox(height: 16),
 
             // 산책 지수
-            Consumer(
-              builder: (context, ref, _) {
-                final walkIndexAsync = ref.watch(walkIndexProvider);
-                return walkIndexAsync.when(
-                  data: (data) => _WalkIndexCard(data: data),
-                  loading: () => const SizedBox.shrink(),
-                  error: (e, s) => const SizedBox.shrink(),
-                );
-              },
-            ),
+            if (_loadWeather)
+              Consumer(
+                builder: (context, ref, _) {
+                  final walkIndexAsync = ref.watch(walkIndexProvider);
+                  final forecastAsync = _loadSecondary
+                      ? ref.watch(walkForecastProvider)
+                      : null;
+                  return walkIndexAsync.when(
+                    data: (data) => _WalkIndexCard(
+                      data: data,
+                      forecastAsync: forecastAsync,
+                    ),
+                    loading: () => const SizedBox.shrink(),
+                    error: (e, s) => const SizedBox.shrink(),
+                  );
+                },
+              ),
             const SizedBox(height: 16),
 
             // 오늘 산책 통계
@@ -115,16 +176,17 @@ class HomeTab extends ConsumerWidget {
             const SizedBox(height: 16),
 
             // 오늘 만난 강아지들
-            Consumer(
-              builder: (context, ref, _) {
-                final meetsAsync = ref.watch(todayMeetsProvider);
-                return meetsAsync.when(
-                  data: (meets) => _TodayMeetsCard(meets: meets),
-                  loading: () => const SizedBox.shrink(),
-                  error: (error, stackTrace) => const SizedBox.shrink(),
-                );
-              },
-            ),
+            if (_loadSecondary)
+              Consumer(
+                builder: (context, ref, _) {
+                  final meetsAsync = ref.watch(todayMeetsProvider);
+                  return meetsAsync.when(
+                    data: (meets) => _TodayMeetsCard(meets: meets),
+                    loading: () => const SizedBox.shrink(),
+                    error: (error, stackTrace) => const SizedBox.shrink(),
+                  );
+                },
+              ),
             const SizedBox(height: 16),
 
             // 쇼핑 카테고리 숏컷
@@ -228,15 +290,13 @@ class _EmptyDogCard extends StatelessWidget {
 }
 
 // 강아지 목록 — 가로 슬라이더
-class _DogListCard extends ConsumerWidget {
+class _DogListCard extends StatelessWidget {
   final List<Dog> dogs;
-  const _DogListCard({required this.dogs});
+  final Map<int, int> caloriesMap;
+  const _DogListCard({required this.dogs, required this.caloriesMap});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final caloriesAsync = ref.watch(todayDogCaloriesProvider);
-    final caloriesMap = caloriesAsync.valueOrNull ?? {};
-
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -528,12 +588,13 @@ class _WalkActionButtons extends StatelessWidget {
 }
 
 // 산책 지수 카드
-class _WalkIndexCard extends ConsumerWidget {
+class _WalkIndexCard extends StatelessWidget {
   final Map<String, dynamic> data;
-  const _WalkIndexCard({required this.data});
+  final AsyncValue<List<dynamic>>? forecastAsync;
+  const _WalkIndexCard({required this.data, required this.forecastAsync});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final index = data['index'] as String? ?? 'CAUTION';
     final label = data['label'] as String? ?? '산책 주의';
     final emoji = data['emoji'] as String? ?? '🟡';
@@ -548,8 +609,6 @@ class _WalkIndexCard extends ConsumerWidget {
       'AVOID' => const Color(0xFFE53935),
       _ => const Color(0xFFFFA726),
     };
-
-    final forecastAsync = ref.watch(walkForecastProvider);
 
     return _card(
       child: Column(
@@ -605,13 +664,14 @@ class _WalkIndexCard extends ConsumerWidget {
               _WeatherItem(icon: Icons.grain, label: '초미세먼지', value: pm25Grade),
             ],
           ),
-          forecastAsync.when(
-            data: (slots) => slots.isEmpty
-                ? const SizedBox.shrink()
-                : _ForecastTimeline(slots: slots),
-            loading: () => const SizedBox.shrink(),
-            error: (error, stackTrace) => const SizedBox.shrink(),
-          ),
+          if (forecastAsync != null)
+            forecastAsync!.when(
+              data: (slots) => slots.isEmpty
+                  ? const SizedBox.shrink()
+                  : _ForecastTimeline(slots: slots),
+              loading: () => const SizedBox.shrink(),
+              error: (error, stackTrace) => const SizedBox.shrink(),
+            ),
         ],
       ),
     );
