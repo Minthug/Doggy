@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import '../../../dog/data/models/dog_model.dart';
 import '../../../dog/domain/providers/dog_provider.dart';
 import '../../data/models/walk_model.dart';
@@ -20,20 +18,11 @@ class WalkScreen extends ConsumerStatefulWidget {
 }
 
 class _WalkScreenState extends ConsumerState<WalkScreen> {
-  NaverMapController? _mapController;
-  int _lastDrawnPointCount = 0;
-  bool _followCamera = true;
+  bool _isStarting = false;
   final FocusNode _focusNode = FocusNode();
 
   @override
-  void initState() {
-    super.initState();
-    _requestLocationPermission();
-  }
-
-  @override
   void dispose() {
-    _mapController = null;
     _focusNode.dispose();
     super.dispose();
   }
@@ -61,210 +50,160 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     }
   }
 
-  Future<void> _requestLocationPermission() async {
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      await Geolocator.requestPermission();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final walkState = ref.watch(walkActiveProvider);
-
-    // 위치 업데이트 시: 폴리라인은 항상 갱신, 카메라는 팔로우 모드일 때만 이동
-    ref.listen(walkActiveProvider, (prev, next) {
-      if (!mounted || _mapController == null) return;
-      if (next.currentPosition != null) {
-        _updateRoute(next);
-        if (_followCamera) {
-          final pos = next.currentPosition!;
-          _mapController!.updateCamera(
-            NCameraUpdate.scrollAndZoomTo(
-              target: NLatLng(pos.latitude, pos.longitude),
-              zoom: 17,
-            ),
-          );
-        }
-      }
-    });
+    final isPaused = walkState.status == WalkStatus.paused;
+    final isActive = walkState.status == WalkStatus.inProgress || isPaused;
+    final title = isPaused
+        ? '잠시 쉬어가고 있어요'
+        : isActive
+        ? '함께 걷는 시간을 기록해요'
+        : '오늘은 어떤 길이 궁금할까요?';
 
     return Focus(
       focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: _handleKey,
       child: Scaffold(
-        backgroundColor: Colors.white,
-        body: Stack(
-          children: [
-            // 지도
-            NaverMap(
-              options: const NaverMapViewOptions(
-                locationButtonEnable: true,
-                consumeSymbolTapEvents: false,
-              ),
-              onMapReady: (controller) {
-                _mapController = controller;
-                _moveToCurrentLocation();
-              },
-              // 사용자가 직접 지도를 움직이면(animated=false) 팔로우 모드 해제
-              onCameraChange: (position, animated) {
-                if (!animated && _followCamera) {
-                  setState(() => _followCamera = false);
-                }
-              },
-            ),
-
-            // 상단 통계 (상단 pill 스위처 아래에 배치)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 60,
-              left: 16,
-              right: 16,
-              child: _StatsCard(walkState: walkState),
-            ),
-
-            // 내 위치 버튼 (팔로우 모드 아닐 때 강조 표시)
-            Positioned(
-              bottom: 120,
-              right: 16,
-              child: FloatingActionButton.small(
-                heroTag: 'walk-current-location',
-                onPressed: _moveToCurrentLocation,
-                backgroundColor: _followCamera
-                    ? const Color(0xFF4CAF50)
-                    : Colors.white,
-                child: Icon(
-                  _followCamera ? Icons.my_location : Icons.location_searching,
-                  color: _followCamera ? Colors.white : const Color(0xFF4CAF50),
+        backgroundColor: const Color(0xFFF6F9F5),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 76, 24, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const WalkHistoryScreen(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.history),
+                    label: const Text('산책 기록'),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 24),
+                Center(
+                  child: CircleAvatar(
+                    radius: 44,
+                    backgroundColor: const Color(0xFFE5F1E2),
+                    child: Icon(
+                      isPaused ? Icons.pause_rounded : Icons.pets,
+                      size: 42,
+                      color: const Color(0xFF4CAF50),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  isPaused
+                      ? '시간과 경로 기록을 잠시 멈췄어요.\n준비되면 다시 걸어볼까요?'
+                      : isActive
+                      ? '화면을 계속 보지 않아도 괜찮아요.\n걸어온 길은 산책을 마친 뒤 확인해요.'
+                      : '강아지가 궁금해하는 길을 함께 걸어요.\n시작을 누르면 시간과 경로를 기록해요.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.black54, height: 1.6),
+                ),
+                if (walkState.selectedDogs.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    walkState.selectedDogs.map((dog) => dog.name).join(' · '),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ],
+                const SizedBox(height: 32),
+                if (isActive) ...[
+                  _StatsCard(walkState: walkState),
+                  const SizedBox(height: 16),
+                  Text(
+                    isPaused
+                        ? '일시정지 중'
+                        : walkState.points.isEmpty
+                        ? '위치 신호를 기다리고 있어요'
+                        : '산책 경로를 기록하고 있어요',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.black54, fontSize: 13),
+                  ),
+                  const SizedBox(height: 32),
+                ],
+                if (_isStarting)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else
+                  _ControlButtons(
+                    walkState: walkState,
+                    onStart: () => _startWalkWithDogPicker(context),
+                    onPause: () =>
+                        ref.read(walkActiveProvider.notifier).pauseWalk(),
+                    onResume: () =>
+                        ref.read(walkActiveProvider.notifier).resumeWalk(),
+                    onComplete: () => _confirmComplete(context),
+                  ),
+                const SizedBox(height: 20),
+                const Text(
+                  '산책이 끝나면 시간 · 거리 · 예상 칼로리와\n걸어온 경로를 확인할 수 있어요.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.black54,
+                    height: 1.6,
+                  ),
+                ),
+              ],
             ),
-
-            // 하단 버튼
-            Positioned(
-              bottom: 32,
-              left: 16,
-              right: 16,
-              child: _ControlButtons(
-                walkState: walkState,
-                onStart: () => _startWalkWithDogPicker(context),
-                onSimulate: () => _startSimulatedWalkWithDogPicker(context),
-                onPause: () =>
-                    ref.read(walkActiveProvider.notifier).pauseWalk(),
-                onResume: () =>
-                    ref.read(walkActiveProvider.notifier).resumeWalk(),
-                onComplete: () => _confirmComplete(context),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Future<void> _startWalkWithDogPicker(BuildContext context) async {
-    final dogs = await ref
-        .read(myDogsProvider.future)
-        .catchError((_) => <Dog>[]);
-    if (!context.mounted) return;
-
-    List<Dog> selected;
-    if (dogs.isEmpty) {
-      ref.read(walkActiveProvider.notifier).startWalk();
-      return;
-    } else if (dogs.length == 1) {
-      selected = dogs;
-    } else {
-      final picked = await showModalBottomSheet<List<Dog>>(
-        context: context,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (ctx) => _DogPickerSheet(dogs: dogs),
-      );
-      if (picked == null || picked.isEmpty) return;
-      selected = picked;
-    }
-
-    ref.read(walkActiveProvider.notifier).startWalk(dogs: selected);
-  }
-
-  Future<void> _startSimulatedWalkWithDogPicker(BuildContext context) async {
-    final dogs = await ref
-        .read(myDogsProvider.future)
-        .catchError((_) => <Dog>[]);
-    if (!context.mounted) return;
-
-    List<Dog> selected;
-    if (dogs.isEmpty) {
-      ref.read(walkActiveProvider.notifier).startSimulatedWalk();
-      return;
-    } else if (dogs.length == 1) {
-      selected = dogs;
-    } else {
-      final picked = await showModalBottomSheet<List<Dog>>(
-        context: context,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (ctx) => _DogPickerSheet(dogs: dogs),
-      );
-      if (picked == null || picked.isEmpty) return;
-      selected = picked;
-    }
-
-    ref.read(walkActiveProvider.notifier).startSimulatedWalk(dogs: selected);
-  }
-
-  Future<void> _moveToCurrentLocation() async {
-    setState(() => _followCamera = true); // 팔로우 모드 복구
+    if (_isStarting) return;
+    setState(() => _isStarting = true);
     try {
-      final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return;
+      final dogs = await ref.read(myDogsProvider.future);
+      if (!context.mounted) return;
+      List<Dog> selected = dogs;
+      if (dogs.length > 1) {
+        final picked = await showModalBottomSheet<List<Dog>>(
+          context: context,
+          isScrollControlled: true,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (_) => _DogPickerSheet(dogs: dogs),
+        );
+        if (picked == null || picked.isEmpty) return;
+        selected = picked;
       }
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
-      if (!mounted || _mapController == null) return;
-      _mapController!.updateCamera(
-        NCameraUpdate.scrollAndZoomTo(
-          target: NLatLng(position.latitude, position.longitude),
-          zoom: 17,
-        ),
-      );
+      if (!mounted) return;
+      await ref.read(walkActiveProvider.notifier).startWalk(dogs: selected);
     } catch (_) {
-      if (!mounted || _mapController == null) return;
-      _mapController!.updateCamera(
-        NCameraUpdate.scrollAndZoomTo(
-          target: const NLatLng(37.218392, 126.944858),
-          zoom: 15,
-        ),
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('산책을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해주세요.')),
       );
+    } finally {
+      if (mounted) setState(() => _isStarting = false);
     }
-  }
-
-  void _updateRoute(WalkState state) {
-    if (state.points.length < 2 || _mapController == null) return;
-
-    // 5포인트마다 한 번씩만 폴리라인 갱신 (매 업데이트마다 전체 좌표 재생성 방지)
-    if (state.points.length - _lastDrawnPointCount < 5) return;
-    _lastDrawnPointCount = state.points.length;
-
-    final coords = state.points.map((p) => NLatLng(p.lat, p.lng)).toList();
-    final polyline = NPolylineOverlay(
-      id: 'walk_route',
-      coords: coords,
-      color: const Color(0xFF4CAF50),
-      width: 5,
-    );
-    _mapController!.addOverlay(polyline);
   }
 
   Future<void> _confirmComplete(BuildContext context) async {
@@ -707,9 +646,9 @@ class _StatsCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _StatItem(label: '거리', value: walkState.distanceText),
+          _StatItem(label: '산책 시간', value: walkState.elapsedText),
           _divider(),
-          _StatItem(label: '시간', value: walkState.elapsedText),
+          _StatItem(label: '걸은 거리', value: walkState.distanceText),
         ],
       ),
     );
@@ -723,7 +662,6 @@ class _StatsCard extends StatelessWidget {
 class _ControlButtons extends StatelessWidget {
   final WalkState walkState;
   final VoidCallback onStart;
-  final VoidCallback onSimulate;
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onComplete;
@@ -731,7 +669,6 @@ class _ControlButtons extends StatelessWidget {
   const _ControlButtons({
     required this.walkState,
     required this.onStart,
-    required this.onSimulate,
     required this.onPause,
     required this.onResume,
     required this.onComplete,
@@ -750,24 +687,6 @@ class _ControlButtons extends StatelessWidget {
               color: const Color(0xFF4CAF50),
               onTap: onStart,
             ),
-            // TODO(test): 시뮬레이션 버튼 — 필요 시 주석 해제
-            // const SizedBox(height: 8),
-            // SizedBox(
-            //   width: double.infinity,
-            //   height: 44,
-            //   child: OutlinedButton.icon(
-            //     onPressed: onSimulate,
-            //     icon: const Icon(Icons.route, size: 18),
-            //     label: const Text('시뮬레이션 테스트',
-            //         style: TextStyle(fontSize: 14)),
-            //     style: OutlinedButton.styleFrom(
-            //       foregroundColor: Colors.grey[600],
-            //       side: BorderSide(color: Colors.grey[350]!),
-            //       shape: RoundedRectangleBorder(
-            //           borderRadius: BorderRadius.circular(12)),
-            //     ),
-            //   ),
-            // ),
           ],
         );
 
@@ -775,22 +694,6 @@ class _ControlButtons extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // if (walkState.isSimulating)
-            //   Padding(
-            //     padding: const EdgeInsets.only(bottom: 8),
-            //     child: Row(
-            //       mainAxisAlignment: MainAxisAlignment.center,
-            //       children: [
-            //         Icon(Icons.route, size: 14, color: Colors.orange[700]),
-            //         const SizedBox(width: 4),
-            //         Text('시뮬레이션 모드',
-            //             style: TextStyle(
-            //                 fontSize: 12,
-            //                 color: Colors.orange[700],
-            //                 fontWeight: FontWeight.bold)),
-            //       ],
-            //     ),
-            //   ),
             Row(
               children: [
                 Expanded(
@@ -804,7 +707,7 @@ class _ControlButtons extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _bigButton(
-                    label: '완료',
+                    label: '산책 종료',
                     icon: Icons.stop,
                     color: Colors.redAccent,
                     onTap: onComplete,
@@ -820,7 +723,7 @@ class _ControlButtons extends StatelessWidget {
           children: [
             Expanded(
               child: _bigButton(
-                label: '재개',
+                label: '계속 걷기',
                 icon: Icons.play_arrow,
                 color: const Color(0xFF4CAF50),
                 onTap: onResume,
@@ -829,7 +732,7 @@ class _ControlButtons extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: _bigButton(
-                label: '완료',
+                label: '산책 종료',
                 icon: Icons.stop,
                 color: Colors.redAccent,
                 onTap: onComplete,
@@ -855,6 +758,7 @@ class _ControlButtons extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return SizedBox(
+      width: double.infinity,
       height: 60,
       child: ElevatedButton.icon(
         onPressed: onTap,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../place/presentation/screens/map_tab.dart';
 import '../../../walk/domain/providers/walk_active_provider.dart';
+import '../../../walk/presentation/screens/dog_trace_map_screen.dart';
 import '../../../walk/presentation/screens/walk_screen.dart';
 
 class WalkPlaceTab extends ConsumerStatefulWidget {
@@ -18,15 +18,15 @@ class _WalkPlaceTabState extends ConsumerState<WalkPlaceTab> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
     final walkStatus = ref.watch(walkActiveProvider).status;
-    final isWalking = walkStatus == WalkStatus.inProgress ||
-        walkStatus == WalkStatus.paused;
+    final isWalking =
+        walkStatus == WalkStatus.inProgress || walkStatus == WalkStatus.paused;
 
     return Scaffold(
       body: Stack(
         children: [
           IndexedStack(
             index: _index,
-            children: const [WalkScreen(), MapTab()],
+            children: const [WalkScreen(), DogTraceMapScreen()],
           ),
           Positioned(
             top: topPadding + 8,
@@ -77,7 +77,7 @@ class _SubTabSwitcher extends StatelessWidget {
         children: [
           _tab('🐾 산책', 0, showDot: isWalking && index != 0),
           const SizedBox(width: 4),
-          _tab('📍 주변 장소', 1, showDot: false),
+          _tab('🐕 흔적 지도', 1, showDot: false),
         ],
       ),
     );

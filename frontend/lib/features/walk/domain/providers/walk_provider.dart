@@ -7,6 +7,30 @@ final walkHistoryProvider = FutureProvider<List<WalkSession>>((ref) async {
   return ref.watch(walkRepositoryProvider).getHistory(size: 100);
 });
 
+// 오늘 완료한 가장 최근 산책의 실제 경로를 흔적 지도에서 사용한다.
+final latestTodayWalkDetailProvider = FutureProvider<WalkDetail?>((ref) async {
+  final history = await ref.watch(walkHistoryProvider.future);
+  final today = DateTime.now();
+  final completedToday =
+      history.where((session) {
+        final startedAt = session.startedAtDate;
+        return startedAt != null &&
+            startedAt.year == today.year &&
+            startedAt.month == today.month &&
+            startedAt.day == today.day &&
+            session.status == 'COMPLETED';
+      }).toList()..sort((a, b) {
+        final aStarted =
+            a.startedAtDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bStarted =
+            b.startedAtDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bStarted.compareTo(aStarted);
+      });
+
+  if (completedToday.isEmpty) return null;
+  return ref.watch(walkRepositoryProvider).getDetail(completedToday.first.id);
+});
+
 // 이번 달 산책 통계
 final monthlyWalkStatsProvider = FutureProvider<MonthlyWalkStats>((ref) async {
   final history = await ref.watch(walkHistoryProvider.future);
@@ -21,10 +45,14 @@ final monthlyWalkStatsProvider = FutureProvider<MonthlyWalkStats>((ref) async {
   }).toList();
 
   return MonthlyWalkStats(
-    totalDistanceMeters:
-        monthlySessions.fold(0, (sum, s) => sum + s.distanceMeters),
-    totalDurationSeconds:
-        monthlySessions.fold(0, (sum, s) => sum + s.durationSeconds),
+    totalDistanceMeters: monthlySessions.fold(
+      0,
+      (sum, s) => sum + s.distanceMeters,
+    ),
+    totalDurationSeconds: monthlySessions.fold(
+      0,
+      (sum, s) => sum + s.durationSeconds,
+    ),
     walkCount: monthlySessions.length,
     month: now.month,
   );
@@ -110,10 +138,14 @@ final todayWalkStatsProvider = FutureProvider<TodayWalkStats>((ref) async {
   }).toList();
 
   return TodayWalkStats(
-    totalDistanceMeters:
-        todaySessions.fold(0, (sum, s) => sum + s.distanceMeters),
-    totalDurationSeconds:
-        todaySessions.fold(0, (sum, s) => sum + s.durationSeconds),
+    totalDistanceMeters: todaySessions.fold(
+      0,
+      (sum, s) => sum + s.distanceMeters,
+    ),
+    totalDurationSeconds: todaySessions.fold(
+      0,
+      (sum, s) => sum + s.durationSeconds,
+    ),
     walkCount: todaySessions.length,
   );
 });
