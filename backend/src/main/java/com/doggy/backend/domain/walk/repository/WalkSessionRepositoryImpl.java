@@ -21,13 +21,14 @@ public class WalkSessionRepositoryImpl implements WalkSessionRepositoryCustom {
     private static final QWalkSession session = QWalkSession.walkSession;
 
     @Override
-    public List<Long> findHistoryIdsByUserId(Long userId, Long householdId, Pageable pageable) {
+    public List<Long> findHistoryIdsByUserId(
+            Long userId, Long householdId, LocalDateTime householdJoinedAt, Pageable pageable) {
         return queryFactory
                 .select(session.id)
                 .from(session)
                 .where(
                         session.status.ne(Status.ABANDONED),
-                        ownerOrHousehold(userId, householdId)
+                        ownerOrHousehold(userId, householdId, householdJoinedAt)
                 )
                 .orderBy(session.startedAt.desc())
                 .offset(pageable.getOffset())
@@ -57,13 +58,15 @@ public class WalkSessionRepositoryImpl implements WalkSessionRepositoryCustom {
                 .fetch();
     }
 
-    // 내 세션 OR 가구 소속 강아지가 포함된 세션
-    private BooleanExpression ownerOrHousehold(Long userId, Long householdId) {
+    // 내 미중단 세션 OR 산책 당시 같은 가족이었던 완료 세션
+    private BooleanExpression ownerOrHousehold(
+            Long userId, Long householdId, LocalDateTime householdJoinedAt) {
         BooleanExpression isOwner = session.user.id.eq(userId);
-        if (householdId == null) return isOwner;
+        if (householdId == null || householdJoinedAt == null) return isOwner;
 
-        // .any() → 컬렉션에 대한 EXISTS 서브쿼리 자동 생성
-        BooleanExpression hasHouseholdDog = session.dogs.any().household.id.eq(householdId);
-        return isOwner.or(hasHouseholdDog);
+        BooleanExpression isCompletedHouseholdWalk = session.householdId.eq(householdId)
+                .and(session.status.eq(Status.COMPLETED))
+                .and(session.startedAt.goe(householdJoinedAt));
+        return isOwner.or(isCompletedHouseholdWalk);
     }
 }

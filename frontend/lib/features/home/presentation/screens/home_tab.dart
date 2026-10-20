@@ -7,6 +7,7 @@ import '../../../auth/domain/providers/auth_provider.dart';
 import '../../../dog/data/models/dog_model.dart';
 import '../../../dog/domain/providers/dog_provider.dart';
 import '../../../dog/presentation/screens/dog_register_screen.dart';
+import '../../../household/domain/providers/household_provider.dart';
 import '../../../walk/data/models/walk_model.dart';
 import '../../../walk/domain/providers/walk_provider.dart';
 import '../../domain/providers/home_provider.dart';
@@ -20,7 +21,7 @@ class HomeTab extends ConsumerStatefulWidget {
   ConsumerState<HomeTab> createState() => _HomeTabState();
 }
 
-class _HomeTabState extends ConsumerState<HomeTab> {
+class _HomeTabState extends ConsumerState<HomeTab> with WidgetsBindingObserver {
   Timer? _weatherTimer;
   Timer? _secondaryTimer;
   bool _loadWeather = false;
@@ -29,14 +30,31 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scheduleDeferredLoads();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _weatherTimer?.cancel();
     _secondaryTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshSharedWalkData();
+    }
+  }
+
+  void _refreshSharedWalkData() {
+    ref.invalidate(walkHistoryProvider);
+    ref.invalidate(todayWalkStatsProvider);
+    ref.invalidate(todayDogCaloriesProvider);
+    ref.invalidate(todayMeetsProvider);
+    ref.invalidate(latestTodayWalkDetailProvider);
   }
 
   void _scheduleDeferredLoads() {
@@ -77,6 +95,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(userProfileProvider);
+    final isHousehold = ref.watch(myHouseholdProvider).valueOrNull != null;
     final dogCalories = _loadSecondary
         ? ref.watch(todayDogCaloriesProvider).valueOrNull ?? <int, int>{}
         : <int, int>{};
@@ -160,14 +179,17 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                     data: (stats) => _TodayWalkCard(
                       stats: stats,
                       onViewAll: () => _openWalkHistory(context),
+                      isHousehold: isHousehold,
                     ),
                     loading: () => _TodayWalkCard(
                       stats: null,
                       onViewAll: () => _openWalkHistory(context),
+                      isHousehold: isHousehold,
                     ),
                     error: (e, _) => _TodayWalkCard(
                       stats: null,
                       onViewAll: () => _openWalkHistory(context),
+                      isHousehold: isHousehold,
                     ),
                   ),
                 );
@@ -482,8 +504,13 @@ class _DogCardSkeleton extends StatelessWidget {
 class _TodayWalkCard extends StatelessWidget {
   final TodayWalkStats? stats;
   final VoidCallback onViewAll;
+  final bool isHousehold;
 
-  const _TodayWalkCard({required this.stats, required this.onViewAll});
+  const _TodayWalkCard({
+    required this.stats,
+    required this.onViewAll,
+    required this.isHousehold,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -493,10 +520,13 @@ class _TodayWalkCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  '오늘의 산책',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  isHousehold ? '가족의 오늘 산책' : '오늘의 산책',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               TextButton.icon(

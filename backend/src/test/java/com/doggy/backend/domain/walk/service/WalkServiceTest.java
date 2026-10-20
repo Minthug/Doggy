@@ -1,6 +1,7 @@
 package com.doggy.backend.domain.walk.service;
 
 import com.doggy.backend.domain.dog.repository.DogRepository;
+import com.doggy.backend.domain.household.dto.HouseholdIdCache;
 import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.PushSettingRepository;
@@ -10,6 +11,7 @@ import com.doggy.backend.domain.walk.dto.PublishRouteRequest;
 import com.doggy.backend.domain.walk.dto.StartWalkRequest;
 import com.doggy.backend.domain.walk.dto.WalkPointRequest;
 import com.doggy.backend.domain.walk.dto.WalkSessionResponse;
+import com.doggy.backend.domain.walk.dto.TodayWalkStatsResponse;
 import com.doggy.backend.domain.walk.entity.WalkRouteLike;
 import com.doggy.backend.domain.walk.entity.WalkRouteBookmark;
 import com.doggy.backend.domain.walk.entity.WalkSession;
@@ -18,6 +20,7 @@ import com.doggy.backend.domain.walk.repository.WalkPointRepository;
 import com.doggy.backend.domain.walk.repository.WalkRouteBookmarkRepository;
 import com.doggy.backend.domain.walk.repository.WalkRouteLikeRepository;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
+import com.doggy.backend.domain.walk.repository.TodayWalkStatsProjection;
 import com.doggy.backend.global.exception.BusinessException;
 import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.fcm.FcmService;
@@ -32,6 +35,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -41,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
+import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
 class WalkServiceTest {
@@ -106,12 +111,66 @@ class WalkServiceTest {
             given(walkSessionRepository.findActiveSession(1L, Status.IN_PROGRESS)).willReturn(Optional.empty());
             given(walkSessionRepository.findActiveSession(1L, Status.PAUSED)).willReturn(Optional.empty());
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(householdService.findHouseholdIdByUserId(1L))
+                    .willReturn(new HouseholdIdCache(7L));
             given(walkSessionRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
 
             WalkSessionResponse response = walkService.start(1L, new StartWalkRequest(List.of()));
 
             assertThat(response.status()).isEqualTo(Status.IN_PROGRESS);
             assertThat(response.dogs()).isEmpty();
+
+            ArgumentCaptor<WalkSession> captor = ArgumentCaptor.forClass(WalkSession.class);
+            verify(walkSessionRepository).save(captor.capture());
+            assertThat(captor.getValue().getHouseholdId()).isEqualTo(7L);
+        }
+    }
+
+    @Nested
+    @DisplayName("family sharing")
+    class FamilySharing {
+
+        @Test
+        @DisplayName("같은 가족의 완료 산책은 작성자가 아니어도 상세 조회 가능")
+        void detail_allowsCompletedHouseholdWalk() {
+            User writer = makeUser(2L);
+            WalkSession session = makeSession(10L, writer, Status.COMPLETED);
+            LocalDateTime joinedAt = LocalDateTime.now().minusDays(1);
+
+            given(householdService.findHouseholdIdByUserId(1L))
+                    .willReturn(new HouseholdIdCache(7L, joinedAt));
+            given(walkSessionRepository.findAccessibleById(
+                    10L, 1L, 7L, joinedAt, Status.COMPLETED))
+                    .willReturn(Optional.of(session));
+            given(walkPointRepository.findRouteGeoJsonBySessionId(10L)).willReturn(null);
+            given(markingSpotService.getSessionSpots(10L)).willReturn(List.of());
+
+            var response = walkService.getDetail(1L, 10L);
+
+            assertThat(response.id()).isEqualTo(10L);
+            verify(walkSessionRepository)
+                    .findAccessibleById(10L, 1L, 7L, joinedAt, Status.COMPLETED);
+        }
+
+        @Test
+        @DisplayName("오늘 통계는 가족 스냅샷을 포함한 서버 집계 사용")
+        void todayStats_usesServerAggregate() {
+            TodayWalkStatsProjection projection = mock(TodayWalkStatsProjection.class);
+            LocalDateTime joinedAt = LocalDateTime.now().minusDays(1);
+            given(projection.getTotalDistanceMeters()).willReturn(1500L);
+            given(projection.getTotalDurationSeconds()).willReturn(900L);
+            given(projection.getWalkCount()).willReturn(2L);
+            given(householdService.findHouseholdIdByUserId(1L))
+                    .willReturn(new HouseholdIdCache(7L, joinedAt));
+            given(walkSessionRepository.findTodayStats(
+                    eq(1L), eq(7L), any(LocalDate.class)))
+                    .willReturn(projection);
+
+            TodayWalkStatsResponse response = walkService.getTodayStats(1L);
+
+            assertThat(response.totalDistanceMeters()).isEqualTo(1500L);
+            assertThat(response.totalDurationSeconds()).isEqualTo(900L);
+            assertThat(response.walkCount()).isEqualTo(2L);
         }
     }
 

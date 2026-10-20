@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +16,46 @@ import java.util.Optional;
 public interface WalkSessionRepository extends JpaRepository<WalkSession, Long>, WalkSessionRepositoryCustom {
 
     Optional<WalkSession> findByIdAndUserId(Long id, Long userId);
+
+    @Query("""
+            SELECT DISTINCT s FROM WalkSession s
+            LEFT JOIN FETCH s.dogs
+            WHERE s.id = :sessionId
+              AND (s.user.id = :userId
+                   OR (:householdId IS NOT NULL
+                       AND :householdJoinedAt IS NOT NULL
+                       AND s.householdId = :householdId
+                       AND s.startedAt >= :householdJoinedAt
+                       AND s.status = :completedStatus))
+            """)
+    Optional<WalkSession> findAccessibleById(
+            @Param("sessionId") Long sessionId,
+            @Param("userId") Long userId,
+            @Param("householdId") Long householdId,
+            @Param("householdJoinedAt") LocalDateTime householdJoinedAt,
+            @Param("completedStatus") Status completedStatus);
+
+    @Query(value = """
+            SELECT
+                COALESCE(SUM(ws.distance_meters), 0) AS "totalDistanceMeters",
+                COALESCE(SUM(ws.duration_seconds), 0) AS "totalDurationSeconds",
+                COUNT(*) AS "walkCount"
+            FROM walk_sessions ws
+            WHERE ws.status = 'COMPLETED'
+              AND (ws.started_at AT TIME ZONE 'Asia/Seoul')::date = CAST(:today AS date)
+              AND (ws.user_id = :userId
+                   OR (ws.household_id = :householdId
+                       AND EXISTS (
+                           SELECT 1
+                           FROM household_members hm
+                           WHERE hm.household_id = :householdId
+                             AND hm.user_id = :userId
+                             AND ws.started_at >= hm.joined_at)))
+            """, nativeQuery = true)
+    TodayWalkStatsProjection findTodayStats(
+            @Param("userId") Long userId,
+            @Param("householdId") Long householdId,
+            @Param("today") LocalDate today);
 
     @Query("SELECT DISTINCT s FROM WalkSession s JOIN FETCH s.user WHERE s.id IN :ids")
     List<WalkSession> findAllByIdWithUser(@Param("ids") Collection<Long> ids);

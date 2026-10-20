@@ -77,6 +77,11 @@ class WalkRepository {
     return (response.data as List).map((e) => WalkSession.fromJson(e)).toList();
   }
 
+  Future<TodayWalkStats> getTodayStats() async {
+    final response = await _dio.get('/api/walks/stats/today');
+    return TodayWalkStats.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<WalkDetail> getDetail(int sessionId) async {
     final response = await _dio.get('/api/walks/$sessionId');
     return WalkDetail.fromJson(response.data);

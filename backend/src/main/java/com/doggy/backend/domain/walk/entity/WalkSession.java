@@ -15,6 +15,7 @@ import java.util.List;
 @Table(name = "walk_sessions", indexes = {
         @Index(name = "idx_walk_sessions_user_started", columnList = "user_id, started_at DESC"),
         @Index(name = "idx_walk_sessions_user_status", columnList = "user_id, status"),
+        @Index(name = "idx_walk_sessions_household_status_started", columnList = "household_id, status, started_at DESC"),
         @Index(name = "idx_walk_sessions_public_status", columnList = "is_public, status")
 })
 @Getter
@@ -28,6 +29,9 @@ public class WalkSession extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    // 산책 당시의 가족 소속 스냅샷. 이후 강아지/사용자가 가족을 옮겨도 바뀌지 않는다.
+    private Long householdId;
 
     @Column(nullable = false)
     private LocalDateTime startedAt;
@@ -63,8 +67,9 @@ public class WalkSession extends BaseEntity {
     private List<Dog> dogs = new ArrayList<>();
 
     @Builder
-    public WalkSession(User user, LocalDateTime startedAt) {
+    public WalkSession(User user, Long householdId, LocalDateTime startedAt) {
         this.user = user;
+        this.householdId = householdId;
         this.startedAt = startedAt;
     }
 

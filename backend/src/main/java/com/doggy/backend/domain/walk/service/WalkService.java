@@ -2,6 +2,7 @@ package com.doggy.backend.domain.walk.service;
 
 import com.doggy.backend.domain.dog.entity.Dog;
 import com.doggy.backend.domain.dog.repository.DogRepository;
+import com.doggy.backend.domain.household.dto.HouseholdIdCache;
 import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.PushSettingRepository;
@@ -27,7 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,6 +41,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class WalkService {
+
+    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
     private final WalkSessionRepository walkSessionRepository;
     private final WalkPointRepository walkPointRepository;
@@ -75,13 +80,16 @@ public class WalkService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
 
+        var householdCache = householdService.findHouseholdIdByUserId(userId);
+        Long householdId = householdCache != null ? householdCache.getId() : null;
+
         WalkSession session = WalkSession.builder()
                 .user(user)
+                .householdId(householdId)
                 .startedAt(LocalDateTime.now())
                 .build();
 
         if (request != null && request.dogIds() != null && !request.dogIds().isEmpty()) {
-            Long householdId = householdService.findHouseholdIdByUserId(userId).getId();
             List<Dog> dogs = dogRepository.findAllById(request.dogIds()).stream()
                     .filter(d -> d.getUser().getId().equals(userId)
                             || (householdId != null && d.getHousehold() != null
@@ -223,13 +231,14 @@ public class WalkService {
     }
 
     public List<WalkSessionResponse> getHistory(Long userId, int page, int size) {
-        Long householdId = householdService.findHouseholdIdByUserId(userId).getId();
+        var household = getHousehold(userId);
+        Long householdId = household.getId();
         int safePage = RequestLimits.clampPage(page);
         int safeSize = RequestLimits.clampPageSize(size);
         // Step 1: DB LIMIT 적용된 ID 목록 (JOIN FETCH 없이 정확한 페이지네이션)
         // 한 세션에 가구 강아지가 여럿이면 같은 ID가 중복될 수 있으므로 deduplicate 후 재요청
         List<Long> rawIds = walkSessionRepository.findHistoryIdsByUserId(
-                userId, householdId, PageRequest.of(safePage, safeSize));
+                userId, householdId, household.getJoinedAt(), PageRequest.of(safePage, safeSize));
         if (rawIds.isEmpty()) return List.of();
         List<Long> ids = rawIds.stream().distinct().toList();
         // Step 2: dogs 배치 로드 (IN 절 1회, N+1 없음)
@@ -245,7 +254,9 @@ public class WalkService {
 
     @Transactional(readOnly = false)
     public WalkDetailResponse getDetail(Long userId, Long sessionId) {
-        WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
+        var household = getHousehold(userId);
+        WalkSession session = walkSessionRepository.findAccessibleById(
+                        sessionId, userId, household.getId(), household.getJoinedAt(), Status.COMPLETED)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
         String routeGeoJson = session.getRouteGeoJson();
         if (routeGeoJson == null) {
@@ -258,6 +269,23 @@ public class WalkService {
             }
         }
         return WalkDetailResponse.of(session, routeGeoJson, List.of(), markingSpotService.getSessionSpots(sessionId));
+    }
+
+    public TodayWalkStatsResponse getTodayStats(Long userId) {
+        var household = getHousehold(userId);
+        LocalDate today = LocalDate.now(SERVICE_ZONE);
+        var stats = walkSessionRepository.findTodayStats(userId, household.getId(), today);
+        return new TodayWalkStatsResponse(
+                stats.getTotalDistanceMeters(),
+                stats.getTotalDurationSeconds(),
+                stats.getWalkCount());
+    }
+
+    private HouseholdIdCache getHousehold(Long userId) {
+        var householdCache = householdService.findHouseholdIdByUserId(userId);
+        return householdCache != null
+                ? householdCache
+                : new HouseholdIdCache(null, null);
     }
 
     // 경로 공개

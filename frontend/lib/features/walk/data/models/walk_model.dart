@@ -417,6 +417,15 @@ class TodayWalkStats {
     required this.walkCount,
   });
 
+  factory TodayWalkStats.fromJson(Map<String, dynamic> json) {
+    return TodayWalkStats(
+      totalDistanceMeters: (json['totalDistanceMeters'] as num?)?.toInt() ?? 0,
+      totalDurationSeconds:
+          (json['totalDurationSeconds'] as num?)?.toInt() ?? 0,
+      walkCount: (json['walkCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   String get distanceText {
     if (totalDistanceMeters >= 1000) {
       return '${(totalDistanceMeters / 1000).toStringAsFixed(1)}km';

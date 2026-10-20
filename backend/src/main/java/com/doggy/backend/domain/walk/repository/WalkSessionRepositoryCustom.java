@@ -7,7 +7,8 @@ import java.util.List;
 
 public interface WalkSessionRepositoryCustom {
 
-    List<Long> findHistoryIdsByUserId(Long userId, Long householdId, Pageable pageable);
+    List<Long> findHistoryIdsByUserId(
+            Long userId, Long householdId, LocalDateTime householdJoinedAt, Pageable pageable);
 
     List<Long> findUserIdsNotWalkedSince(LocalDateTime since);
 }

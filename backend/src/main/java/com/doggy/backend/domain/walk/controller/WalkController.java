@@ -63,6 +63,12 @@ public class WalkController {
         return ResponseEntity.ok(walkService.getHistory(principal.getId(), page, size));
     }
 
+    @GetMapping("/stats/today")
+    public ResponseEntity<TodayWalkStatsResponse> getTodayStats(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(walkService.getTodayStats(principal.getId()));
+    }
+
     @GetMapping("/{sessionId}")
     public ResponseEntity<WalkDetailResponse> getDetail(
             @AuthenticationPrincipal UserPrincipal principal,

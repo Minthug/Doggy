@@ -28,8 +28,12 @@ public class HouseholdService {
 
     @Transactional(readOnly = true)
     public HouseholdIdCache findHouseholdIdByUserId(Long userId) {
-        Long id = householdRepository.findByUserId(userId).map(Household::getId).orElse(null);
-        return new HouseholdIdCache(id);
+        return householdRepository.findByUserId(userId)
+                .map(household -> householdMemberRepository
+                        .findByHouseholdIdAndUserId(household.getId(), userId)
+                        .map(member -> new HouseholdIdCache(household.getId(), member.getJoinedAt()))
+                        .orElseGet(() -> new HouseholdIdCache(null, null)))
+                .orElseGet(() -> new HouseholdIdCache(null, null));
     }
 
 

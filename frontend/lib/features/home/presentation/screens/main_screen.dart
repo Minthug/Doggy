@@ -4,6 +4,7 @@ import '../../../../core/notifications/fcm_service.dart';
 import '../../../../core/notifications/in_app_banner.dart';
 import '../../../community/presentation/screens/community_tab.dart';
 import '../../../profile/presentation/screens/profile_tab.dart';
+import '../../../walk/domain/providers/walk_provider.dart';
 import 'home_tab.dart';
 import 'walk_place_tab.dart';
 
@@ -13,9 +14,9 @@ class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
 
   static void jumpToTab(BuildContext context, int index) {
-    ProviderScope.containerOf(context)
-        .read(_currentTabIndexProvider.notifier)
-        .state = index;
+    ProviderScope.containerOf(
+      context,
+    ).read(_currentTabIndexProvider.notifier).state = index;
   }
 
   @override
@@ -31,12 +32,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     });
   }
 
-  final _tabs = const [
-    HomeTab(),
-    WalkPlaceTab(),
-    CommunityTab(),
-    ProfileTab(),
-  ];
+  final _tabs = const [HomeTab(), WalkPlaceTab(), CommunityTab(), ProfileTab()];
 
   @override
   Widget build(BuildContext context) {
@@ -44,28 +40,34 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          IndexedStack(
-            index: currentIndex,
-            children: _tabs,
-          ),
+          IndexedStack(index: currentIndex, children: _tabs),
           const BannerLayer(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: currentIndex,
-        onTap: (index) =>
-            ref.read(_currentTabIndexProvider.notifier).state = index,
+        onTap: (index) {
+          if (index == 0) {
+            ref.invalidate(walkHistoryProvider);
+            ref.invalidate(todayWalkStatsProvider);
+            ref.invalidate(todayDogCaloriesProvider);
+            ref.invalidate(todayMeetsProvider);
+          }
+          ref.read(_currentTabIndexProvider.notifier).state = index;
+        },
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF4CAF50),
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
           BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: '지도'),
-          BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: '커뮤니티'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people_outline),
+            label: '커뮤니티',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
         ],
       ),
     );
   }
 }
-
