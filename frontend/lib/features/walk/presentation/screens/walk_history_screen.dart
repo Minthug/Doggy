@@ -36,17 +36,23 @@ class WalkHistoryScreen extends ConsumerWidget {
       ),
       body: historyAsync.when(
         data: (history) {
-          final completed =
-              history.where((s) => s.status == 'COMPLETED').toList();
+          final completed = history
+              .where((s) => s.status == 'COMPLETED')
+              .toList();
 
           return RefreshIndicator(
-            onRefresh: () => ref.refresh(walkHistoryProvider.future),
+            onRefresh: () async {
+              ref.invalidate(monthlyWalkStatsProvider);
+              await ref.refresh(walkHistoryProvider.future);
+            },
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 // 월간 통계 카드
-                _MonthlyStatsCard(history: completed),
+                const _MonthlyStatsCard(),
                 const SizedBox(height: 16),
+                const _RetentionGuideCard(),
+                const SizedBox(height: 20),
 
                 if (completed.isEmpty) ...[
                   const SizedBox(height: 48),
@@ -54,8 +60,11 @@ class WalkHistoryScreen extends ConsumerWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.directions_walk,
-                            size: 64, color: Colors.grey),
+                        Icon(
+                          Icons.directions_walk,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
                         SizedBox(height: 16),
                         Text(
                           '아직 완료된 산책이 없어요',
@@ -84,7 +93,9 @@ class WalkHistoryScreen extends ConsumerWidget {
 }
 
 List<Widget> _buildMonthlyGroups(
-    BuildContext context, List<WalkSession> sessions) {
+  BuildContext context,
+  List<WalkSession> sessions,
+) {
   // 년월 기준으로 그룹핑 (최신순)
   final Map<String, List<WalkSession>> grouped = {};
   for (final s in sessions) {
@@ -99,18 +110,22 @@ List<Widget> _buildMonthlyGroups(
     widgets.add(_MonthHeader(label: entry.key, count: entry.value.length));
     for (int i = 0; i < entry.value.length; i++) {
       final session = entry.value[i];
-      widgets.add(Padding(
-        padding: EdgeInsets.only(
-            bottom: i < entry.value.length - 1 ? 12 : 20),
-        child: _WalkHistoryItem(
-          session: session,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => WalkDetailScreen(sessionId: session.id)),
+      widgets.add(
+        Padding(
+          padding: EdgeInsets.only(
+            bottom: i < entry.value.length - 1 ? 12 : 20,
+          ),
+          child: _WalkHistoryItem(
+            session: session,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => WalkDetailScreen(sessionId: session.id),
+              ),
+            ),
           ),
         ),
-      ));
+      );
     }
   }
   return widgets;
@@ -130,14 +145,14 @@ class _MonthHeader extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF212121)),
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF212121),
+            ),
           ),
           const SizedBox(width: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
               color: const Color(0xFF4CAF50).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
@@ -145,14 +160,16 @@ class _MonthHeader extends StatelessWidget {
             child: Text(
               '$count회',
               style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF4CAF50),
-                  fontWeight: FontWeight.bold),
+                fontSize: 12,
+                color: Color(0xFF4CAF50),
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(width: 8),
           const Expanded(
-              child: Divider(color: Color(0xFFEEEEEE), thickness: 1)),
+            child: Divider(color: Color(0xFFEEEEEE), thickness: 1),
+          ),
         ],
       ),
     );
@@ -160,8 +177,7 @@ class _MonthHeader extends StatelessWidget {
 }
 
 class _MonthlyStatsCard extends ConsumerWidget {
-  final List<WalkSession> history;
-  const _MonthlyStatsCard({required this.history});
+  const _MonthlyStatsCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -169,19 +185,11 @@ class _MonthlyStatsCard extends ConsumerWidget {
     final daysInMonth = DateUtils.getDaysInMonth(now.year, now.month);
     final daysPassed = now.day;
 
-    // 이번 달 세션 필터
-    final monthSessions = history.where((s) {
-      if (s.startedAt == null) return false;
-      final d = DateTime.parse(s.startedAt!);
-      return d.year == now.year && d.month == now.month;
-    }).toList();
-
-    final totalMeters =
-        monthSessions.fold(0, (sum, s) => sum + s.distanceMeters);
+    final monthlyStats = ref.watch(monthlyWalkStatsProvider).valueOrNull;
+    final totalMeters = monthlyStats?.totalDistanceMeters ?? 0;
     final totalKm = totalMeters / 1000;
-    final walkCount = monthSessions.length;
-    final totalMinutes =
-        monthSessions.fold(0, (sum, s) => sum + s.durationSeconds) ~/ 60;
+    final walkCount = monthlyStats?.walkCount ?? 0;
+    final totalMinutes = (monthlyStats?.totalDurationSeconds ?? 0) ~/ 60;
 
     // 일평균 & 예상 월말 총계
     final avgKmPerDay = daysPassed > 0 ? totalKm / daysPassed : 0.0;
@@ -208,7 +216,9 @@ class _MonthlyStatsCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06), blurRadius: 12),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+          ),
         ],
       ),
       child: Padding(
@@ -223,12 +233,16 @@ class _MonthlyStatsCard extends ConsumerWidget {
                 Text(
                   '${now.month}월 산책 현황',
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 if (firstDog != null)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -236,9 +250,10 @@ class _MonthlyStatsCard extends ConsumerWidget {
                     child: Text(
                       guide.sizeLabel,
                       style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF4CAF50),
-                          fontWeight: FontWeight.bold),
+                        fontSize: 11,
+                        color: Color(0xFF4CAF50),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
               ],
@@ -286,9 +301,10 @@ class _MonthlyStatsCard extends ConsumerWidget {
                 Text(
                   '월간 목표 달성률',
                   style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.w500),
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 Text(
                   '${monthTargetMinKm.toStringAsFixed(0)}~${monthTargetMaxKm.toStringAsFixed(0)}km 목표',
@@ -337,16 +353,14 @@ class _MonthlyStatsCard extends ConsumerWidget {
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: const Color(0xFFF5F5F5),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 '이번 달 $daysPassed일 경과 · ${daysInMonth - daysPassed}일 남음',
-                style:
-                    const TextStyle(fontSize: 12, color: Colors.grey),
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -360,12 +374,47 @@ class _MonthlyStatsCard extends ConsumerWidget {
       Container(width: 1, height: 40, color: const Color(0xFFEEEEEE));
 }
 
+class _RetentionGuideCard extends StatelessWidget {
+  const _RetentionGuideCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1EEE7),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.pets_rounded, color: Color(0xFF7A9B76), size: 22),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '최근 산책의 상세 경로는 7일 동안 보여요. 간직하고 싶은 산책은 상세 화면에서 보관하면 GPS 대신 귀여운 흔적 이미지로 남겨드려요.',
+              style: TextStyle(
+                color: Color(0xFF5E655A),
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatCell extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-  const _StatCell(
-      {required this.label, required this.value, required this.icon});
+  const _StatCell({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -373,14 +422,16 @@ class _StatCell extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: const Color(0xFF4CAF50)),
         const SizedBox(height: 6),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF212121))),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF212121),
+          ),
+        ),
         const SizedBox(height: 2),
-        Text(label,
-            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
       ],
     );
   }
@@ -411,7 +462,9 @@ class _WalkHistoryItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+            ),
           ],
         ),
         child: Row(
@@ -424,8 +477,11 @@ class _WalkHistoryItem extends StatelessWidget {
                 color: const Color(0xFFE8F5E9),
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: const Icon(Icons.directions_walk,
-                  color: Color(0xFF4CAF50), size: 24),
+              child: const Icon(
+                Icons.directions_walk,
+                color: Color(0xFF4CAF50),
+                size: 24,
+              ),
             ),
             const SizedBox(width: 16),
 
@@ -437,8 +493,31 @@ class _WalkHistoryItem extends StatelessWidget {
                   Text(
                     '$dateText $timeText',
                     style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
                   ),
+                  if (session.archived) ...[
+                    const SizedBox(height: 4),
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.bookmark_rounded,
+                          size: 13,
+                          color: Color(0xFF7A9B76),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          '흔적 보관됨',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF6F8F6A),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Row(
                     children: [

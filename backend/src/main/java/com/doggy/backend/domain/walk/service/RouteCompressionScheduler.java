@@ -19,52 +19,52 @@ public class RouteCompressionScheduler {
 
     private final WalkSessionRepository walkSessionRepository;
     private final WalkPointRepository walkPointRepository;
+    private final WalkTraceImageService walkTraceImageService;
 
     /**
-     * 3개월 이상 된 세션: GeoJSON 보존 후 walk_points 삭제.
-     * routeGeoJson이 없으면 PostGIS로 생성해서 저장.
+     * 완료 후 7일이 지난 세션은 통계용 요약 행만 남기고 원본 GPS를 삭제한다.
+     * 사용자가 보관한 기록은 원본 좌표가 없는 정규화된 SVG 흔적 이미지를 남긴다.
      */
-    @Scheduled(cron = "0 0 3 * * *")
+    @Scheduled(cron = "0 */15 * * * *")
     @Transactional
-    public void compressOldRoutes() {
-        LocalDateTime threeMonthsAgo = LocalDateTime.now().minusMonths(3);
-        List<WalkSession> sessions =
-                walkSessionRepository.findSessionsWithPointsBefore(threeMonthsAgo, 100);
+    public void purgeExpiredWalkDetails() {
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        int totalPurged = 0;
+        for (int batch = 0; batch < 50; batch++) {
+            List<WalkSession> sessions = walkSessionRepository
+                    .findTop100ByStatusAndStartedAtBeforeAndDetailsPurgedAtIsNullOrderByStartedAtAsc(
+                            WalkSession.Status.COMPLETED, sevenDaysAgo);
+            if (sessions.isEmpty()) break;
 
-        if (sessions.isEmpty()) return;
-
-        int compressed = 0;
-        for (WalkSession session : sessions) {
-            try {
-                if (session.getRouteGeoJson() == null) {
-                    String geoJson = walkPointRepository
-                            .findRouteGeoJsonBySessionId(session.getId());
-                    session.saveRouteGeoJson(geoJson);
+            int batchPurged = 0;
+            for (WalkSession session : sessions) {
+                try {
+                    if (session.isArchived() && session.getTraceImageSvg() == null) {
+                        try {
+                            String geoJson = session.getRouteGeoJson();
+                            if (geoJson == null) {
+                                geoJson = walkPointRepository.findRouteGeoJsonBySessionId(session.getId());
+                            }
+                            session.archive(walkTraceImageService.createSvg(geoJson));
+                        } catch (Exception e) {
+                            // 이미지 생성 실패가 개인정보 보관 기한을 늘리면 안 된다.
+                            log.warn("[산책 흔적 생성] 실패하더라도 GPS 삭제 진행: sessionId={}, {}",
+                                    session.getId(), e.getMessage());
+                        }
+                    }
+                    walkPointRepository.deleteAllBySessionId(session.getId());
+                    session.purgeDetails();
+                    batchPurged++;
+                } catch (Exception e) {
+                    log.warn("[산책 상세 삭제] 실패: sessionId={}, {}", session.getId(), e.getMessage());
                 }
-                walkPointRepository.deleteAllBySessionId(session.getId());
-                compressed++;
-            } catch (Exception e) {
-                log.warn("[압축] 실패: sessionId={}, {}", session.getId(), e.getMessage());
             }
+            totalPurged += batchPurged;
+            walkSessionRepository.flush();
+            if (batchPurged == 0) break;
         }
-        log.info("[압축] 완료: {}개 세션 (3개월 이상)", compressed);
-    }
-
-    /**
-     * 12개월 이상 된 세션: points 무조건 삭제 (GeoJSON은 이미 저장됨).
-     * 압축 단계를 건너뛴 세션에 대한 안전망.
-     */
-    @Scheduled(cron = "0 30 3 * * *")
-    @Transactional
-    public void purgeExpiredPoints() {
-        LocalDateTime twelveMonthsAgo = LocalDateTime.now().minusMonths(12);
-        List<WalkSession> sessions =
-                walkSessionRepository.findSessionsWithPointsBefore(twelveMonthsAgo, 500);
-
-        if (sessions.isEmpty()) return;
-
-        List<Long> sessionIds = sessions.stream().map(WalkSession::getId).toList();
-        walkPointRepository.deleteAllBySessionIdIn(sessionIds);
-        log.info("[삭제] 오래된 walk_points 제거: {}개 세션 (12개월 이상)", sessionIds.size());
+        if (totalPurged > 0) {
+            log.info("[산책 상세 삭제] 완료: {}개 세션 (7일 경과)", totalPurged);
+        }
     }
 }

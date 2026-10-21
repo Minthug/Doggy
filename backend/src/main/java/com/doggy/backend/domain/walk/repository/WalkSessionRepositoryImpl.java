@@ -22,12 +22,19 @@ public class WalkSessionRepositoryImpl implements WalkSessionRepositoryCustom {
 
     @Override
     public List<Long> findHistoryIdsByUserId(
-            Long userId, Long householdId, LocalDateTime householdJoinedAt, Pageable pageable) {
+            Long userId,
+            Long householdId,
+            LocalDateTime householdJoinedAt,
+            LocalDateTime visibleSince,
+            Pageable pageable) {
         return queryFactory
                 .select(session.id)
                 .from(session)
                 .where(
                         session.status.ne(Status.ABANDONED),
+                        session.status.ne(Status.COMPLETED)
+                                .or(session.startedAt.goe(visibleSince))
+                                .or(session.isArchived.isTrue()),
                         ownerOrHousehold(userId, householdId, householdJoinedAt)
                 )
                 .orderBy(session.startedAt.desc())

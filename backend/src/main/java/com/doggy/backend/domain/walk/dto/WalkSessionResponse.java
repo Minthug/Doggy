@@ -13,6 +13,9 @@ public record WalkSessionResponse(
         int distanceMeters,
         int durationSeconds,
         Status status,
+        boolean archived,
+        LocalDateTime detailsExpireAt,
+        boolean detailsPurged,
         List<DogInfo> dogs
 ) {
     public record DogInfo(Long id, String name, String breed, String profileImage) {}
@@ -28,6 +31,9 @@ public record WalkSessionResponse(
                 session.getDistanceMeters(),
                 session.getDurationSeconds(),
                 session.getStatus(),
+                session.isArchived(),
+                session.getStartedAt().plusDays(7),
+                session.getDetailsPurgedAt() != null,
                 dogInfos
         );
     }

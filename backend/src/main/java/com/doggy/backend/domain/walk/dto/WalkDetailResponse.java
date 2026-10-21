@@ -14,6 +14,10 @@ public record WalkDetailResponse(
         int durationSeconds,
         Status status,
         String routeGeoJson,
+        boolean archived,
+        String traceImageSvg,
+        LocalDateTime detailsExpireAt,
+        boolean detailsPurged,
         List<DogInfo> dogs,
         List<MarkingSpotCandidateResponse> markingSpotCandidates,
         List<MarkingSpotResponse> markingSpots
@@ -45,6 +49,10 @@ public record WalkDetailResponse(
                 session.getDurationSeconds(),
                 session.getStatus(),
                 routeGeoJson,
+                session.isArchived(),
+                session.getTraceImageSvg(),
+                session.getStartedAt().plusDays(7),
+                session.getDetailsPurgedAt() != null,
                 dogInfos,
                 markingSpotCandidates != null ? markingSpotCandidates : List.of(),
                 markingSpots != null ? markingSpots : List.of()

@@ -61,6 +61,7 @@ class WalkServiceTest {
     @Mock FcmService fcmService;
     @Mock WalkPingService walkPingService;
     @Mock MarkingSpotService markingSpotService;
+    @Mock WalkTraceImageService walkTraceImageService;
     @Mock JdbcTemplate jdbcTemplate;
 
     @InjectMocks WalkService walkService;
@@ -140,7 +141,8 @@ class WalkServiceTest {
             given(householdService.findHouseholdIdByUserId(1L))
                     .willReturn(new HouseholdIdCache(7L, joinedAt));
             given(walkSessionRepository.findAccessibleById(
-                    10L, 1L, 7L, joinedAt, Status.COMPLETED))
+                    eq(10L), eq(1L), eq(7L), eq(joinedAt),
+                    any(LocalDateTime.class), eq(Status.COMPLETED)))
                     .willReturn(Optional.of(session));
             given(walkPointRepository.findRouteGeoJsonBySessionId(10L)).willReturn(null);
             given(markingSpotService.getSessionSpots(10L)).willReturn(List.of());
@@ -149,7 +151,8 @@ class WalkServiceTest {
 
             assertThat(response.id()).isEqualTo(10L);
             verify(walkSessionRepository)
-                    .findAccessibleById(10L, 1L, 7L, joinedAt, Status.COMPLETED);
+                    .findAccessibleById(eq(10L), eq(1L), eq(7L), eq(joinedAt),
+                            any(LocalDateTime.class), eq(Status.COMPLETED));
         }
 
         @Test
@@ -171,6 +174,56 @@ class WalkServiceTest {
             assertThat(response.totalDistanceMeters()).isEqualTo(1500L);
             assertThat(response.totalDurationSeconds()).isEqualTo(900L);
             assertThat(response.walkCount()).isEqualTo(2L);
+        }
+
+        @Test
+        @DisplayName("가족이 없는 계정은 null 가족 파라미터 없이 소유자 상세 조회")
+        void detail_withoutHouseholdUsesOwnerQuery() {
+            User user = makeUser(1L);
+            WalkSession session = makeSession(10L, user, Status.COMPLETED);
+            given(householdService.findHouseholdIdByUserId(1L)).willReturn(null);
+            given(walkSessionRepository.findAccessibleByOwnerId(
+                    eq(10L), eq(1L), any(LocalDateTime.class), eq(Status.COMPLETED)))
+                    .willReturn(Optional.of(session));
+            given(walkPointRepository.findRouteGeoJsonBySessionId(10L)).willReturn(null);
+            given(markingSpotService.getSessionSpots(10L)).willReturn(List.of());
+
+            var response = walkService.getDetail(1L, 10L);
+
+            assertThat(response.id()).isEqualTo(10L);
+            verify(walkSessionRepository, never()).findAccessibleById(
+                    any(), any(), any(), any(), any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("archive")
+    class Archive {
+
+        @Test
+        @DisplayName("완료 산책을 좌표 없는 흔적 SVG로 보관")
+        void archivesCompletedWalkAsTraceImage() {
+            User user = makeUser(1L);
+            WalkSession session = makeSession(10L, user, Status.COMPLETED);
+            session.saveRouteGeoJson(
+                    "{\"type\":\"LineString\",\"coordinates\":[[127.1,37.5],[127.2,37.6]]}");
+            LocalDateTime joinedAt = LocalDateTime.now().minusDays(30);
+
+            given(householdService.findHouseholdIdByUserId(1L))
+                    .willReturn(new HouseholdIdCache(7L, joinedAt));
+            given(walkSessionRepository.findAccessibleById(
+                    eq(10L), eq(1L), eq(7L), eq(joinedAt),
+                    any(LocalDateTime.class), eq(Status.COMPLETED)))
+                    .willReturn(Optional.of(session));
+            given(walkTraceImageService.createSvg(any(String.class)))
+                    .willReturn("<svg>trace</svg>");
+            given(markingSpotService.getSessionSpots(10L)).willReturn(List.of());
+
+            var response = walkService.archive(1L, 10L);
+
+            assertThat(response.archived()).isTrue();
+            assertThat(response.traceImageSvg()).isEqualTo("<svg>trace</svg>");
+            assertThat(session.isArchived()).isTrue();
         }
     }
 

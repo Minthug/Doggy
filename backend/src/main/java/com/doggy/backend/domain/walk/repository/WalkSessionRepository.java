@@ -21,6 +21,9 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long>,
             SELECT DISTINCT s FROM WalkSession s
             LEFT JOIN FETCH s.dogs
             WHERE s.id = :sessionId
+              AND (s.status <> :completedStatus
+                   OR s.startedAt >= :visibleSince
+                   OR s.isArchived = true)
               AND (s.user.id = :userId
                    OR (:householdId IS NOT NULL
                        AND :householdJoinedAt IS NOT NULL
@@ -33,6 +36,22 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long>,
             @Param("userId") Long userId,
             @Param("householdId") Long householdId,
             @Param("householdJoinedAt") LocalDateTime householdJoinedAt,
+            @Param("visibleSince") LocalDateTime visibleSince,
+            @Param("completedStatus") Status completedStatus);
+
+    @Query("""
+            SELECT DISTINCT s FROM WalkSession s
+            LEFT JOIN FETCH s.dogs
+            WHERE s.id = :sessionId
+              AND s.user.id = :userId
+              AND (s.status <> :completedStatus
+                   OR s.startedAt >= :visibleSince
+                   OR s.isArchived = true)
+            """)
+    Optional<WalkSession> findAccessibleByOwnerId(
+            @Param("sessionId") Long sessionId,
+            @Param("userId") Long userId,
+            @Param("visibleSince") LocalDateTime visibleSince,
             @Param("completedStatus") Status completedStatus);
 
     @Query(value = """
@@ -56,6 +75,33 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long>,
             @Param("userId") Long userId,
             @Param("householdId") Long householdId,
             @Param("today") LocalDate today);
+
+    @Query(value = """
+            SELECT
+                COALESCE(SUM(ws.distance_meters), 0) AS "totalDistanceMeters",
+                COALESCE(SUM(ws.duration_seconds), 0) AS "totalDurationSeconds",
+                COUNT(*) AS "walkCount"
+            FROM walk_sessions ws
+            WHERE ws.status = 'COMPLETED'
+              AND (ws.started_at AT TIME ZONE 'Asia/Seoul')::date >= CAST(:periodStart AS date)
+              AND (ws.started_at AT TIME ZONE 'Asia/Seoul')::date < CAST(:periodEnd AS date)
+              AND (ws.user_id = :userId
+                   OR (ws.household_id = :householdId
+                       AND EXISTS (
+                           SELECT 1
+                           FROM household_members hm
+                           WHERE hm.household_id = :householdId
+                             AND hm.user_id = :userId
+                             AND ws.started_at >= hm.joined_at)))
+            """, nativeQuery = true)
+    TodayWalkStatsProjection findPeriodStats(
+            @Param("userId") Long userId,
+            @Param("householdId") Long householdId,
+            @Param("periodStart") LocalDate periodStart,
+            @Param("periodEnd") LocalDate periodEnd);
+
+    List<WalkSession> findTop100ByStatusAndStartedAtBeforeAndDetailsPurgedAtIsNullOrderByStartedAtAsc(
+            Status status, LocalDateTime before);
 
     @Query("SELECT DISTINCT s FROM WalkSession s JOIN FETCH s.user WHERE s.id IN :ids")
     List<WalkSession> findAllByIdWithUser(@Param("ids") Collection<Long> ids);

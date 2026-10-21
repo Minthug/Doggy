@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
+import '../../domain/providers/walk_provider.dart';
 import '../../../dog/data/repositories/dog_repository.dart';
 
 final _walkDetailProvider = FutureProvider.family<WalkDetail, int>((
@@ -28,6 +30,7 @@ class WalkDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detailAsync = ref.watch(_walkDetailProvider(sessionId));
+    final detail = detailAsync.valueOrNull;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -39,14 +42,26 @@ class WalkDetailScreen extends ConsumerWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          TextButton.icon(
-            onPressed: () => _showPublishDialog(context, ref),
-            icon: const Icon(Icons.share_outlined, size: 18),
-            label: const Text('공개'),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF4CAF50),
+          if (detail != null)
+            IconButton(
+              onPressed: () => _toggleArchive(context, ref, detail),
+              tooltip: detail.archived ? '보관 해제' : '흔적 보관',
+              icon: Icon(
+                detail.archived
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+                color: const Color(0xFF7A9B76),
+              ),
             ),
-          ),
+          if (detail == null || !detail.detailsPurged)
+            TextButton.icon(
+              onPressed: () => _showPublishDialog(context, ref),
+              icon: const Icon(Icons.share_outlined, size: 18),
+              label: const Text('공개'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF4CAF50),
+              ),
+            ),
         ],
       ),
       body: detailAsync.when(
@@ -55,6 +70,58 @@ class WalkDetailScreen extends ConsumerWidget {
         error: (e, _) => const Center(child: Text('불러오기 실패')),
       ),
     );
+  }
+
+  Future<void> _toggleArchive(
+    BuildContext context,
+    WidgetRef ref,
+    WalkDetail detail,
+  ) async {
+    if (detail.archived && detail.detailsPurged) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('보관을 해제할까요?'),
+          content: const Text('원본 GPS가 이미 삭제되어 보관을 해제하면 이 흔적 이미지는 복구할 수 없어요.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('해제'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    try {
+      final repository = ref.read(walkRepositoryProvider);
+      if (detail.archived) {
+        await repository.unarchive(sessionId);
+      } else {
+        await repository.archive(sessionId);
+      }
+      ref.invalidate(_walkDetailProvider(sessionId));
+      ref.invalidate(walkHistoryProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(detail.archived ? '보관을 해제했습니다' : '산책 흔적을 보관했습니다'),
+          ),
+        );
+        if (detail.archived && detail.detailsPurged) Navigator.pop(context);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('보관 상태를 변경하지 못했습니다')));
+      }
+    }
   }
 
   void _showPublishDialog(BuildContext context, WidgetRef ref) {
@@ -141,10 +208,12 @@ class _DetailBody extends ConsumerWidget {
         // 지도 (경로 표시)
         SizedBox(
           height: 300,
-          child: _RouteMap(
-            geoJson: detail.routeGeoJson,
-            markingSpots: detail.markingSpots,
-          ),
+          child: detail.traceImageSvg != null
+              ? _ArchivedTrace(svg: detail.traceImageSvg!)
+              : _RouteMap(
+                  geoJson: detail.routeGeoJson,
+                  markingSpots: detail.markingSpots,
+                ),
         ),
 
         // 통계
@@ -154,6 +223,8 @@ class _DetailBody extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _RetentionNotice(detail: detail),
+                const SizedBox(height: 14),
                 Text(
                   dateText,
                   style: const TextStyle(color: Colors.grey, fontSize: 13),
@@ -257,6 +328,69 @@ class _DetailBody extends ConsumerWidget {
 
   Widget _divider() =>
       Container(height: 48, width: 1, color: const Color(0xFFEEEEEE));
+}
+
+class _ArchivedTrace extends StatelessWidget {
+  final String svg;
+
+  const _ArchivedTrace({required this.svg});
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0xFFF3EDE3),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: SvgPicture.string(svg, fit: BoxFit.cover),
+        ),
+      ),
+    );
+  }
+}
+
+class _RetentionNotice extends StatelessWidget {
+  final WalkDetail detail;
+
+  const _RetentionNotice({required this.detail});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = detail.detailsPurged
+        ? '원본 GPS는 삭제되고 선택한 산책 흔적 이미지만 보관 중이에요.'
+        : detail.archived
+        ? '보관 완료 · 7일 후 GPS는 삭제되고 이 흔적 이미지만 남아요.'
+        : '상세 경로는 7일 동안 보관돼요. 오래 남기려면 북마크를 눌러주세요.';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF1E6),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            detail.archived ? Icons.bookmark_rounded : Icons.schedule_rounded,
+            color: const Color(0xFF6F8F6A),
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xFF50634D),
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // 경로 지도

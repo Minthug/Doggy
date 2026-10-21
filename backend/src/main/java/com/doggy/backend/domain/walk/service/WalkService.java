@@ -30,6 +30,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 public class WalkService {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
+    private static final int DETAIL_RETENTION_DAYS = 7;
 
     private final WalkSessionRepository walkSessionRepository;
     private final WalkPointRepository walkPointRepository;
@@ -55,6 +57,7 @@ public class WalkService {
     private final FcmService fcmService;
     private final WalkPingService walkPingService;
     private final MarkingSpotService markingSpotService;
+    private final WalkTraceImageService walkTraceImageService;
     private final JdbcTemplate jdbcTemplate;
 
     @Transactional(readOnly = false)
@@ -238,7 +241,8 @@ public class WalkService {
         // Step 1: DB LIMIT 적용된 ID 목록 (JOIN FETCH 없이 정확한 페이지네이션)
         // 한 세션에 가구 강아지가 여럿이면 같은 ID가 중복될 수 있으므로 deduplicate 후 재요청
         List<Long> rawIds = walkSessionRepository.findHistoryIdsByUserId(
-                userId, householdId, household.getJoinedAt(), PageRequest.of(safePage, safeSize));
+                userId, householdId, household.getJoinedAt(), detailsVisibleSince(),
+                PageRequest.of(safePage, safeSize));
         if (rawIds.isEmpty()) return List.of();
         List<Long> ids = rawIds.stream().distinct().toList();
         // Step 2: dogs 배치 로드 (IN 절 1회, N+1 없음)
@@ -254,12 +258,9 @@ public class WalkService {
 
     @Transactional(readOnly = false)
     public WalkDetailResponse getDetail(Long userId, Long sessionId) {
-        var household = getHousehold(userId);
-        WalkSession session = walkSessionRepository.findAccessibleById(
-                        sessionId, userId, household.getId(), household.getJoinedAt(), Status.COMPLETED)
-                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+        WalkSession session = findAccessibleWalk(userId, sessionId);
         String routeGeoJson = session.getRouteGeoJson();
-        if (routeGeoJson == null) {
+        if (routeGeoJson == null && session.getDetailsPurgedAt() == null) {
             try {
                 routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
                 // 다음 조회부터 즉시 반환되도록 세션에 저장 (lazy-save)
@@ -281,6 +282,72 @@ public class WalkService {
                 stats.getWalkCount());
     }
 
+    public TodayWalkStatsResponse getMonthlyStats(Long userId, int year, int month) {
+        YearMonth yearMonth;
+        try {
+            yearMonth = YearMonth.of(year, month);
+        } catch (RuntimeException e) {
+            throw BusinessException.badRequest("올바른 연월을 입력해 주세요");
+        }
+        var household = getHousehold(userId);
+        LocalDate periodStart = yearMonth.atDay(1);
+        var stats = walkSessionRepository.findPeriodStats(
+                userId, household.getId(), periodStart, yearMonth.plusMonths(1).atDay(1));
+        return new TodayWalkStatsResponse(
+                stats.getTotalDistanceMeters(),
+                stats.getTotalDurationSeconds(),
+                stats.getWalkCount());
+    }
+
+    @Transactional(readOnly = false)
+    public WalkDetailResponse archive(Long userId, Long sessionId) {
+        WalkSession session = findAccessibleWalk(userId, sessionId);
+        if (session.getStatus() != Status.COMPLETED) {
+            throw BusinessException.badRequest("완료된 산책만 보관할 수 있습니다");
+        }
+        if (session.getDetailsPurgedAt() != null && session.getTraceImageSvg() == null) {
+            throw BusinessException.badRequest("상세 경로 보관 기간이 지나 저장할 수 없습니다");
+        }
+
+        String routeGeoJson = session.getRouteGeoJson();
+        if (routeGeoJson == null && session.getDetailsPurgedAt() == null) {
+            routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
+            if (routeGeoJson != null) session.saveRouteGeoJson(routeGeoJson);
+        }
+        if (session.getTraceImageSvg() == null) {
+            session.archive(walkTraceImageService.createSvg(routeGeoJson));
+        } else {
+            session.archive(session.getTraceImageSvg());
+        }
+        return WalkDetailResponse.of(
+                session, routeGeoJson, List.of(), markingSpotService.getSessionSpots(sessionId));
+    }
+
+    @Transactional(readOnly = false)
+    public WalkDetailResponse unarchive(Long userId, Long sessionId) {
+        WalkSession session = findAccessibleWalk(userId, sessionId);
+        session.unarchive();
+        String routeGeoJson = session.getDetailsPurgedAt() == null ? session.getRouteGeoJson() : null;
+        return WalkDetailResponse.of(
+                session, routeGeoJson, List.of(), markingSpotService.getSessionSpots(sessionId));
+    }
+
+    private WalkSession findAccessibleWalk(Long userId, Long sessionId) {
+        var household = getHousehold(userId);
+        var session = household.getId() == null || household.getJoinedAt() == null
+                ? walkSessionRepository.findAccessibleByOwnerId(
+                        sessionId, userId, detailsVisibleSince(), Status.COMPLETED)
+                : walkSessionRepository.findAccessibleById(
+                        sessionId, userId, household.getId(), household.getJoinedAt(),
+                        detailsVisibleSince(), Status.COMPLETED);
+        return session
+                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+    }
+
+    private LocalDateTime detailsVisibleSince() {
+        return LocalDateTime.now(SERVICE_ZONE).minusDays(DETAIL_RETENTION_DAYS);
+    }
+
     private HouseholdIdCache getHousehold(Long userId) {
         var householdCache = householdService.findHouseholdIdByUserId(userId);
         return householdCache != null
@@ -295,6 +362,9 @@ public class WalkService {
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
         if (session.getStatus() != Status.COMPLETED) {
             throw BusinessException.badRequest("완료된 산책만 공개할 수 있습니다");
+        }
+        if (session.getDetailsPurgedAt() != null) {
+            throw BusinessException.badRequest("상세 경로 보관 기간이 지나 공개할 수 없습니다");
         }
         if (!Boolean.TRUE.equals(request.routeDisclosureAccepted())) {
             throw BusinessException.badRequest("산책 경로 공개 안내에 동의해야 합니다");

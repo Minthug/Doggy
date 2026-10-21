@@ -31,6 +31,9 @@ class WalkSession {
   final int distanceMeters;
   final int durationSeconds;
   final String status;
+  final bool archived;
+  final String? detailsExpireAt;
+  final bool detailsPurged;
   final List<WalkSessionDog> dogs;
 
   WalkSession({
@@ -40,6 +43,9 @@ class WalkSession {
     required this.distanceMeters,
     required this.durationSeconds,
     required this.status,
+    this.archived = false,
+    this.detailsExpireAt,
+    this.detailsPurged = false,
     this.dogs = const [],
   });
 
@@ -50,6 +56,9 @@ class WalkSession {
     distanceMeters: _nonNegativeInt(json['distanceMeters']),
     durationSeconds: _nonNegativeInt(json['durationSeconds']),
     status: json['status'] ?? '',
+    archived: json['archived'] ?? false,
+    detailsExpireAt: json['detailsExpireAt'],
+    detailsPurged: json['detailsPurged'] ?? false,
     dogs:
         (json['dogs'] as List<dynamic>?)
             ?.map((e) => WalkSessionDog.fromJson(e as Map<String, dynamic>))
@@ -82,6 +91,10 @@ class WalkDetail {
   final int durationSeconds;
   final String status;
   final String? routeGeoJson;
+  final bool archived;
+  final String? traceImageSvg;
+  final String? detailsExpireAt;
+  final bool detailsPurged;
   final List<MarkingSpotCandidate> markingSpotCandidates;
   final List<MarkingSpot> markingSpots;
 
@@ -93,6 +106,10 @@ class WalkDetail {
     required this.durationSeconds,
     required this.status,
     this.routeGeoJson,
+    this.archived = false,
+    this.traceImageSvg,
+    this.detailsExpireAt,
+    this.detailsPurged = false,
     this.markingSpotCandidates = const [],
     this.markingSpots = const [],
   });
@@ -105,6 +122,10 @@ class WalkDetail {
     durationSeconds: _nonNegativeInt(json['durationSeconds']),
     status: json['status'] ?? '',
     routeGeoJson: json['routeGeoJson'],
+    archived: json['archived'] ?? false,
+    traceImageSvg: json['traceImageSvg'],
+    detailsExpireAt: json['detailsExpireAt'],
+    detailsPurged: json['detailsPurged'] ?? false,
     markingSpotCandidates:
         (json['markingSpotCandidates'] as List<dynamic>?)
             ?.map(
@@ -389,6 +410,19 @@ class MonthlyWalkStats {
     required this.walkCount,
     required this.month,
   });
+
+  factory MonthlyWalkStats.fromJson(
+    Map<String, dynamic> json, {
+    required int month,
+  }) {
+    return MonthlyWalkStats(
+      totalDistanceMeters: (json['totalDistanceMeters'] as num?)?.toInt() ?? 0,
+      totalDurationSeconds:
+          (json['totalDurationSeconds'] as num?)?.toInt() ?? 0,
+      walkCount: (json['walkCount'] as num?)?.toInt() ?? 0,
+      month: month,
+    );
+  }
 
   String get distanceText {
     if (totalDistanceMeters >= 1000) {

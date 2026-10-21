@@ -69,6 +69,28 @@ public class WalkController {
         return ResponseEntity.ok(walkService.getTodayStats(principal.getId()));
     }
 
+    @GetMapping("/stats/monthly")
+    public ResponseEntity<TodayWalkStatsResponse> getMonthlyStats(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam int year,
+            @RequestParam int month) {
+        return ResponseEntity.ok(walkService.getMonthlyStats(principal.getId(), year, month));
+    }
+
+    @PatchMapping("/{sessionId}/archive")
+    public ResponseEntity<WalkDetailResponse> archive(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId) {
+        return ResponseEntity.ok(walkService.archive(principal.getId(), sessionId));
+    }
+
+    @DeleteMapping("/{sessionId}/archive")
+    public ResponseEntity<WalkDetailResponse> unarchive(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId) {
+        return ResponseEntity.ok(walkService.unarchive(principal.getId(), sessionId));
+    }
+
     @GetMapping("/{sessionId}")
     public ResponseEntity<WalkDetailResponse> getDetail(
             @AuthenticationPrincipal UserPrincipal principal,

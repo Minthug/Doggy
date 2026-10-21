@@ -33,29 +33,8 @@ final latestTodayWalkDetailProvider = FutureProvider<WalkDetail?>((ref) async {
 
 // 이번 달 산책 통계
 final monthlyWalkStatsProvider = FutureProvider<MonthlyWalkStats>((ref) async {
-  final history = await ref.watch(walkHistoryProvider.future);
   final now = DateTime.now();
-
-  final monthlySessions = history.where((s) {
-    if (s.startedAt == null) return false;
-    final started = DateTime.parse(s.startedAt!);
-    return started.year == now.year &&
-        started.month == now.month &&
-        s.status == 'COMPLETED';
-  }).toList();
-
-  return MonthlyWalkStats(
-    totalDistanceMeters: monthlySessions.fold(
-      0,
-      (sum, s) => sum + s.distanceMeters,
-    ),
-    totalDurationSeconds: monthlySessions.fold(
-      0,
-      (sum, s) => sum + s.durationSeconds,
-    ),
-    walkCount: monthlySessions.length,
-    month: now.month,
-  );
+  return ref.watch(walkRepositoryProvider).getMonthlyStats(now.year, now.month);
 });
 
 // 오늘 만난 강아지들 (오늘 완료된 모든 세션 집계)

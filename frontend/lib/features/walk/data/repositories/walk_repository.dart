@@ -82,6 +82,27 @@ class WalkRepository {
     return TodayWalkStats.fromJson(response.data as Map<String, dynamic>);
   }
 
+  Future<MonthlyWalkStats> getMonthlyStats(int year, int month) async {
+    final response = await _dio.get(
+      '/api/walks/stats/monthly',
+      queryParameters: {'year': year, 'month': month},
+    );
+    return MonthlyWalkStats.fromJson(
+      response.data as Map<String, dynamic>,
+      month: month,
+    );
+  }
+
+  Future<WalkDetail> archive(int sessionId) async {
+    final response = await _dio.patch('/api/walks/$sessionId/archive');
+    return WalkDetail.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<WalkDetail> unarchive(int sessionId) async {
+    final response = await _dio.delete('/api/walks/$sessionId/archive');
+    return WalkDetail.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<WalkDetail> getDetail(int sessionId) async {
     final response = await _dio.get('/api/walks/$sessionId');
     return WalkDetail.fromJson(response.data);
