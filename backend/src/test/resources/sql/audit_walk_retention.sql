@@ -1,4 +1,4 @@
--- 산책 상세 7일 보관 및 흔적 이미지 보관 회귀 테스트
+-- 산책 상세 7일 보관 및 압축 흔적길 보관 회귀 테스트
 -- 실행 데이터는 마지막에 전부 ROLLBACK된다.
 
 \set ON_ERROR_STOP on
@@ -35,10 +35,10 @@ BEGIN
 
     INSERT INTO walk_sessions (
         user_id, started_at, ended_at, distance_meters, duration_seconds,
-        status, is_archived, archived_at, trace_image_svg, route_geo_json, is_public
+        status, is_archived, archived_at, trace_path_data, route_geo_json, is_public
     ) VALUES (
         v_user_id, now() - interval '9 days', now() - interval '9 days' + interval '30 minutes',
-        1500, 1800, 'COMPLETED', true, now(), '<svg viewBox="0 0 600 360"><path d="M42 42 L558 318"/></svg>',
+        1500, 1800, 'COMPLETED', true, now(), 'v1|70,70;860,460',
         '{"type":"LineString","coordinates":[[127.3,37.5],[127.4,37.6]]}', true
     ) RETURNING id INTO v_archived_id;
 
@@ -83,24 +83,24 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM walk_sessions
         WHERE id = v_archived_id
-          AND trace_image_svg IS NOT NULL
+          AND trace_path_data IS NOT NULL
           AND route_geo_json IS NULL
           AND details_purged_at IS NOT NULL
           AND is_public = false
     ) THEN
-        RAISE EXCEPTION '보관 기록의 흔적 이미지/개인정보 삭제 상태 오류';
+        RAISE EXCEPTION '보관 기록의 흔적길/개인정보 삭제 상태 오류';
     END IF;
 
     IF EXISTS (
         SELECT 1 FROM walk_sessions
-        WHERE id = v_old_id AND (is_archived = true OR trace_image_svg IS NOT NULL)
+        WHERE id = v_old_id AND (is_archived = true OR trace_path_data IS NOT NULL)
     ) THEN
-        RAISE EXCEPTION '미보관 기록에 흔적 이미지가 생성됨';
+        RAISE EXCEPTION '미보관 기록에 흔적길 데이터가 생성됨';
     END IF;
 
     RAISE NOTICE 'PASS: 최근 기록만 기본 이력에 노출됨';
     RAISE NOTICE 'PASS: 7일이 지난 미보관 기록은 숨겨짐';
-    RAISE NOTICE 'PASS: 보관 기록은 SVG 흔적만 남고 GPS/GeoJSON/공개 상태가 제거됨';
+    RAISE NOTICE 'PASS: 보관 기록은 압축 흔적길만 남고 GPS/GeoJSON/공개 상태가 제거됨';
     RAISE NOTICE 'PASS: 상세 삭제 후에도 3000m 통계 합계가 유지됨';
 END
 $test$;

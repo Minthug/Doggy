@@ -141,6 +141,13 @@ public class WalkController {
         return ResponseEntity.ok(walkMeetService.getMeets(principal.getId(), sessionId));
     }
 
+    @GetMapping("/{sessionId}/traces")
+    public ResponseEntity<List<WalkTraceDiscoveryResponse>> getTraceDiscoveries(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId) {
+        return ResponseEntity.ok(walkService.getTraceDiscoveries(principal.getId(), sessionId));
+    }
+
     @PostMapping("/{sessionId}/marking-spots")
     public ResponseEntity<MarkingSpotResponse> createMarkingSpotVisit(
             @AuthenticationPrincipal UserPrincipal principal,

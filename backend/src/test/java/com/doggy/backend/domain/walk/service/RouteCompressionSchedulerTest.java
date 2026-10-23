@@ -24,11 +24,11 @@ class RouteCompressionSchedulerTest {
 
     @Mock WalkSessionRepository walkSessionRepository;
     @Mock WalkPointRepository walkPointRepository;
-    @Mock WalkTraceImageService walkTraceImageService;
+    @Mock WalkTracePathService walkTracePathService;
     @InjectMocks RouteCompressionScheduler scheduler;
 
     @Test
-    void purgesGpsButKeepsTraceImageForArchivedWalk() {
+    void purgesGpsButKeepsCompactTracePathForArchivedWalk() {
         WalkSession session = WalkSession.builder()
                 .user(User.builder().nickname("tester").build())
                 .startedAt(LocalDateTime.now().minusDays(8))
@@ -43,14 +43,14 @@ class RouteCompressionSchedulerTest {
                 .findTop100ByStatusAndStartedAtBeforeAndDetailsPurgedAtIsNullOrderByStartedAtAsc(
                         any(WalkSession.Status.class), any(LocalDateTime.class)))
                 .willReturn(List.of(session), List.of());
-        given(walkTraceImageService.createSvg(any())).willReturn("<svg>trace</svg>");
+        given(walkTracePathService.createPathData(any())).willReturn("v1|70,530;860,-460");
 
         scheduler.purgeExpiredWalkDetails();
 
         verify(walkPointRepository).deleteAllBySessionId(10L);
         assertThat(session.getRouteGeoJson()).isNull();
         assertThat(session.getDetailsPurgedAt()).isNotNull();
-        assertThat(session.getTraceImageSvg()).isEqualTo("<svg>trace</svg>");
+        assertThat(session.getTracePathData()).isEqualTo("v1|70,530;860,-460");
         assertThat(session.isPublic()).isFalse();
     }
 }

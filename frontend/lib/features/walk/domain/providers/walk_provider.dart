@@ -31,6 +31,18 @@ final latestTodayWalkDetailProvider = FutureProvider<WalkDetail?>((ref) async {
   return ref.watch(walkRepositoryProvider).getDetail(completedToday.first.id);
 });
 
+final walkTraceDiscoveriesProvider =
+    FutureProvider.family<List<WalkTraceDiscovery>, int>((ref, sessionId) {
+      return ref.watch(walkRepositoryProvider).getTraceDiscoveries(sessionId);
+    });
+
+final latestTodayWalkTraceDiscoveriesProvider =
+    FutureProvider<List<WalkTraceDiscovery>>((ref) async {
+      final detail = await ref.watch(latestTodayWalkDetailProvider.future);
+      if (detail == null) return const [];
+      return ref.watch(walkTraceDiscoveriesProvider(detail.id).future);
+    });
+
 // 이번 달 산책 통계
 final monthlyWalkStatsProvider = FutureProvider<MonthlyWalkStats>((ref) async {
   final now = DateTime.now();

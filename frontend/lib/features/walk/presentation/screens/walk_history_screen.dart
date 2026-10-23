@@ -41,9 +41,9 @@ class WalkHistoryScreen extends ConsumerWidget {
               .toList();
 
           return RefreshIndicator(
-            onRefresh: () async {
+            onRefresh: () {
               ref.invalidate(monthlyWalkStatsProvider);
-              await ref.refresh(walkHistoryProvider.future);
+              return ref.refresh(walkHistoryProvider.future);
             },
             child: ListView(
               padding: const EdgeInsets.all(16),
@@ -392,7 +392,7 @@ class _RetentionGuideCard extends StatelessWidget {
           SizedBox(width: 12),
           Expanded(
             child: Text(
-              '최근 산책의 상세 경로는 7일 동안 보여요. 간직하고 싶은 산책은 상세 화면에서 보관하면 GPS 대신 귀여운 흔적 이미지로 남겨드려요.',
+              '최근 산책의 상세 경로는 7일 동안 보여요. 간직하고 싶은 산책은 상세 화면에서 보관하면 GPS 대신 좌표 없는 가벼운 흔적길로 남겨드려요.',
               style: TextStyle(
                 color: Color(0xFF5E655A),
                 fontSize: 13,

@@ -92,7 +92,7 @@ class WalkDetail {
   final String status;
   final String? routeGeoJson;
   final bool archived;
-  final String? traceImageSvg;
+  final String? tracePathData;
   final String? detailsExpireAt;
   final bool detailsPurged;
   final List<MarkingSpotCandidate> markingSpotCandidates;
@@ -107,7 +107,7 @@ class WalkDetail {
     required this.status,
     this.routeGeoJson,
     this.archived = false,
-    this.traceImageSvg,
+    this.tracePathData,
     this.detailsExpireAt,
     this.detailsPurged = false,
     this.markingSpotCandidates = const [],
@@ -123,7 +123,7 @@ class WalkDetail {
     status: json['status'] ?? '',
     routeGeoJson: json['routeGeoJson'],
     archived: json['archived'] ?? false,
-    traceImageSvg: json['traceImageSvg'],
+    tracePathData: json['tracePathData'],
     detailsExpireAt: json['detailsExpireAt'],
     detailsPurged: json['detailsPurged'] ?? false,
     markingSpotCandidates:
@@ -395,6 +395,55 @@ class WalkMeetDog {
         .map((w) => w.toString())
         .toList(),
     isFavorited: json['isFavorited'] ?? false,
+  );
+}
+
+class WalkTraceDiscovery {
+  final int sessionId;
+  final String recency;
+  final String routeGeoJson;
+  final List<WalkTraceDog> dogs;
+
+  WalkTraceDiscovery({
+    required this.sessionId,
+    required this.recency,
+    required this.routeGeoJson,
+    required this.dogs,
+  });
+
+  factory WalkTraceDiscovery.fromJson(Map<String, dynamic> json) =>
+      WalkTraceDiscovery(
+        sessionId: json['sessionId'],
+        recency: json['recency'] ?? 'WITHIN_THREE_DAYS',
+        routeGeoJson: json['routeGeoJson'] ?? '',
+        dogs: (json['dogs'] as List? ?? [])
+            .map((dog) => WalkTraceDog.fromJson(dog))
+            .toList(),
+      );
+
+  bool get isToday => recency == 'TODAY';
+
+  String get recencyText => isToday ? '오늘 이 길을 지났어요' : '최근 3일 안에 다녀갔어요';
+}
+
+class WalkTraceDog {
+  final int id;
+  final String name;
+  final String? breed;
+  final String? profileImage;
+
+  WalkTraceDog({
+    required this.id,
+    required this.name,
+    this.breed,
+    this.profileImage,
+  });
+
+  factory WalkTraceDog.fromJson(Map<String, dynamic> json) => WalkTraceDog(
+    id: json['id'],
+    name: json['name'] ?? '',
+    breed: json['breed'],
+    profileImage: json['profileImage'],
   );
 }
 

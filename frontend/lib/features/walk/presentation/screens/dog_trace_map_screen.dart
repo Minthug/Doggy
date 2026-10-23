@@ -5,21 +5,7 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rive/rive.dart' as rive;
 import '../../domain/providers/walk_provider.dart';
-
-const _dogTracePalette = <Color>[
-  Color(0xFFD8A07C), // 피치
-  Color(0xFF87A9C4), // 더스티 블루
-  Color(0xFFA897C0), // 라벤더
-  Color(0xFF8FB097), // 세이지
-  Color(0xFFD39AA3), // 더스티 로즈
-  Color(0xFFD4BA78), // 버터 옐로
-  Color(0xFF82B5B0), // 소프트 틸
-  Color(0xFF929FC4), // 페리윙클
-  Color(0xFFCB8D7D), // 코랄
-  Color(0xFF93BCA5), // 민트
-  Color(0xFFB38FA8), // 모브
-  Color(0xFF789EA2), // 슬레이트 아쿠아
-];
+import '../models/dog_trace_visual.dart';
 
 class DogTraceMapScreen extends ConsumerStatefulWidget {
   const DogTraceMapScreen({super.key});
@@ -33,63 +19,12 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
     'assets/markers/marking_spot_paw.png',
   );
 
-  static const _traces = <_DogTrace>[
-    _DogTrace(
-      id: 'mong',
-      name: '몽이',
-      recency: '오늘 이 길을 지났어요',
-      isToday: true,
-      markerIndex: 4,
-      colorIndex: 0,
-      points: [
-        NLatLng(37.21740, 126.94370),
-        NLatLng(37.21780, 126.94430),
-        NLatLng(37.21820, 126.94480),
-        NLatLng(37.21860, 126.94530),
-        NLatLng(37.21900, 126.94580),
-        NLatLng(37.21940, 126.94630),
-      ],
-    ),
-    _DogTrace(
-      id: 'bori',
-      name: '보리',
-      recency: '오늘 이 길을 지났어요',
-      isToday: true,
-      markerIndex: 1,
-      colorIndex: 1,
-      points: [
-        NLatLng(37.21960, 126.94380),
-        NLatLng(37.21920, 126.94430),
-        NLatLng(37.21880, 126.94480),
-        NLatLng(37.21850, 126.94530),
-        NLatLng(37.21820, 126.94590),
-        NLatLng(37.21790, 126.94650),
-      ],
-    ),
-    _DogTrace(
-      id: 'tofu',
-      name: '두부',
-      recency: '최근 3일 안에 다녀갔어요',
-      isToday: false,
-      markerIndex: 0,
-      colorIndex: 2,
-      points: [
-        NLatLng(37.21760, 126.94680),
-        NLatLng(37.21800, 126.94640),
-        NLatLng(37.21840, 126.94600),
-        NLatLng(37.21880, 126.94560),
-        NLatLng(37.21920, 126.94510),
-        NLatLng(37.21960, 126.94470),
-      ],
-    ),
-  ];
-
   NaverMapController? _controller;
-  _DogTrace? _selectedTrace;
+  DogTraceVisual? _selectedTrace;
   bool _todayOnly = true;
 
-  List<_DogTrace> get _visibleTraces =>
-      _todayOnly ? _traces.where((trace) => trace.isToday).toList() : _traces;
+  List<DogTraceVisual> _visibleTraces(List<DogTraceVisual> traces) =>
+      _todayOnly ? traces.where((trace) => trace.isToday).toList() : traces;
 
   @override
   void dispose() {
@@ -99,12 +34,23 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final discoveriesAsync = ref.watch(latestTodayWalkTraceDiscoveriesProvider);
+    final allTraces = buildDogTraceMapItems(
+      discoveriesAsync.valueOrNull ?? const [],
+    );
+    final traces = _visibleTraces(allTraces);
+
     ref.listen(latestTodayWalkDetailProvider, (_, next) {
-      if (next.hasValue) _drawTraces();
+      if (next.hasValue) _drawTraces(traces);
+    });
+    ref.listen(latestTodayWalkTraceDiscoveriesProvider, (_, next) {
+      if (next.hasValue) {
+        final updated = _visibleTraces(buildDogTraceMapItems(next.value!));
+        _drawTraces(updated);
+      }
     });
 
     final topPadding = MediaQuery.of(context).padding.top;
-    final traces = _visibleTraces;
     final todayStatsAsync = ref.watch(todayWalkStatsProvider);
     final todayStats = todayStatsAsync.valueOrNull;
     final distanceText = todayStatsAsync.isLoading
@@ -137,7 +83,7 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
             ),
             onMapReady: (controller) {
               _controller = controller;
-              _drawTraces();
+              _drawTraces(traces);
             },
             onMapTapped: (_, _) => setState(() => _selectedTrace = null),
           ),
@@ -158,8 +104,8 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _filterChip('오늘', _todayOnly, true),
-                      _filterChip('최근 3일', !_todayOnly, false),
+                      _filterChip('오늘', _todayOnly, true, allTraces),
+                      _filterChip('최근 3일', !_todayOnly, false, allTraces),
                     ],
                   ),
                 ),
@@ -216,7 +162,12 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
     );
   }
 
-  Widget _filterChip(String label, bool selected, bool todayOnly) {
+  Widget _filterChip(
+    String label,
+    bool selected,
+    bool todayOnly,
+    List<DogTraceVisual> allTraces,
+  ) {
     return InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: () {
@@ -225,7 +176,7 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
           _todayOnly = todayOnly;
           _selectedTrace = null;
         });
-        _drawTraces();
+        _drawTraces(_visibleTraces(allTraces));
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
@@ -246,12 +197,12 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
     );
   }
 
-  Future<void> _drawTraces() async {
+  Future<void> _drawTraces(List<DogTraceVisual> traces) async {
     final controller = _controller;
     if (controller == null) return;
     await controller.clearOverlays();
 
-    for (final trace in _visibleTraces) {
+    for (final trace in traces) {
       await controller.addOverlay(
         NPolylineOverlay(
           id: 'trace-${trace.id}',
@@ -280,7 +231,7 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
       icon: _markingSpotIcon,
       size: const Size(42, 48),
       anchor: const NPoint(0.5, 1),
-      caption: NOverlayCaption(text: '${_visibleTraces.length}마리의 흔적'),
+      caption: NOverlayCaption(text: '${traces.length}마리의 흔적'),
       isForceShowIcon: true,
       isHideCollidedMarkers: false,
     );
@@ -388,7 +339,7 @@ class _RouteLegend extends StatelessWidget {
 }
 
 class _TraceSummaryCard extends StatelessWidget {
-  final List<_DogTrace> traces;
+  final List<DogTraceVisual> traces;
   final String distanceText;
   final String durationText;
 
@@ -608,7 +559,7 @@ class _MascotFallback extends StatelessWidget {
 }
 
 class _TraceDetailCard extends StatelessWidget {
-  final _DogTrace trace;
+  final DogTraceVisual trace;
   final VoidCallback onClose;
 
   const _TraceDetailCard({required this.trace, required this.onClose});
@@ -656,28 +607,6 @@ class _TraceDetailCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _DogTrace {
-  final String id;
-  final String name;
-  final String recency;
-  final bool isToday;
-  final int markerIndex;
-  final int colorIndex;
-  final List<NLatLng> points;
-
-  Color get color => _dogTracePalette[colorIndex % _dogTracePalette.length];
-
-  const _DogTrace({
-    required this.id,
-    required this.name,
-    required this.recency,
-    required this.isToday,
-    required this.markerIndex,
-    required this.colorIndex,
-    required this.points,
-  });
 }
 
 final _cardDecoration = BoxDecoration(

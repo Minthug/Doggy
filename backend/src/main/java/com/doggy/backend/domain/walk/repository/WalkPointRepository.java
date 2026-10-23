@@ -43,6 +43,55 @@ public interface WalkPointRepository extends JpaRepository<WalkPoint, Long> {
             """, nativeQuery = true)
     List<Object[]> findRouteGeoJsonBySessionIds(@Param("sessionIds") Collection<Long> sessionIds);
 
+    @Query(value = """
+            WITH target_context AS (
+                SELECT user_id, household_id,
+                       COALESCE(ended_at, started_at) AS walked_until
+                FROM walk_sessions
+                WHERE id = :sessionId
+            ),
+            target_route AS (
+                SELECT ST_MakeLine(
+                           ST_SetSRID(ST_MakePoint(wp.lng, wp.lat), 4326)
+                           ORDER BY wp.recorded_at
+                       ) AS geom
+                FROM walk_points wp
+                WHERE wp.session_id = :sessionId
+                HAVING COUNT(*) >= 2
+            ),
+            candidate_routes AS (
+                SELECT wp.session_id,
+                       ST_MakeLine(
+                           ST_SetSRID(ST_MakePoint(wp.lng, wp.lat), 4326)
+                           ORDER BY wp.recorded_at
+                       ) AS geom
+                FROM walk_points wp
+                JOIN walk_sessions ws ON ws.id = wp.session_id
+                CROSS JOIN target_context tc
+                WHERE ws.id <> :sessionId
+                  AND ws.status = 'COMPLETED'
+                  AND ws.is_public = true
+                  AND ws.started_at <= tc.walked_until
+                  AND ws.started_at >= tc.walked_until - INTERVAL '3 days'
+                  AND ws.user_id <> tc.user_id
+                  AND (tc.household_id IS NULL OR ws.household_id IS NULL
+                       OR ws.household_id <> tc.household_id)
+                GROUP BY wp.session_id
+                HAVING COUNT(*) >= 2
+            )
+            SELECT cr.session_id
+            FROM candidate_routes cr
+            JOIN walk_sessions ws ON ws.id = cr.session_id
+            CROSS JOIN target_route tr
+            WHERE ST_DWithin(tr.geom::geography, cr.geom::geography, :radiusMeters)
+            ORDER BY ws.started_at DESC
+            LIMIT :maxResults
+            """, nativeQuery = true)
+    List<Long> findNearbyPublicTraceSessionIds(
+            @Param("sessionId") Long sessionId,
+            @Param("radiusMeters") double radiusMeters,
+            @Param("maxResults") int maxResults);
+
     void deleteAllBySessionId(Long sessionId);
 
     @Modifying

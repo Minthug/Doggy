@@ -57,7 +57,7 @@ public class WalkService {
     private final FcmService fcmService;
     private final WalkPingService walkPingService;
     private final MarkingSpotService markingSpotService;
-    private final WalkTraceImageService walkTraceImageService;
+    private final WalkTracePathService walkTracePathService;
     private final JdbcTemplate jdbcTemplate;
 
     @Transactional(readOnly = false)
@@ -272,6 +272,48 @@ public class WalkService {
         return WalkDetailResponse.of(session, routeGeoJson, List.of(), markingSpotService.getSessionSpots(sessionId));
     }
 
+    public List<WalkTraceDiscoveryResponse> getTraceDiscoveries(Long userId, Long sessionId) {
+        WalkSession target = findAccessibleWalk(userId, sessionId);
+        if (target.getStatus() != Status.COMPLETED || target.getDetailsPurgedAt() != null) {
+            return List.of();
+        }
+
+        List<Long> traceSessionIds = walkPointRepository.findNearbyPublicTraceSessionIds(
+                sessionId, 80.0, 30);
+        if (traceSessionIds.isEmpty()) return List.of();
+
+        Map<Long, WalkSession> sessionsById = walkSessionRepository.findAllByIdWithDogs(traceSessionIds)
+                .stream()
+                .collect(Collectors.toMap(WalkSession::getId, session -> session));
+        Map<Long, String> routesById = walkPointRepository.findRouteGeoJsonBySessionIds(traceSessionIds)
+                .stream()
+                .filter(row -> row[1] != null)
+                .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).longValue(),
+                        row -> row[1].toString()));
+
+        LocalDate targetDate = target.getStartedAt().atZone(SERVICE_ZONE).toLocalDate();
+        return traceSessionIds.stream()
+                .map(id -> {
+                    WalkSession traceSession = sessionsById.get(id);
+                    String routeGeoJson = routesById.get(id);
+                    if (traceSession == null || routeGeoJson == null || traceSession.getDogs().isEmpty()) {
+                        return null;
+                    }
+                    LocalDate traceDate = traceSession.getStartedAt().atZone(SERVICE_ZONE).toLocalDate();
+                    var recency = traceDate.equals(targetDate)
+                            ? WalkTraceDiscoveryResponse.Recency.TODAY
+                            : WalkTraceDiscoveryResponse.Recency.WITHIN_THREE_DAYS;
+                    var dogs = traceSession.getDogs().stream()
+                            .map(dog -> new WalkTraceDiscoveryResponse.DogInfo(
+                                    dog.getId(), dog.getName(), dog.getBreed(), dog.getProfileImage()))
+                            .toList();
+                    return new WalkTraceDiscoveryResponse(id, recency, routeGeoJson, dogs);
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
     public TodayWalkStatsResponse getTodayStats(Long userId) {
         var household = getHousehold(userId);
         LocalDate today = LocalDate.now(SERVICE_ZONE);
@@ -305,7 +347,7 @@ public class WalkService {
         if (session.getStatus() != Status.COMPLETED) {
             throw BusinessException.badRequest("완료된 산책만 보관할 수 있습니다");
         }
-        if (session.getDetailsPurgedAt() != null && session.getTraceImageSvg() == null) {
+        if (session.getDetailsPurgedAt() != null && session.getTracePathData() == null) {
             throw BusinessException.badRequest("상세 경로 보관 기간이 지나 저장할 수 없습니다");
         }
 
@@ -314,10 +356,10 @@ public class WalkService {
             routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
             if (routeGeoJson != null) session.saveRouteGeoJson(routeGeoJson);
         }
-        if (session.getTraceImageSvg() == null) {
-            session.archive(walkTraceImageService.createSvg(routeGeoJson));
+        if (session.getTracePathData() == null) {
+            session.archive(walkTracePathService.createPathData(routeGeoJson));
         } else {
-            session.archive(session.getTraceImageSvg());
+            session.archive(session.getTracePathData());
         }
         return WalkDetailResponse.of(
                 session, routeGeoJson, List.of(), markingSpotService.getSessionSpots(sessionId));

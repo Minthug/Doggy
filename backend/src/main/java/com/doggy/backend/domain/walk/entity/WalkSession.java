@@ -65,6 +65,9 @@ public class WalkSession extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String traceImageSvg;
 
+    @Column(columnDefinition = "TEXT")
+    private String tracePathData;
+
     private LocalDateTime detailsPurgedAt;
 
     @ManyToMany(fetch = FetchType.LAZY)
@@ -104,16 +107,18 @@ public class WalkSession extends BaseEntity {
         this.routeGeoJson = geoJson;
     }
 
-    public void archive(String traceImageSvg) {
+    public void archive(String tracePathData) {
         this.isArchived = true;
         this.archivedAt = LocalDateTime.now();
-        this.traceImageSvg = traceImageSvg;
+        this.tracePathData = tracePathData;
+        this.traceImageSvg = null;
     }
 
     public void unarchive() {
         this.isArchived = false;
         this.archivedAt = null;
         this.traceImageSvg = null;
+        this.tracePathData = null;
     }
 
     public void purgeDetails() {

@@ -1,6 +1,7 @@
 package com.doggy.backend.domain.walk.service;
 
 import com.doggy.backend.domain.dog.repository.DogRepository;
+import com.doggy.backend.domain.dog.entity.Dog;
 import com.doggy.backend.domain.household.dto.HouseholdIdCache;
 import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.domain.user.entity.User;
@@ -61,7 +62,7 @@ class WalkServiceTest {
     @Mock FcmService fcmService;
     @Mock WalkPingService walkPingService;
     @Mock MarkingSpotService markingSpotService;
-    @Mock WalkTraceImageService walkTraceImageService;
+    @Mock WalkTracePathService walkTracePathService;
     @Mock JdbcTemplate jdbcTemplate;
 
     @InjectMocks WalkService walkService;
@@ -197,12 +198,72 @@ class WalkServiceTest {
     }
 
     @Nested
+    @DisplayName("trace discoveries")
+    class TraceDiscoveries {
+
+        @Test
+        @DisplayName("가까운 공개 산책은 보호자 정보 없이 강아지와 경로만 반환")
+        void returnsNearbyPublicDogTrace() {
+            User owner = makeUser(1L);
+            User other = makeUser(2L);
+            LocalDateTime walkedAt = LocalDateTime.of(2026, 10, 19, 15, 0);
+            WalkSession target = WalkSession.builder().user(owner).startedAt(walkedAt).build();
+            ReflectionTestUtils.setField(target, "id", 10L);
+            ReflectionTestUtils.setField(target, "status", Status.COMPLETED);
+            WalkSession trace = WalkSession.builder()
+                    .user(other)
+                    .startedAt(walkedAt.minusHours(1))
+                    .build();
+            ReflectionTestUtils.setField(trace, "id", 20L);
+            ReflectionTestUtils.setField(trace, "status", Status.COMPLETED);
+            Dog dog = Dog.builder().user(other).name("보리").breed("웰시코기").build();
+            ReflectionTestUtils.setField(dog, "id", 4L);
+            trace.getDogs().add(dog);
+            String route = "{\"type\":\"LineString\",\"coordinates\":[[126.9,37.2],[127.0,37.3]]}";
+
+            given(householdService.findHouseholdIdByUserId(1L)).willReturn(null);
+            given(walkSessionRepository.findAccessibleByOwnerId(
+                    eq(10L), eq(1L), any(LocalDateTime.class), eq(Status.COMPLETED)))
+                    .willReturn(Optional.of(target));
+            given(walkPointRepository.findNearbyPublicTraceSessionIds(10L, 80.0, 30))
+                    .willReturn(List.of(20L));
+            given(walkSessionRepository.findAllByIdWithDogs(List.of(20L)))
+                    .willReturn(List.of(trace));
+            given(walkPointRepository.findRouteGeoJsonBySessionIds(List.of(20L)))
+                    .willReturn(List.<Object[]>of(new Object[]{20L, route}));
+
+            var response = walkService.getTraceDiscoveries(1L, 10L);
+
+            assertThat(response).hasSize(1);
+            assertThat(response.getFirst().recency().name()).isEqualTo("TODAY");
+            assertThat(response.getFirst().routeGeoJson()).isEqualTo(route);
+            assertThat(response.getFirst().dogs()).extracting("name").containsExactly("보리");
+        }
+
+        @Test
+        @DisplayName("원본 상세 경로가 삭제된 산책은 흔적을 조회하지 않음")
+        void returnsEmptyAfterDetailsPurged() {
+            User owner = makeUser(1L);
+            WalkSession target = makeSession(10L, owner, Status.COMPLETED);
+            target.purgeDetails();
+            given(householdService.findHouseholdIdByUserId(1L)).willReturn(null);
+            given(walkSessionRepository.findAccessibleByOwnerId(
+                    eq(10L), eq(1L), any(LocalDateTime.class), eq(Status.COMPLETED)))
+                    .willReturn(Optional.of(target));
+
+            assertThat(walkService.getTraceDiscoveries(1L, 10L)).isEmpty();
+            verify(walkPointRepository, never())
+                    .findNearbyPublicTraceSessionIds(any(), anyDouble(), anyInt());
+        }
+    }
+
+    @Nested
     @DisplayName("archive")
     class Archive {
 
         @Test
-        @DisplayName("완료 산책을 좌표 없는 흔적 SVG로 보관")
-        void archivesCompletedWalkAsTraceImage() {
+        @DisplayName("완료 산책을 좌표 없는 압축 흔적 경로로 보관")
+        void archivesCompletedWalkAsCompactTracePath() {
             User user = makeUser(1L);
             WalkSession session = makeSession(10L, user, Status.COMPLETED);
             session.saveRouteGeoJson(
@@ -215,14 +276,14 @@ class WalkServiceTest {
                     eq(10L), eq(1L), eq(7L), eq(joinedAt),
                     any(LocalDateTime.class), eq(Status.COMPLETED)))
                     .willReturn(Optional.of(session));
-            given(walkTraceImageService.createSvg(any(String.class)))
-                    .willReturn("<svg>trace</svg>");
+            given(walkTracePathService.createPathData(any(String.class)))
+                    .willReturn("v1|70,530;860,-460");
             given(markingSpotService.getSessionSpots(10L)).willReturn(List.of());
 
             var response = walkService.archive(1L, 10L);
 
             assertThat(response.archived()).isTrue();
-            assertThat(response.traceImageSvg()).isEqualTo("<svg>trace</svg>");
+            assertThat(response.tracePathData()).isEqualTo("v1|70,530;860,-460");
             assertThat(session.isArchived()).isTrue();
         }
     }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/api/api_client.dart';
+import '../../../../core/image/dog_image_validator.dart';
 import '../../data/models/dog_model.dart';
 import '../../data/repositories/dog_repository.dart';
 import '../../domain/providers/dog_provider.dart';
@@ -27,6 +28,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
   bool _isNeutered = false;
   DateTime? _birthDate;
   bool _isLoading = false;
+  bool _isValidatingImage = false;
   File? _imageFile;
   final Set<String> _warnings = {};
 
@@ -64,14 +66,35 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
       imageQuality: 80,
     );
     if (picked != null) {
-      setState(() => _imageFile = File(picked.path));
+      final image = File(picked.path);
+      setState(() => _isValidatingImage = true);
+      try {
+        final isDog = await DogImageValidator().containsDog(image);
+        if (!mounted) return;
+        if (!isDog) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('강아지가 확인되는 사진만 등록할 수 있어요')),
+          );
+          return;
+        }
+        setState(() => _imageFile = image);
+      } on DogImageValidationException catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(error.message)));
+        }
+      } finally {
+        if (mounted) setState(() => _isValidatingImage = false);
+      }
     }
   }
 
   Future<void> _pickBirthDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _birthDate ?? DateTime.now().subtract(const Duration(days: 365)),
+      initialDate:
+          _birthDate ?? DateTime.now().subtract(const Duration(days: 365)),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
       helpText: '생년월일 선택',
@@ -111,9 +134,9 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
 
   Future<void> _submit() async {
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이름을 입력해주세요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('이름을 입력해주세요')));
       return;
     }
 
@@ -124,7 +147,9 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
           : widget.dog?.profileImage;
 
       if (_isEditMode) {
-        await ref.read(dogRepositoryProvider).update(
+        await ref
+            .read(dogRepositoryProvider)
+            .update(
               dogId: widget.dog!.id,
               name: _nameController.text.trim(),
               breed: _breedController.text.trim(),
@@ -138,7 +163,9 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
               profileImage: profileImage,
             );
       } else {
-        await ref.read(dogRepositoryProvider).create(
+        await ref
+            .read(dogRepositoryProvider)
+            .create(
               name: _nameController.text.trim(),
               breed: _breedController.text.trim(),
               birthDate: _formatDate(_birthDate),
@@ -161,7 +188,9 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
           final serverMsg = e.response?.data?['message'] as String?;
           if (serverMsg != null) msg = serverMsg;
         }
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -176,11 +205,13 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
         content: Text('${widget.dog!.name}을(를) 삭제하시겠습니까?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('취소')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('삭제', style: TextStyle(color: Colors.red))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
@@ -194,9 +225,9 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('삭제에 실패했습니다')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('삭제에 실패했습니다')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -228,7 +259,7 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
             // 프로필 사진
             Center(
               child: GestureDetector(
-                onTap: _pickImage,
+                onTap: _isValidatingImage ? null : _pickImage,
                 child: Stack(
                   children: [
                     Container(
@@ -240,6 +271,21 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
                       ),
                       child: _buildProfileImage(),
                     ),
+                    if (_isValidatingImage)
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(50),
+                          ),
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 3,
+                            ),
+                          ),
+                        ),
+                      ),
                     Positioned(
                       bottom: 0,
                       right: 0,
@@ -250,12 +296,22 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
                           color: const Color(0xFF4CAF50),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Icon(Icons.camera_alt,
-                            color: Colors.white, size: 18),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ),
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Center(
+              child: Text(
+                '강아지가 잘 보이는 사진만 등록할 수 있어요',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ),
             const SizedBox(height: 24),
@@ -276,7 +332,10 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
             GestureDetector(
               onTap: _pickBirthDate,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 18,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -294,7 +353,11 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
                         color: _birthDate == null ? Colors.grey : Colors.black,
                       ),
                     ),
-                    const Icon(Icons.calendar_today, color: Colors.grey, size: 20),
+                    const Icon(
+                      Icons.calendar_today,
+                      color: Colors.grey,
+                      size: 20,
+                    ),
                   ],
                 ),
               ),
@@ -305,7 +368,9 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
               controller: _weightController,
               label: '몸무게 (kg)',
               hint: '예) 3.5',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -314,9 +379,13 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
 
             Row(
               children: [
-                Expanded(child: _genderButton(label: '남아 ♂', value: 'MALE')),
+                Expanded(
+                  child: _genderButton(label: '남아 ♂', value: 'MALE'),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _genderButton(label: '여아 ♀', value: 'FEMALE')),
+                Expanded(
+                  child: _genderButton(label: '여아 ♀', value: 'FEMALE'),
+                ),
               ],
             ),
             const SizedBox(height: 24),
@@ -347,19 +416,22 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: _isLoading ? null : _submit,
+                onPressed: _isLoading || _isValidatingImage ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4CAF50),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text(
                         _isEditMode ? '수정하기' : '등록하기',
                         style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
             ),
@@ -370,18 +442,72 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
   }
 
   static const _breeds = [
-    '말티즈', '말티푸', '푸들', '포메라니안', '시츄', '비숑프리제', '골든리트리버', '래브라도리트리버',
-    '진돗개', '삽살개', '풍산개', '불독', '프렌치불독', '비글', '닥스훈트', '치와와',
-    '요크셔테리어', '파피용', '페키니즈', '퍼그', '시바이누', '아키타', '사모예드',
-    '허스키', '알래스칸말라뮤트', '보더콜리', '오스트레일리안셰퍼드', '웰시코기',
-    '셔틀랜드쉽독', '도베르만', '로트와일러', '저먼셰퍼드', '복서', '그레이트데인',
-    '달마시안', '아이리시세터', '잉글리시스프링거스패니얼', '코카스패니얼',
-    '바센지', '아프간하운드', '그레이하운드', '이탈리안그레이하운드', '휘핏',
-    '바셋하운드', '블러드하운드', '보르조이', '샤페이', '차우차우', '아메리칸핏불테리어',
-    '아메리칸스태퍼드셔테리어', '불테리어', '미니어처슈나우저', '스탠다드슈나우저',
-    '자이언트슈나우저', '에어데일테리어', '스코티시테리어', '웨스트하일랜드화이트테리어',
-    '케언테리어', '잭러셀테리어', '파슨러셀테리어', '미니어처핀셔', '도베르만핀셔',
-    '하바니즈', '말리노이즈', '벨지안셰퍼드', '믹스견',
+    '말티즈',
+    '말티푸',
+    '푸들',
+    '포메라니안',
+    '시츄',
+    '비숑프리제',
+    '골든리트리버',
+    '래브라도리트리버',
+    '진돗개',
+    '삽살개',
+    '풍산개',
+    '불독',
+    '프렌치불독',
+    '비글',
+    '닥스훈트',
+    '치와와',
+    '요크셔테리어',
+    '파피용',
+    '페키니즈',
+    '퍼그',
+    '시바이누',
+    '아키타',
+    '사모예드',
+    '허스키',
+    '알래스칸말라뮤트',
+    '보더콜리',
+    '오스트레일리안셰퍼드',
+    '웰시코기',
+    '셔틀랜드쉽독',
+    '도베르만',
+    '로트와일러',
+    '저먼셰퍼드',
+    '복서',
+    '그레이트데인',
+    '달마시안',
+    '아이리시세터',
+    '잉글리시스프링거스패니얼',
+    '코카스패니얼',
+    '바센지',
+    '아프간하운드',
+    '그레이하운드',
+    '이탈리안그레이하운드',
+    '휘핏',
+    '바셋하운드',
+    '블러드하운드',
+    '보르조이',
+    '샤페이',
+    '차우차우',
+    '아메리칸핏불테리어',
+    '아메리칸스태퍼드셔테리어',
+    '불테리어',
+    '미니어처슈나우저',
+    '스탠다드슈나우저',
+    '자이언트슈나우저',
+    '에어데일테리어',
+    '스코티시테리어',
+    '웨스트하일랜드화이트테리어',
+    '케언테리어',
+    '잭러셀테리어',
+    '파슨러셀테리어',
+    '미니어처핀셔',
+    '도베르만핀셔',
+    '하바니즈',
+    '말리노이즈',
+    '벨지안셰퍼드',
+    '믹스견',
   ];
 
   Widget _breedAutocomplete() {
@@ -406,12 +532,18 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
             hintText: '예) 말티즈, 포메라니안',
             filled: true,
             fillColor: Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey[300]!)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey[300]!)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF4CAF50))),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+            ),
           ),
         );
       },
@@ -444,9 +576,14 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
   }
 
   Widget _sectionTitle(String title) {
-    return Text(title,
-        style: const TextStyle(
-            fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87));
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.bold,
+        color: Colors.black87,
+      ),
+    );
   }
 
   Widget _inputField({
@@ -521,7 +658,9 @@ class _DogRegisterScreenState extends ConsumerState<DogRegisterScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                    color: selected ? const Color(0xFFE53935) : Colors.grey[700],
+                    color: selected
+                        ? const Color(0xFFE53935)
+                        : Colors.grey[700],
                   ),
                 ),
               ],

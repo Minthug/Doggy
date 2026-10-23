@@ -164,4 +164,11 @@ class WalkRepository {
     final response = await _dio.get('/api/walks/$sessionId/meets');
     return (response.data as List).map((e) => WalkMeet.fromJson(e)).toList();
   }
+
+  Future<List<WalkTraceDiscovery>> getTraceDiscoveries(int sessionId) async {
+    final response = await _dio.get('/api/walks/$sessionId/traces');
+    return (response.data as List)
+        .map((e) => WalkTraceDiscovery.fromJson(e))
+        .toList();
+  }
 }

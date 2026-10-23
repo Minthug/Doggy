@@ -1,12 +1,13 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
 import '../../domain/providers/walk_provider.dart';
 import '../../../dog/data/repositories/dog_repository.dart';
+import '../models/dog_trace_visual.dart';
 
 final _walkDetailProvider = FutureProvider.family<WalkDetail, int>((
   ref,
@@ -82,7 +83,7 @@ class WalkDetailScreen extends ConsumerWidget {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('보관을 해제할까요?'),
-          content: const Text('원본 GPS가 이미 삭제되어 보관을 해제하면 이 흔적 이미지는 복구할 수 없어요.'),
+          content: const Text('원본 GPS가 이미 삭제되어 보관을 해제하면 이 흔적길은 복구할 수 없어요.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -196,6 +197,7 @@ class _DetailBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final meetsAsync = ref.watch(_walkMeetsProvider(sessionId));
+    final tracesAsync = ref.watch(walkTraceDiscoveriesProvider(sessionId));
     final date = detail.startedAt != null
         ? DateTime.parse(detail.startedAt!)
         : null;
@@ -208,8 +210,10 @@ class _DetailBody extends ConsumerWidget {
         // 지도 (경로 표시)
         SizedBox(
           height: 300,
-          child: detail.traceImageSvg != null
-              ? _ArchivedTrace(svg: detail.traceImageSvg!)
+          child: detail.tracePathData != null
+              ? _ArchivedTrace(pathData: detail.tracePathData!)
+              : detail.archived && detail.detailsPurged
+              ? const _TraceUnavailable()
               : _RouteMap(
                   geoJson: detail.routeGeoJson,
                   markingSpots: detail.markingSpots,
@@ -294,9 +298,9 @@ class _DetailBody extends ConsumerWidget {
                   const SizedBox(height: 24),
                 ],
 
-                // 만난 강아지들
+                // 산책 동안 직접 만난 강아지들
                 const Text(
-                  '이번 산책에서 만난 강아지들',
+                  '산책 동안 만난 강아지',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
@@ -311,6 +315,48 @@ class _DetailBody extends ConsumerWidget {
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
                   error: (error, stackTrace) => const _EmptyMeets(),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  '산책 중 발견한 강아지 흔적',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  '내 산책길과 가까운 최근 흔적이에요.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                tracesAsync.when(
+                  data: (discoveries) {
+                    final traces = discoveries
+                        .expand(
+                          (discovery) => discovery.dogs.map(
+                            (dog) => (discovery: discovery, dog: dog),
+                          ),
+                        )
+                        .toList();
+                    if (traces.isEmpty) {
+                      return const _EmptyDiscoveredTraces();
+                    }
+                    return Column(
+                      children: traces
+                          .map(
+                            (trace) => _DiscoveredTraceCard(
+                              discovery: trace.discovery,
+                              dog: trace.dog,
+                            ),
+                          )
+                          .toList(),
+                    );
+                  },
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (_, _) => _TraceLoadError(
+                    onRetry: () => ref.invalidate(
+                      walkTraceDiscoveriesProvider(sessionId),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -331,19 +377,241 @@ class _DetailBody extends ConsumerWidget {
 }
 
 class _ArchivedTrace extends StatelessWidget {
-  final String svg;
+  final String pathData;
 
-  const _ArchivedTrace({required this.svg});
+  const _ArchivedTrace({required this.pathData});
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: const Color(0xFFF3EDE3),
+    final points = _decodeTracePath(pathData);
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFF8EE), Color(0xFFEEF8F1)],
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
-          child: SvgPicture.string(svg, fit: BoxFit.cover),
+          child: points.length < 2
+              ? const _TraceUnavailable()
+              : Semantics(
+                  label: '보관한 산책 흔적길',
+                  image: true,
+                  child: CustomPaint(
+                    painter: _TracePainter(points: points, source: pathData),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+List<Offset> _decodeTracePath(String source) {
+  if (!source.startsWith('v1|')) return const [];
+  try {
+    final chunks = source.substring(3).split(';');
+    if (chunks.length < 2 || chunks.length > 72) return const [];
+    final result = <Offset>[];
+    var x = 0;
+    var y = 0;
+    for (int i = 0; i < chunks.length; i++) {
+      final pair = chunks[i].split(',');
+      if (pair.length != 2) return const [];
+      final first = int.parse(pair[0]);
+      final second = int.parse(pair[1]);
+      if (i == 0) {
+        x = first;
+        y = second;
+      } else {
+        x += first;
+        y += second;
+      }
+      if (x < 0 || x > 1000 || y < 0 || y > 600) return const [];
+      result.add(Offset(x.toDouble(), y.toDouble()));
+    }
+    return result;
+  } catch (_) {
+    return const [];
+  }
+}
+
+class _TracePainter extends CustomPainter {
+  final List<Offset> points;
+  final String source;
+
+  const _TracePainter({required this.points, required this.source});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = math.min(size.width / 1000, size.height / 600);
+    final origin = Offset(
+      (size.width - 1000 * scale) / 2,
+      (size.height - 600 * scale) / 2,
+    );
+    Offset transform(Offset point) => origin + point * scale;
+
+    final accentTop = Path()
+      ..moveTo(20, size.height * 0.25)
+      ..cubicTo(
+        size.width * 0.25,
+        5,
+        size.width * 0.55,
+        size.height * 0.28,
+        size.width - 18,
+        size.height * 0.16,
+      );
+    canvas.drawPath(
+      accentTop,
+      Paint()
+        ..color = const Color(0xFFDDEBDD).withValues(alpha: 0.72)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 16
+        ..strokeCap = StrokeCap.round,
+    );
+
+    final accentBottom = Path()
+      ..moveTo(16, size.height * 0.82)
+      ..cubicTo(
+        size.width * 0.28,
+        size.height * 0.62,
+        size.width * 0.55,
+        size.height,
+        size.width - 16,
+        size.height * 0.78,
+      );
+    canvas.drawPath(
+      accentBottom,
+      Paint()
+        ..color = const Color(0xFFF2DFC5).withValues(alpha: 0.68)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 19
+        ..strokeCap = StrokeCap.round,
+    );
+
+    final transformed = points.map(transform).toList(growable: false);
+    final route = Path()..moveTo(transformed.first.dx, transformed.first.dy);
+    for (int i = 1; i < transformed.length; i++) {
+      final previous = transformed[i - 1];
+      final current = transformed[i];
+      final midpoint = Offset(
+        (previous.dx + current.dx) / 2,
+        (previous.dy + current.dy) / 2,
+      );
+      route.quadraticBezierTo(
+        previous.dx,
+        previous.dy,
+        midpoint.dx,
+        midpoint.dy,
+      );
+    }
+    route.lineTo(transformed.last.dx, transformed.last.dy);
+
+    canvas.drawPath(
+      route.shift(Offset(0, 4 * scale)),
+      Paint()
+        ..color = const Color(0xFF315B43).withValues(alpha: 0.16)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 15 * scale
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      route,
+      Paint()
+        ..color = const Color(0xFF5F9D75)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 12 * scale
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      route,
+      Paint()
+        ..color = const Color(0xFFDDF1E4)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4 * scale
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    canvas.drawCircle(
+      transformed.first,
+      12 * scale,
+      Paint()..color = const Color(0xFF5F9D75),
+    );
+    canvas.drawCircle(
+      transformed.first,
+      6 * scale,
+      Paint()..color = const Color(0xFFFFFDF8),
+    );
+    canvas.drawCircle(
+      transformed.last,
+      15 * scale,
+      Paint()..color = const Color(0xFFFFFDF8),
+    );
+    canvas.drawCircle(
+      transformed.last,
+      10 * scale,
+      Paint()..color = const Color(0xFFF5A96B),
+    );
+
+    _drawPaw(canvas, Offset(size.width - 42, size.height - 42), scale);
+  }
+
+  void _drawPaw(Canvas canvas, Offset center, double scale) {
+    final paint = Paint()
+      ..color = const Color(0xFF89B99A).withValues(alpha: 0.48);
+    final pawScale = math.max(scale, 0.45);
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(-0.2);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: 28 * pawScale,
+        height: 34 * pawScale,
+      ),
+      paint,
+    );
+    for (final toe in const [
+      Offset(-14, -20),
+      Offset(0, -25),
+      Offset(14, -20),
+    ]) {
+      canvas.drawCircle(toe * pawScale, 7 * pawScale, paint);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _TracePainter oldDelegate) =>
+      oldDelegate.source != source;
+}
+
+class _TraceUnavailable extends StatelessWidget {
+  const _TraceUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0xFFF4F0E8),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.pets_rounded, color: Color(0xFF7A9B76), size: 34),
+            SizedBox(height: 8),
+            Text(
+              '흔적길을 표시할 수 없어요',
+              style: TextStyle(color: Color(0xFF657061), fontSize: 13),
+            ),
+          ],
         ),
       ),
     );
@@ -358,9 +626,9 @@ class _RetentionNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = detail.detailsPurged
-        ? '원본 GPS는 삭제되고 선택한 산책 흔적 이미지만 보관 중이에요.'
+        ? '원본 GPS는 삭제되고 좌표 없는 가벼운 흔적길만 보관 중이에요.'
         : detail.archived
-        ? '보관 완료 · 7일 후 GPS는 삭제되고 이 흔적 이미지만 남아요.'
+        ? '보관 완료 · 7일 후 GPS는 삭제되고 좌표 없는 흔적길만 남아요.'
         : '상세 경로는 7일 동안 보관돼요. 오래 남기려면 북마크를 눌러주세요.';
     return Container(
       width: double.infinity,
@@ -910,6 +1178,144 @@ class _EmptyMeets extends StatelessWidget {
             '만난 강아지가 없어요',
             style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyDiscoveredTraces extends StatelessWidget {
+  const _EmptyDiscoveredTraces();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+        ],
+      ),
+      child: const Column(
+        children: [
+          Text('🐾', style: TextStyle(fontSize: 28)),
+          SizedBox(height: 8),
+          Text(
+            '이 산책길에서 발견한 흔적이 없어요',
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscoveredTraceCard extends StatelessWidget {
+  final WalkTraceDiscovery discovery;
+  final WalkTraceDog dog;
+
+  const _DiscoveredTraceCard({required this.discovery, required this.dog});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasProfileImage = dog.profileImage?.isNotEmpty ?? false;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: dogTracePalette[dog.id % dogTracePalette.length]
+                .withValues(alpha: 0.25),
+            backgroundImage: hasProfileImage
+                ? NetworkImage(dog.profileImage!)
+                : null,
+            child: !hasProfileImage
+                ? Icon(
+                    Icons.pets,
+                    color: dogTracePalette[dog.id % dogTracePalette.length],
+                    size: 24,
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dog.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    if (dog.breed != null && dog.breed!.isNotEmpty) dog.breed!,
+                    discovery.recencyText,
+                  ].join(' · '),
+                  style: const TextStyle(color: Colors.black54, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: BoxDecoration(
+              color: dogTracePalette[dog.id % dogTracePalette.length]
+                  .withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              discovery.isToday ? '오늘' : '3일 내',
+              style: TextStyle(
+                color: dogTracePalette[dog.id % dogTracePalette.length],
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TraceLoadError extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _TraceLoadError({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            '흔적을 불러오지 못했어요',
+            style: TextStyle(color: Colors.grey),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('다시 시도')),
         ],
       ),
     );
