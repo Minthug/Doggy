@@ -131,8 +131,7 @@ public class WalkService {
         LocalDateTime endedAt = request.endedAt().isBefore(session.getStartedAt())
                 ? session.getStartedAt()
                 : request.endedAt();
-        int durationSeconds = (int) java.time.Duration.between(
-                session.getStartedAt(), endedAt).getSeconds();
+        int durationSeconds = session.calculateActiveDurationSeconds(endedAt);
 
         LocalDateTime now = endedAt;
         int prevMonthlyMeters = walkSessionRepository.sumDistanceByUserAndMonth(
@@ -221,7 +220,7 @@ public class WalkService {
     public WalkSessionResponse pause(Long userId, Long sessionId) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
-        session.pause();
+        session.pause(LocalDateTime.now());
         return WalkSessionResponse.from(session);
     }
 
@@ -229,7 +228,7 @@ public class WalkService {
     public WalkSessionResponse resume(Long userId, Long sessionId) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
-        session.resume();
+        session.resume(LocalDateTime.now());
         return WalkSessionResponse.from(session);
     }
 

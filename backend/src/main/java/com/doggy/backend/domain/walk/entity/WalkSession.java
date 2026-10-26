@@ -44,6 +44,11 @@ public class WalkSession extends BaseEntity {
     @Column(nullable = false)
     private int durationSeconds = 0;
 
+    private LocalDateTime pausedAt;
+
+    @Column(nullable = false)
+    private int totalPausedSeconds = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Status status = Status.IN_PROGRESS;
@@ -97,6 +102,10 @@ public class WalkSession extends BaseEntity {
     }
 
     public void complete(LocalDateTime endedAt, int distanceMeters, int durationSeconds) {
+        if (this.status == Status.PAUSED) {
+            addPausedDurationUntil(endedAt);
+            this.pausedAt = null;
+        }
         this.endedAt = endedAt;
         this.distanceMeters = distanceMeters;
         this.durationSeconds = durationSeconds;
@@ -128,16 +137,41 @@ public class WalkSession extends BaseEntity {
     }
 
     public void abandon() {
-        this.endedAt = LocalDateTime.now();
+        LocalDateTime abandonedAt = LocalDateTime.now();
+        if (this.status == Status.PAUSED) {
+            addPausedDurationUntil(abandonedAt);
+            this.pausedAt = null;
+        }
+        this.endedAt = abandonedAt;
         this.status = Status.ABANDONED;
     }
 
-    public void pause() {
+    public void pause(LocalDateTime pausedAt) {
+        if (this.status != Status.IN_PROGRESS) return;
+        this.pausedAt = pausedAt;
         this.status = Status.PAUSED;
     }
 
-    public void resume() {
+    public void resume(LocalDateTime resumedAt) {
+        if (this.status != Status.PAUSED) return;
+        addPausedDurationUntil(resumedAt);
+        this.pausedAt = null;
         this.status = Status.IN_PROGRESS;
+    }
+
+    public int calculateActiveDurationSeconds(LocalDateTime endedAt) {
+        long elapsedSeconds = Math.max(0, java.time.Duration.between(startedAt, endedAt).getSeconds());
+        long pausedSeconds = totalPausedSeconds;
+        if (status == Status.PAUSED && pausedAt != null) {
+            pausedSeconds += Math.max(0, java.time.Duration.between(pausedAt, endedAt).getSeconds());
+        }
+        return (int) Math.min(Integer.MAX_VALUE, Math.max(0, elapsedSeconds - pausedSeconds));
+    }
+
+    private void addPausedDurationUntil(LocalDateTime resumedAt) {
+        if (pausedAt == null) return;
+        long seconds = Math.max(0, java.time.Duration.between(pausedAt, resumedAt).getSeconds());
+        totalPausedSeconds = (int) Math.min(Integer.MAX_VALUE, (long) totalPausedSeconds + seconds);
     }
 
     public void setDogs(List<Dog> dogs) {
