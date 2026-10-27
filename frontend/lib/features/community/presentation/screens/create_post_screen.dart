@@ -119,31 +119,37 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             type: _type,
             title: _titleCtrl.text.trim(),
             content: _contentCtrl.text.trim(),
-            dogName: _dogNameCtrl.text.trim().isEmpty
+            dogName: !_isDogPost || _dogNameCtrl.text.trim().isEmpty
                 ? null
                 : _dogNameCtrl.text.trim(),
-            breed: _breedCtrl.text.trim().isEmpty
+            breed: !_isDogPost || _breedCtrl.text.trim().isEmpty
                 ? null
                 : _breedCtrl.text.trim(),
-            lastSeenArea: _areaCtrl.text.trim().isEmpty
+            lastSeenArea: !_isDogPost || _areaCtrl.text.trim().isEmpty
                 ? null
                 : _areaCtrl.text.trim(),
-            lastSeenAt: _lastSeenAt,
-            lat: _lat,
-            lng: _lng,
-            contactInfo: _contactCtrl.text.trim().isEmpty
+            lastSeenAt: _type == PostType.ADOPTION || !_isDogPost
+                ? null
+                : _lastSeenAt,
+            lat: _isDogPost ? _lat : null,
+            lng: _isDogPost ? _lng : null,
+            contactInfo: !_isDogPost || _contactCtrl.text.trim().isEmpty
                 ? null
                 : _contactCtrl.text.trim(),
-            productName: _productNameCtrl.text.trim().isEmpty
+            productName: !_isReview || _productNameCtrl.text.trim().isEmpty
                 ? null
                 : _productNameCtrl.text.trim(),
             ratingPercent: _isReview ? _ratingPercent : null,
-            reviewSummary: _reviewSummaryCtrl.text.trim().isEmpty
+            reviewSummary: !_isReview || _reviewSummaryCtrl.text.trim().isEmpty
                 ? null
                 : _reviewSummaryCtrl.text.trim(),
-            pros: _prosCtrl.text.trim().isEmpty ? null : _prosCtrl.text.trim(),
-            cons: _consCtrl.text.trim().isEmpty ? null : _consCtrl.text.trim(),
-            relatedPostId: _relatedPostId,
+            pros: !_isReview || _prosCtrl.text.trim().isEmpty
+                ? null
+                : _prosCtrl.text.trim(),
+            cons: !_isReview || _consCtrl.text.trim().isEmpty
+                ? null
+                : _consCtrl.text.trim(),
+            relatedPostId: _type == PostType.FOUND ? _relatedPostId : null,
           );
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -199,35 +205,40 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: PostType.values.map((t) {
-                final selected = _type == t;
-                final color = _typeColor(t);
-                return GestureDetector(
-                  onTap: () => setState(() => _type = t),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: selected ? color : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: selected ? color : Colors.grey[300]!,
-                      ),
-                    ),
-                    child: Text(
-                      t.label,
-                      style: TextStyle(
-                        color: selected ? Colors.white : Colors.black54,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
+              children:
+                  (widget.relatedLostPost == null
+                          ? PostType.values
+                          : const [PostType.FOUND])
+                      .map((t) {
+                        final selected = _type == t;
+                        final color = _typeColor(t);
+                        return GestureDetector(
+                          onTap: () => setState(() => _type = t),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selected ? color : Colors.grey[100],
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: selected ? color : Colors.grey[300]!,
+                              ),
+                            ),
+                            child: Text(
+                              t.label,
+                              style: TextStyle(
+                                color: selected ? Colors.white : Colors.black54,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        );
+                      })
+                      .toList(),
             ),
             const SizedBox(height: 20),
             _field(

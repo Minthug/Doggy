@@ -20,6 +20,17 @@ String _formatDateTime(DateTime dt) {
 
 enum WalkStatus { idle, inProgress, paused, completed }
 
+enum LocationTrackingStatus {
+  idle,
+  waiting,
+  tracking,
+  serviceDisabled,
+  permissionDenied,
+  permissionDeniedForever,
+  timedOut,
+  error,
+}
+
 class WalkState {
   final WalkStatus status;
   final WalkSession? session;
@@ -30,6 +41,7 @@ class WalkState {
   final List<Dog> selectedDogs;
   final bool isSimulating;
   final List<MarkingSpotCandidate> markingSpotCandidates;
+  final LocationTrackingStatus locationTrackingStatus;
 
   const WalkState({
     this.status = WalkStatus.idle,
@@ -41,6 +53,7 @@ class WalkState {
     this.selectedDogs = const [],
     this.isSimulating = false,
     this.markingSpotCandidates = const [],
+    this.locationTrackingStatus = LocationTrackingStatus.idle,
   });
 
   WalkState copyWith({
@@ -53,6 +66,7 @@ class WalkState {
     List<Dog>? selectedDogs,
     bool? isSimulating,
     List<MarkingSpotCandidate>? markingSpotCandidates,
+    LocationTrackingStatus? locationTrackingStatus,
   }) => WalkState(
     status: status ?? this.status,
     session: session ?? this.session,
@@ -63,6 +77,8 @@ class WalkState {
     selectedDogs: selectedDogs ?? this.selectedDogs,
     isSimulating: isSimulating ?? this.isSimulating,
     markingSpotCandidates: markingSpotCandidates ?? this.markingSpotCandidates,
+    locationTrackingStatus:
+        locationTrackingStatus ?? this.locationTrackingStatus,
   );
 
   String get elapsedText {
@@ -105,6 +121,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   Timer? _timer;
   Timer? _simTimer;
   Timer? _simPingTimer; // 시뮬레이션 전용 핑 타이머 (실제 GPS 없으므로 별도 유지)
+  Timer? _locationWaitTimer;
   StreamSubscription<Position>? _positionSubscription;
   int _simIndex = 0;
 
@@ -116,6 +133,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   // 위치 스트림 기반 핑 — 마지막 서버 전송 시각
   DateTime? _lastPingAt;
   static const _pingIntervalSeconds = 10;
+  static const _locationWaitTimeout = Duration(seconds: 15);
 
   // 시뮬레이션 경로 (봉담 기준)
   static const _simRoute = <({double lat, double lng})>[
@@ -163,6 +181,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       distanceMeters: 0,
       selectedDogs: dogs,
       isSimulating: false,
+      locationTrackingStatus: LocationTrackingStatus.waiting,
     );
     _startTimer();
     _startTracking();
@@ -185,6 +204,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       distanceMeters: 0,
       selectedDogs: dogs,
       isSimulating: true,
+      locationTrackingStatus: LocationTrackingStatus.tracking,
     );
     _startTimer();
     _startSimulation();
@@ -272,6 +292,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     state = state.copyWith(status: WalkStatus.paused);
     _timer?.cancel();
     _simPingTimer?.cancel();
+    _locationWaitTimer?.cancel();
     if (state.isSimulating) {
       _simTimer?.cancel();
     } else {
@@ -292,7 +313,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       _startSimulation();
       _startSimPingTimer();
     } else {
-      _positionSubscription?.resume();
+      _startTracking();
     }
   }
 
@@ -301,6 +322,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _timer?.cancel();
     _simTimer?.cancel();
     _simPingTimer?.cancel();
+    _locationWaitTimer?.cancel();
     _positionSubscription?.cancel();
 
     final endedAt = DateTime.now();
@@ -362,6 +384,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _timer?.cancel();
     _simTimer?.cancel();
     _simPingTimer?.cancel();
+    _locationWaitTimer?.cancel();
     _positionSubscription?.cancel();
     state = const WalkState();
   }
@@ -378,99 +401,169 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
 
   Future<void> _startTracking() async {
     _positionSubscription?.cancel();
+    _locationWaitTimer?.cancel();
+    if (state.status != WalkStatus.inProgress || state.isSimulating) return;
+    state = state.copyWith(
+      locationTrackingStatus: LocationTrackingStatus.waiting,
+    );
 
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (state.status != WalkStatus.inProgress) return;
+      if (!serviceEnabled) {
+        state = state.copyWith(
+          locationTrackingStatus: LocationTrackingStatus.serviceDisabled,
+        );
+        return;
+      }
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return;
-    }
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (state.status != WalkStatus.inProgress) return;
+      if (permission == LocationPermission.deniedForever) {
+        state = state.copyWith(
+          locationTrackingStatus:
+              LocationTrackingStatus.permissionDeniedForever,
+        );
+        return;
+      }
+      if (permission == LocationPermission.denied) {
+        state = state.copyWith(
+          locationTrackingStatus: LocationTrackingStatus.permissionDenied,
+        );
+        return;
+      }
 
-    // iOS: "항상 허용"이 없으면 요청 (백그라운드 추적 안정성)
-    if (Platform.isIOS && permission == LocationPermission.whileInUse) {
-      permission = await Geolocator.requestPermission();
-      debugPrint('[위치] iOS 권한 업그레이드 시도 → $permission');
-    }
+      // iOS: "항상 허용"이 없으면 요청 (백그라운드 추적 안정성)
+      if (Platform.isIOS && permission == LocationPermission.whileInUse) {
+        permission = await Geolocator.requestPermission();
+        debugPrint('[위치] iOS 권한 업그레이드 시도 → $permission');
+      }
 
-    final locationSettings = Platform.isIOS
-        ? AppleSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 15,
-            activityType: ActivityType.fitness,
-            allowBackgroundLocationUpdates: true,
-            pauseLocationUpdatesAutomatically: false,
-            showBackgroundLocationIndicator: true,
-          )
-        : AndroidSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 15,
-            foregroundNotificationConfig: const ForegroundNotificationConfig(
-              notificationTitle: '산책 중',
-              notificationText: '경로를 기록하고 있습니다.',
-              enableWakeLock: true,
-            ),
-          );
-
-    _positionSubscription =
-        Geolocator.getPositionStream(
-          locationSettings: locationSettings,
-        ).listen((position) {
-          // 포인트 기록 + 거리 계산
-          final newPoint = WalkPoint(
-            lat: position.latitude,
-            lng: position.longitude,
-            recordedAt: DateTime.now(),
-          );
-
-          double addedDistance = 0;
-          if (state.points.isNotEmpty) {
-            final last = state.points.last;
-            addedDistance = Geolocator.distanceBetween(
-              last.lat,
-              last.lng,
-              position.latitude,
-              position.longitude,
+      final locationSettings = Platform.isIOS
+          ? AppleSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 15,
+              activityType: ActivityType.fitness,
+              allowBackgroundLocationUpdates: true,
+              pauseLocationUpdatesAutomatically: false,
+              showBackgroundLocationIndicator: true,
+            )
+          : AndroidSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 15,
+              foregroundNotificationConfig: const ForegroundNotificationConfig(
+                notificationTitle: '산책 중',
+                notificationText: '경로를 기록하고 있습니다.',
+                enableWakeLock: true,
+              ),
             );
-          }
 
-          state = state.copyWith(
-            points: [...state.points, newPoint],
-            distanceMeters: state.distanceMeters + addedDistance,
-            currentPosition: position,
-          );
+      _positionSubscription =
+          Geolocator.getPositionStream(
+            locationSettings: locationSettings,
+          ).listen(
+            (position) {
+              _locationWaitTimer?.cancel();
+              if (state.locationTrackingStatus !=
+                  LocationTrackingStatus.tracking) {
+                state = state.copyWith(
+                  locationTrackingStatus: LocationTrackingStatus.tracking,
+                );
+              }
+              // 포인트 기록 + 거리 계산
+              final newPoint = WalkPoint(
+                lat: position.latitude,
+                lng: position.longitude,
+                recordedAt: DateTime.now(),
+              );
 
-          // 위치 콜백에서 직접 서버 핑 — 백그라운드에서도 동작
-          final session = state.session;
-          if (session == null || state.status != WalkStatus.inProgress) return;
-
-          final now = DateTime.now();
-          if (_lastPingAt == null ||
-              now.difference(_lastPingAt!).inSeconds >= _pingIntervalSeconds) {
-            _lastPingAt = now;
-            _repository
-                .updateLocation(
-                  session.id,
+              double addedDistance = 0;
+              if (state.points.isNotEmpty) {
+                final last = state.points.last;
+                addedDistance = Geolocator.distanceBetween(
+                  last.lat,
+                  last.lng,
                   position.latitude,
                   position.longitude,
-                )
-                .catchError((e) {
-                  debugPrint('[핑] 위치 업데이트 실패: $e');
-                  _handlePingError(e);
-                });
-          }
-        });
+                );
+              }
+
+              state = state.copyWith(
+                points: [...state.points, newPoint],
+                distanceMeters: state.distanceMeters + addedDistance,
+                currentPosition: position,
+              );
+
+              // 위치 콜백에서 직접 서버 핑 — 백그라운드에서도 동작
+              final session = state.session;
+              if (session == null || state.status != WalkStatus.inProgress) {
+                return;
+              }
+
+              final now = DateTime.now();
+              if (_lastPingAt == null ||
+                  now.difference(_lastPingAt!).inSeconds >=
+                      _pingIntervalSeconds) {
+                _lastPingAt = now;
+                _repository
+                    .updateLocation(
+                      session.id,
+                      position.latitude,
+                      position.longitude,
+                    )
+                    .catchError((e) {
+                      debugPrint('[핑] 위치 업데이트 실패: $e');
+                      _handlePingError(e);
+                    });
+              }
+            },
+            onError: (Object error) {
+              debugPrint('[위치] 위치 스트림 오류: $error');
+              _locationWaitTimer?.cancel();
+              if (state.status == WalkStatus.inProgress) {
+                state = state.copyWith(
+                  locationTrackingStatus: LocationTrackingStatus.error,
+                );
+              }
+            },
+          );
+
+      _locationWaitTimer = Timer(_locationWaitTimeout, () {
+        if (state.status == WalkStatus.inProgress &&
+            state.locationTrackingStatus == LocationTrackingStatus.waiting) {
+          state = state.copyWith(
+            locationTrackingStatus: LocationTrackingStatus.timedOut,
+          );
+        }
+      });
+    } catch (error) {
+      debugPrint('[위치] 위치 추적 시작 실패: $error');
+      if (state.status == WalkStatus.inProgress) {
+        state = state.copyWith(
+          locationTrackingStatus: LocationTrackingStatus.error,
+        );
+      }
+    }
   }
+
+  Future<void> retryLocationTracking() async {
+    if (state.status != WalkStatus.inProgress || state.isSimulating) return;
+    await _startTracking();
+  }
+
+  Future<bool> openLocationSettings() => Geolocator.openLocationSettings();
+
+  Future<bool> openAppSettings() => Geolocator.openAppSettings();
 
   @override
   void dispose() {
     _timer?.cancel();
     _simTimer?.cancel();
     _simPingTimer?.cancel();
+    _locationWaitTimer?.cancel();
     _positionSubscription?.cancel();
     super.dispose();
   }

@@ -1,8 +1,10 @@
 package com.doggy.backend.domain.community.service;
 
 import com.doggy.backend.domain.community.dto.CommunityPostResponse;
+import com.doggy.backend.domain.community.dto.CommunityPostSummaryResponse;
 import com.doggy.backend.domain.community.dto.CreatePostRequest;
 import com.doggy.backend.domain.community.entity.CommunityPost;
+import com.doggy.backend.domain.community.entity.CommunityPost.PostStatus;
 import com.doggy.backend.domain.community.entity.CommunityPost.PostType;
 import com.doggy.backend.domain.community.repository.CommunityPostRepository;
 import com.doggy.backend.domain.user.entity.User;
@@ -23,16 +25,17 @@ import java.util.Set;
 public class CommunityService {
 
     private static final Set<PostType> REVIEW_TYPES = Set.of(PostType.FOOD_REVIEW, PostType.SUPPLY_REVIEW);
+    private static final Set<PostType> DOG_POST_TYPES = Set.of(PostType.LOST, PostType.FOUND, PostType.ADOPTION);
 
     private final CommunityPostRepository postRepository;
     private final UserRepository userRepository;
 
-    public List<CommunityPostResponse> getPosts(PostType type, int page, int size) {
+    public List<CommunityPostSummaryResponse> getPosts(PostType type, int page, int size) {
         var pageable = PageRequest.of(RequestLimits.clampPage(page), RequestLimits.clampPageSize(size));
         List<CommunityPost> posts = type == null
                 ? postRepository.findAllWithUser(pageable)
                 : postRepository.findByTypeWithUser(type, pageable);
-        return posts.stream().map(CommunityPostResponse::from).toList();
+        return posts.stream().map(CommunityPostSummaryResponse::from).toList();
     }
 
     public CommunityPostResponse getPost(Long postId) {
@@ -45,6 +48,10 @@ public class CommunityService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
         validateReview(request);
+        Long relatedPostId = validateRelatedPost(request);
+        boolean isDogPost = DOG_POST_TYPES.contains(request.type());
+        boolean hasSightingTime = request.type() == PostType.LOST || request.type() == PostType.FOUND;
+        boolean isReview = REVIEW_TYPES.contains(request.type());
 
         CommunityPost post = postRepository.save(
                 CommunityPost.builder()
@@ -52,19 +59,19 @@ public class CommunityService {
                         .type(request.type())
                         .title(request.title())
                         .content(request.content())
-                        .dogName(request.dogName())
-                        .breed(request.breed())
-                        .lastSeenArea(request.lastSeenArea())
-                        .lastSeenAt(request.lastSeenAt())
-                        .lat(request.lat())
-                        .lng(request.lng())
-                        .contactInfo(request.contactInfo())
-                        .productName(request.productName())
-                        .ratingPercent(request.ratingPercent())
-                        .reviewSummary(request.reviewSummary())
-                        .pros(request.pros())
-                        .cons(request.cons())
-                        .relatedPostId(request.relatedPostId())
+                        .dogName(isDogPost ? request.dogName() : null)
+                        .breed(isDogPost ? request.breed() : null)
+                        .lastSeenArea(isDogPost ? request.lastSeenArea() : null)
+                        .lastSeenAt(hasSightingTime ? request.lastSeenAt() : null)
+                        .lat(isDogPost ? request.lat() : null)
+                        .lng(isDogPost ? request.lng() : null)
+                        .contactInfo(isDogPost ? request.contactInfo() : null)
+                        .productName(isReview ? request.productName() : null)
+                        .ratingPercent(isReview ? request.ratingPercent() : null)
+                        .reviewSummary(isReview ? request.reviewSummary() : null)
+                        .pros(isReview ? request.pros() : null)
+                        .cons(isReview ? request.cons() : null)
+                        .relatedPostId(relatedPostId)
                         .build()
         );
         return CommunityPostResponse.from(post);
@@ -85,6 +92,24 @@ public class CommunityService {
         }
     }
 
+    private Long validateRelatedPost(CreatePostRequest request) {
+        if (request.relatedPostId() == null) {
+            return null;
+        }
+        if (request.type() != PostType.FOUND) {
+            throw BusinessException.badRequest("목격 글만 실종 글에 연결할 수 있습니다");
+        }
+
+        CommunityPost relatedPost = findPost(request.relatedPostId());
+        if (relatedPost.getType() != PostType.LOST) {
+            throw BusinessException.badRequest("실종 글에만 목격 제보를 연결할 수 있습니다");
+        }
+        if (relatedPost.getStatus() != PostStatus.OPEN) {
+            throw BusinessException.badRequest("이미 해결된 실종 글에는 목격 제보를 추가할 수 없습니다");
+        }
+        return relatedPost.getId();
+    }
+
     @Transactional(readOnly = false)
     public CommunityPostResponse resolve(Long userId, Long postId) {
         CommunityPost post = findPost(postId);
@@ -101,10 +126,15 @@ public class CommunityService {
         if (!post.getUser().getId().equals(userId)) {
             throw BusinessException.badRequest("본인 게시글만 삭제할 수 있습니다");
         }
+        postRepository.clearRelatedPostId(postId);
         postRepository.delete(post);
     }
 
     public List<CommunityPostResponse> getSightings(Long postId) {
+        CommunityPost post = findPost(postId);
+        if (post.getType() != PostType.LOST) {
+            throw BusinessException.badRequest("실종 글의 목격 제보만 조회할 수 있습니다");
+        }
         return postRepository.findSightingsByRelatedPostId(postId)
                 .stream().map(CommunityPostResponse::from).toList();
     }

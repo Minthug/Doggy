@@ -238,7 +238,7 @@ class _GreetingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const greeting = '산책가기 좋은 날이에요';
+    const greeting = '오늘도 함께 걸어볼까요';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -259,7 +259,7 @@ class _GreetingCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           const Text(
-            '오늘도 반려견과 즐거운 산책 하세요 🌿',
+            '외출 전 산책 지수를 확인해 주세요 🌿',
             style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
@@ -630,8 +630,8 @@ class _WalkIndexCard extends StatelessWidget {
     final emoji = data['emoji'] as String? ?? '🟡';
     final description = data['description'] as String? ?? '';
     final tmp = data['temperature'] as int? ?? 0;
-    final pm10Grade = data['pm10Grade'] as String? ?? '보통';
-    final pm25Grade = data['pm25Grade'] as String? ?? '보통';
+    final pm10Grade = data['pm10Grade'] as String? ?? '정보 없음';
+    final pm25Grade = data['pm25Grade'] as String? ?? '정보 없음';
     final precipitation = data['precipitationType'] as String? ?? '없음';
 
     final Color indexColor = switch (index) {
@@ -820,8 +820,11 @@ class _WeatherItem extends StatelessWidget {
   });
 
   Color _valueColor() {
-    if (value == '나쁨' || value == '매우나쁨') return const Color(0xFFE53935);
-    if (value == '보통') return const Color(0xFFFFA726);
+    if (value == '좋음') return const Color(0xFF1E88E5);
+    if (value == '보통') return const Color(0xFF43A047);
+    if (value == '나쁨' || value == '매우나쁨') {
+      return const Color(0xFFE53935);
+    }
     return Colors.black87;
   }
 

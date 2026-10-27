@@ -129,14 +129,16 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                 if (isActive) ...[
                   _StatsCard(walkState: walkState),
                   const SizedBox(height: 16),
-                  Text(
-                    isPaused
-                        ? '일시정지 중'
-                        : walkState.points.isEmpty
-                        ? '위치 신호를 기다리고 있어요'
-                        : '산책 경로를 기록하고 있어요',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.black54, fontSize: 13),
+                  _LocationTrackingPanel(
+                    walkState: walkState,
+                    onRetry: () => ref
+                        .read(walkActiveProvider.notifier)
+                        .retryLocationTracking(),
+                    onOpenLocationSettings: () => ref
+                        .read(walkActiveProvider.notifier)
+                        .openLocationSettings(),
+                    onOpenAppSettings: () =>
+                        ref.read(walkActiveProvider.notifier).openAppSettings(),
                   ),
                   const SizedBox(height: 32),
                 ],
@@ -276,6 +278,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       // (홈 탭이 트리에 없을 때 cascade가 동작 안 할 수 있으므로 직접 지정)
       ref.invalidate(walkHistoryProvider);
       ref.invalidate(todayWalkStatsProvider);
+      ref.invalidate(monthlyWalkStatsProvider);
       ref.invalidate(todayMeetsProvider);
       ref.invalidate(todayDogCaloriesProvider);
       if (openHistory && context.mounted) {
@@ -628,6 +631,109 @@ class _MarkingCandidateTile extends StatelessWidget {
 }
 
 // 상단 통계 카드
+class _LocationTrackingPanel extends StatelessWidget {
+  final WalkState walkState;
+  final Future<void> Function() onRetry;
+  final Future<bool> Function() onOpenLocationSettings;
+  final Future<bool> Function() onOpenAppSettings;
+
+  const _LocationTrackingPanel({
+    required this.walkState,
+    required this.onRetry,
+    required this.onOpenLocationSettings,
+    required this.onOpenAppSettings,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (walkState.status == WalkStatus.paused) {
+      return const Text(
+        '일시정지 중',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.black54, fontSize: 13),
+      );
+    }
+
+    final status = walkState.locationTrackingStatus;
+    if (status == LocationTrackingStatus.tracking ||
+        walkState.points.isNotEmpty) {
+      return const Text(
+        '산책 경로를 기록하고 있어요',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.black54, fontSize: 13),
+      );
+    }
+    if (status == LocationTrackingStatus.waiting ||
+        status == LocationTrackingStatus.idle) {
+      return const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 8),
+          Text(
+            '위치 신호를 기다리고 있어요',
+            style: TextStyle(color: Colors.black54, fontSize: 13),
+          ),
+        ],
+      );
+    }
+
+    final (message, openSettings, settingsLabel) = switch (status) {
+      LocationTrackingStatus.serviceDisabled => (
+        '위치 서비스가 꺼져 있어 경로를 기록할 수 없어요.',
+        onOpenLocationSettings,
+        '위치 설정',
+      ),
+      LocationTrackingStatus.permissionDeniedForever => (
+        '위치 권한이 차단되어 있어요. 앱 설정에서 허용해 주세요.',
+        onOpenAppSettings,
+        '앱 설정',
+      ),
+      LocationTrackingStatus.permissionDenied => (
+        '산책 경로를 기록하려면 위치 권한이 필요해요.',
+        onOpenAppSettings,
+        '권한 설정',
+      ),
+      LocationTrackingStatus.timedOut => (
+        '위치 신호를 받지 못했어요. 야외로 이동하거나 다시 시도해 주세요.',
+        onOpenLocationSettings,
+        '위치 설정',
+      ),
+      _ => ('위치 정보를 가져오지 못했어요.', onOpenLocationSettings, '위치 설정'),
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.black87, fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            children: [
+              OutlinedButton(onPressed: onRetry, child: const Text('다시 시도')),
+              TextButton(onPressed: openSettings, child: Text(settingsLabel)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatsCard extends StatelessWidget {
   final WalkState walkState;
   const _StatsCard({required this.walkState});

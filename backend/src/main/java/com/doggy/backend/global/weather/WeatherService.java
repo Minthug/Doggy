@@ -30,7 +30,9 @@ public class WeatherService {
     private static final String FORECAST_URL =
             "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst";
     private static final String AIR_STATION_URL =
-            "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesurDnsty";
+            "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty";
+    private static final String NEARBY_STATION_URL =
+            "https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getNearbyMsrstnList";
 
     private static final double DEFAULT_LAT = 37.218392;
     private static final double DEFAULT_LNG = 126.944858;
@@ -40,7 +42,7 @@ public class WeatherService {
     @Value("${weather.api.key}")
     private String apiKey;
 
-    @Value("${air.station.api.key}")
+    @Value("${air.station.api.key:}")
     private String airStationApiKey;
 
     private final RestTemplate restTemplate = new RestTemplateBuilder()
@@ -86,7 +88,7 @@ public class WeatherService {
                 CompletableFuture.supplyAsync(() -> fetchAirQuality(lat, lng), executor);
 
         WeatherData weather = safeGet(weatherFuture, null);
-        AirData air        = safeGet(airFuture,     new AirData(30, 10, "보통", "보통"));
+        AirData air        = safeGet(airFuture, AirData.unavailable());
 
         if (weather == null) {
             return WalkIndexResponse.of(
@@ -127,7 +129,7 @@ public class WeatherService {
         CompletableFuture<WeatherData> nowFuture =
                 CompletableFuture.supplyAsync(() -> fetchObservation(grid), executor);
 
-        AirData air = safeGet(airFuture, new AirData(30, 10, "보통", "보통"));
+        AirData air = safeGet(airFuture, AirData.unavailable());
         List<HourlyForecast> hourly = safeGet(hourlyFuture,
                 List.of(new HourlyForecast(20, 0, 0), new HourlyForecast(20, 0, 0), new HourlyForecast(20, 0, 0)));
         WeatherData nowWeather = safeGet(nowFuture, null);
@@ -160,7 +162,7 @@ public class WeatherService {
 
     // ── 산책 지수 계산 ────────────────────────────────────────
 
-    private WalkIndex calculateIndex(WeatherData w, AirData a) {
+    WalkIndex calculateIndex(WeatherData w, AirData a) {
         if (w.tmp() < 0 || w.tmp() > 32) return WalkIndex.AVOID;
         if (w.pty() != 0)                return WalkIndex.AVOID;
         if (w.pop() >= 60)               return WalkIndex.AVOID;
@@ -169,6 +171,7 @@ public class WeatherService {
         if (w.tmp() < 5 || w.tmp() > 27) return WalkIndex.CAUTION;
         if (w.pop() >= 30)                return WalkIndex.CAUTION;
         if ("나쁨".equals(a.pm10Grade()) || "나쁨".equals(a.pm25Grade())) return WalkIndex.CAUTION;
+        if (!a.available())               return WalkIndex.CAUTION;
 
         return WalkIndex.GOOD;
     }
@@ -221,10 +224,12 @@ public class WeatherService {
 
     private AirData fetchAirQuality(double lat, double lng) {
         try {
-            // 측정소 조회 API 대신 좌표 기반 fallback으로 즉시 결정 (API 호출 1개 절약)
-            String stationName = fallbackStation(lat, lng);
+            String stationName = fetchNearestStation(lat, lng);
+            if (stationName == null) {
+                return AirData.unavailable();
+            }
             String encodedStation = URLEncoder.encode(stationName, StandardCharsets.UTF_8);
-            String url = AIR_STATION_URL + "?serviceKey=" + airStationApiKey
+            String url = AIR_STATION_URL + "?serviceKey=" + effectiveAirApiKey()
                     + "&returnType=json&numOfRows=1&pageNo=1"
                     + "&stationName=" + encodedStation
                     + "&dataTerm=DAILY&ver=1.0";
@@ -234,34 +239,41 @@ public class WeatherService {
 
         } catch (Exception e) {
             log.warn("에어코리아 API 호출 실패 [{}]: {}", e.getClass().getSimpleName(), e.getMessage());
-            return new AirData(30, 10, "보통", "보통");
+            return AirData.unavailable();
         }
     }
 
-    private static final double[][] STATION_COORDS = {
-            {37.5665, 126.9780}, {37.5172, 127.0473}, {37.5491, 126.9168},
-            {37.2636, 127.0286}, {37.4196, 127.1267}, {37.6584, 126.8320},
-            {37.4563, 126.7052}, {35.1796, 129.0756}, {35.8714, 128.6014},
-            {35.1595, 126.8526}, {36.3504, 127.3845}, {35.5384, 129.3114},
-            {36.4800, 127.2890}, {33.4996, 126.5312}
-    };
-    private static final String[] STATION_NAMES = {
-            "중구", "강남구", "마포구",
-            "수원", "성남", "고양",
-            "인천", "부산", "대구",
-            "광주", "대전", "울산",
-            "세종", "제주"
-    };
+    @SuppressWarnings("unchecked")
+    private String fetchNearestStation(double lat, double lng) {
+        try {
+            double[] tm = toTm(lat, lng);
+            String url = NEARBY_STATION_URL + "?serviceKey=" + effectiveAirApiKey()
+                    + "&returnType=json&numOfRows=1&pageNo=1"
+                    + "&tmX=" + tm[0]
+                    + "&tmY=" + tm[1]
+                    + "&ver=1.1";
 
-    private String fallbackStation(double lat, double lng) {
-        int nearest = 0;
-        double minDist = Double.MAX_VALUE;
-        for (int i = 0; i < STATION_COORDS.length; i++) {
-            double d = Math.pow(lat - STATION_COORDS[i][0], 2) + Math.pow(lng - STATION_COORDS[i][1], 2);
-            if (d < minDist) { minDist = d; nearest = i; }
+            Map<String, Object> response = restTemplate.getForObject(new java.net.URI(url), Map.class);
+            Map<String, Object> res = (Map<String, Object>) response.get("response");
+            Map<String, Object> body = (Map<String, Object>) res.get("body");
+            List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
+
+            if (items == null || items.isEmpty()) {
+                log.warn("근처 미세먼지 측정소를 찾지 못했습니다.");
+                return null;
+            }
+
+            String stationName = (String) items.get(0).get("stationName");
+            log.info("가장 가까운 미세먼지 측정소: {}", stationName);
+            return stationName;
+        } catch (Exception e) {
+            log.warn("근처 미세먼지 측정소 조회 실패: {}", e.getMessage());
+            return null;
         }
-        log.info("측정소 fallback 사용: {}", STATION_NAMES[nearest]);
-        return STATION_NAMES[nearest];
+    }
+
+    private String effectiveAirApiKey() {
+        return airStationApiKey == null || airStationApiKey.isBlank() ? apiKey : airStationApiKey;
     }
 
     @SuppressWarnings("unchecked")
@@ -271,17 +283,22 @@ public class WeatherService {
             Map<String, Object> body = (Map<String, Object>) res.get("body");
             List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
 
-            if (items == null || items.isEmpty()) return new AirData(30, 10, "보통", "보통");
+            if (items == null || items.isEmpty()) return AirData.unavailable();
 
             Map<String, Object> item = items.get(0);
-            int pm10 = parseAirValue(item.get("pm10Value"));
-            int pm25 = parseAirValue(item.get("pm25Value"));
+            Integer pm10 = parseAirValue(item.get("pm10Value"));
+            Integer pm25 = parseAirValue(item.get("pm25Value"));
             log.info("미세먼지 ({}) - PM10:{}, PM2.5:{}", stationName, pm10, pm25);
-            return new AirData(pm10, pm25, gradeByValue(pm10, "pm10"), gradeByValue(pm25, "pm25"));
+            return new AirData(
+                    pm10,
+                    pm25,
+                    pm10 == null ? "정보 없음" : gradeByValue(pm10, "pm10"),
+                    pm25 == null ? "정보 없음" : gradeByValue(pm25, "pm25")
+            );
 
         } catch (Exception e) {
             log.warn("미세먼지 데이터 파싱 실패: {}", e.getMessage());
-            return new AirData(30, 10, "보통", "보통");
+            return AirData.unavailable();
         }
     }
 
@@ -395,6 +412,51 @@ public class WeatherService {
         return prefix + ":" + Math.round(lat * 100.0) + ":" + Math.round(lng * 100.0);
     }
 
+    /** WGS84 위경도를 에어코리아 측정소 조회용 중부원점 TM 좌표로 변환한다. */
+    private double[] toTm(double lat, double lng) {
+        double a = 6378137.0;
+        double f = 1.0 / 298.257222101;
+        double lon0 = Math.toRadians(127.0);
+        double lat0 = Math.toRadians(38.0);
+        double e2 = 2 * f - f * f;
+        double ep2 = e2 / (1 - e2);
+
+        double latR = Math.toRadians(lat);
+        double lonR = Math.toRadians(lng);
+        double sinLat = Math.sin(latR);
+        double cosLat = Math.cos(latR);
+        double n = a / Math.sqrt(1 - e2 * sinLat * sinLat);
+        double t = Math.tan(latR) * Math.tan(latR);
+        double c = ep2 * cosLat * cosLat;
+        double alpha = cosLat * (lonR - lon0);
+
+        double e4 = e2 * e2;
+        double e6 = e4 * e2;
+        double m = meridianArc(a, e2, e4, e6, latR);
+        double m0 = meridianArc(a, e2, e4, e6, lat0);
+
+        double a2 = alpha * alpha;
+        double a3 = a2 * alpha;
+        double a4 = a3 * alpha;
+        double a5 = a4 * alpha;
+        double a6 = a5 * alpha;
+        double x = 200000.0 + n * (alpha + (1 - t + c) * a3 / 6
+                + (5 - 18 * t + t * t + 72 * c - 58 * ep2) * a5 / 120);
+        double y = 500000.0 + m - m0 + n * Math.tan(latR) * (a2 / 2
+                + (5 - t + 9 * c + 4 * c * c) * a4 / 24
+                + (61 - 58 * t + t * t + 600 * c - 330 * ep2) * a6 / 720);
+
+        return new double[]{x, y};
+    }
+
+    private double meridianArc(double a, double e2, double e4, double e6, double latitude) {
+        return a * (
+                (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * latitude
+                        - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * latitude)
+                        + (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * latitude)
+                        - (35 * e6 / 3072) * Math.sin(6 * latitude));
+    }
+
 
     // ── 등급 계산 ─────────────────────────────────────────────
 
@@ -412,10 +474,10 @@ public class WeatherService {
         }
     }
 
-    private int parseAirValue(Object val) {
-        if (val == null || "-".equals(val.toString())) return 30;
+    private Integer parseAirValue(Object val) {
+        if (val == null || "-".equals(val.toString())) return null;
         try { return Integer.parseInt(val.toString()); }
-        catch (NumberFormatException e) { return 30; }
+        catch (NumberFormatException e) { return null; }
     }
 
     // ── 시간 헬퍼 ─────────────────────────────────────────────
@@ -475,7 +537,15 @@ public class WeatherService {
     // ── 내부 데이터 클래스 ────────────────────────────────────
 
     record WeatherData(int tmp, int pop, int pty) {}
-    record AirData(int pm10, int pm25, String pm10Grade, String pm25Grade) {}
+    record AirData(Integer pm10, Integer pm25, String pm10Grade, String pm25Grade) {
+        static AirData unavailable() {
+            return new AirData(null, null, "정보 없음", "정보 없음");
+        }
+
+        boolean available() {
+            return pm10 != null && pm25 != null;
+        }
+    }
     record HourlyForecast(int tmp, int pop, int pty) {}
     record CacheEntry<T>(T value, long expiresAtMillis) {
         boolean isFresh(long nowMillis) {

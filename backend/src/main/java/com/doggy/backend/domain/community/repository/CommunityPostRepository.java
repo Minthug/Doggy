@@ -4,6 +4,7 @@ import com.doggy.backend.domain.community.entity.CommunityPost;
 import com.doggy.backend.domain.community.entity.CommunityPost.PostType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -20,4 +21,8 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPost, Lo
     // 특정 실종 게시글에 연결된 목격 제보 목록
     @Query("SELECT p FROM CommunityPost p JOIN FETCH p.user WHERE p.relatedPostId = :postId ORDER BY p.createdAt DESC")
     List<CommunityPost> findSightingsByRelatedPostId(@Param("postId") Long postId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE CommunityPost p SET p.relatedPostId = null WHERE p.relatedPostId = :postId")
+    int clearRelatedPostId(@Param("postId") Long postId);
 }

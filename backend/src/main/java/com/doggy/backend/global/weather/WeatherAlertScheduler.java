@@ -38,6 +38,11 @@ public class WeatherAlertScheduler {
         log.info("산책 지수: {} ({}도, PM10:{}, PM2.5:{})",
                 walkIndex.index(), walkIndex.temperature(), walkIndex.pm10(), walkIndex.pm25());
 
+        if (!walkIndex.airQualityAvailable()) {
+            log.info("미세먼지 정보 없음 - 산책 추천 알림 생략");
+            return;
+        }
+
         if (walkIndex.index() == WalkIndex.AVOID) {
             log.info("산책 자제 날씨 - 알림 생략");
             return;
@@ -71,7 +76,7 @@ public class WeatherAlertScheduler {
         if (w.index() == WalkIndex.CAUTION) {
             if (w.temperature() < 5) sb.append("\n추위에 약한 소형견은 옷을 입혀주세요 🧥");
             else if (w.temperature() > 27) sb.append("\n이른 아침이나 저녁에 산책하세요 🌙");
-            else if (w.pm10() >= 80) sb.append("\n미세먼지가 나쁨 — 짧게 다녀오세요 😷");
+            else if (w.pm10() != null && w.pm10() >= 80) sb.append("\n미세먼지가 나쁨 — 짧게 다녀오세요 😷");
         }
         return sb.toString();
     }

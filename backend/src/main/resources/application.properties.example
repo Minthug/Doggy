@@ -78,7 +78,7 @@ fcm.credentials-path=${FCM_CREDENTIALS_PATH:classpath:firebase-service-account.j
 
 # Weather APIs
 weather.api.key=${WEATHER_API_KEY}
-air.station.api.key=${AIR_STATION_API_KEY}
+air.station.api.key=${AIR_STATION_API_KEY:}
 
 # Image Upload
 image.upload.dir=${IMAGE_UPLOAD_DIR:/var/doggy/images}

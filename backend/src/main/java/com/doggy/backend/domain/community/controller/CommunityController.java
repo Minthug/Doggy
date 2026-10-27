@@ -1,6 +1,7 @@
 package com.doggy.backend.domain.community.controller;
 
 import com.doggy.backend.domain.community.dto.CommunityPostResponse;
+import com.doggy.backend.domain.community.dto.CommunityPostSummaryResponse;
 import com.doggy.backend.domain.community.dto.CreatePostRequest;
 import com.doggy.backend.domain.community.entity.CommunityPost.PostType;
 import com.doggy.backend.domain.community.service.CommunityService;
@@ -22,7 +23,7 @@ public class CommunityController {
     private final CommunityService communityService;
 
     @GetMapping
-    public ResponseEntity<List<CommunityPostResponse>> getPosts(
+    public ResponseEntity<List<CommunityPostSummaryResponse>> getPosts(
             @RequestParam(required = false) PostType type,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
