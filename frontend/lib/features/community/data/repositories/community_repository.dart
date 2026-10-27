@@ -51,6 +51,7 @@ class CommunityRepository {
     String? pros,
     String? cons,
     int? relatedPostId,
+    List<String> imageUrls = const [],
   }) async {
     final response = await _dio.post(
       '/api/community',
@@ -72,6 +73,7 @@ class CommunityRepository {
         if (pros != null) 'pros': pros,
         if (cons != null) 'cons': cons,
         if (relatedPostId != null) 'relatedPostId': relatedPostId,
+        if (imageUrls.isNotEmpty) 'imageUrls': imageUrls,
       },
     );
     return CommunityPost.fromJson(response.data);

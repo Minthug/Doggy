@@ -4,8 +4,11 @@ import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "community_posts", indexes = {
@@ -66,6 +69,16 @@ public class CommunityPost extends BaseEntity {
     @Column(length = 300)
     private String cons;
 
+    @ElementCollection
+    @CollectionTable(
+            name = "community_post_images",
+            joinColumns = @JoinColumn(name = "post_id")
+    )
+    @OrderColumn(name = "display_order")
+    @Column(name = "image_url", nullable = false, columnDefinition = "TEXT")
+    @BatchSize(size = 20)
+    private List<String> imageUrls = new ArrayList<>();
+
     // 목격 제보가 연결된 실종 게시글 ID (FOUND 게시글에서 사용)
     private Long relatedPostId;
 
@@ -79,7 +92,7 @@ public class CommunityPost extends BaseEntity {
                          LocalDateTime lastSeenAt, Double lat, Double lng,
                          String contactInfo, String productName, Integer ratingPercent,
                          String reviewSummary, String pros, String cons,
-                         Long relatedPostId) {
+                         Long relatedPostId, List<String> imageUrls) {
         this.user = user;
         this.type = type;
         this.title = title;
@@ -97,6 +110,7 @@ public class CommunityPost extends BaseEntity {
         this.pros = pros;
         this.cons = cons;
         this.relatedPostId = relatedPostId;
+        this.imageUrls = imageUrls == null ? new ArrayList<>() : new ArrayList<>(imageUrls);
     }
 
     public void resolve() {

@@ -193,6 +193,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               ],
             ),
             const SizedBox(height: 20),
+            if (post.imageUrls.isNotEmpty) ...[
+              _PostImageGallery(imageUrls: post.imageUrls),
+              const SizedBox(height: 20),
+            ],
             if (post.type.isReview) ...[
               _ReviewScorePanel(post: post),
               const SizedBox(height: 20),
@@ -373,6 +377,80 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   String _formatDateTime(DateTime dt) {
     return '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}'
         ' ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _PostImageGallery extends StatefulWidget {
+  final List<String> imageUrls;
+
+  const _PostImageGallery({required this.imageUrls});
+
+  @override
+  State<_PostImageGallery> createState() => _PostImageGalleryState();
+}
+
+class _PostImageGalleryState extends State<_PostImageGallery> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: AspectRatio(
+        aspectRatio: 4 / 3,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            PageView.builder(
+              itemCount: widget.imageUrls.length,
+              onPageChanged: (index) => setState(() => _currentIndex = index),
+              itemBuilder: (context, index) => Image.network(
+                widget.imageUrls[index],
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Container(
+                  color: Colors.grey[100],
+                  alignment: Alignment.center,
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.broken_image_outlined, color: Colors.grey),
+                      SizedBox(height: 6),
+                      Text(
+                        '사진을 불러오지 못했어요',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (widget.imageUrls.length > 1)
+              Positioned(
+                right: 10,
+                top: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    '${_currentIndex + 1}/${widget.imageUrls.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

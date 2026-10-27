@@ -8,6 +8,8 @@ import com.doggy.backend.domain.community.repository.CommunityPostRepository;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.exception.BusinessException;
+import com.doggy.backend.global.image.ImageStorageProperties;
+import com.doggy.backend.global.image.ImageStorageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -19,6 +21,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +37,8 @@ class CommunityServiceTest {
 
     @Mock CommunityPostRepository postRepository;
     @Mock UserRepository userRepository;
+    @Mock ImageStorageService imageStorageService;
+    @Mock ImageStorageProperties imageStorageProperties;
 
     @InjectMocks CommunityService communityService;
 
@@ -59,6 +64,7 @@ class CommunityServiceTest {
                 "한줄평",
                 "장점",
                 "단점",
+                null,
                 null
         );
 
@@ -138,6 +144,11 @@ class CommunityServiceTest {
     void deletingPostUnlinksSightingsBeforeDelete() {
         User user = user(1L);
         CommunityPost post = post(10L, user, PostType.LOST);
+        ReflectionTestUtils.setField(
+                post,
+                "imageUrls",
+                List.of("http://localhost:8080/images/community.jpg")
+        );
         given(postRepository.findById(10L)).willReturn(Optional.of(post));
 
         communityService.delete(1L, 10L);
@@ -145,6 +156,38 @@ class CommunityServiceTest {
         InOrder order = inOrder(postRepository);
         order.verify(postRepository).clearRelatedPostId(10L);
         order.verify(postRepository).delete(post);
+        verify(imageStorageService).delete("http://localhost:8080/images/community.jpg");
+    }
+
+    @Test
+    void storesOnlyImagesIssuedByImageStorage() {
+        User user = user(1L);
+        String imageUrl = "http://localhost:8080/images/community.jpg";
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(imageStorageProperties.stripPublicPrefix(imageUrl)).willReturn("community.jpg");
+        given(postRepository.save(any(CommunityPost.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        communityService.create(1L, basicRequest(PostType.LOST, null, List.of(imageUrl)));
+
+        ArgumentCaptor<CommunityPost> captor = ArgumentCaptor.forClass(CommunityPost.class);
+        verify(postRepository).save(captor.capture());
+        assertThat(captor.getValue().getImageUrls()).containsExactly(imageUrl);
+    }
+
+    @Test
+    void rejectsExternalImageUrl() {
+        User user = user(1L);
+        String imageUrl = "https://tracker.example/image.jpg";
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(imageStorageProperties.stripPublicPrefix(imageUrl)).willReturn(null);
+
+        assertThatThrownBy(() -> communityService.create(
+                1L,
+                basicRequest(PostType.LOST, null, List.of(imageUrl))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("잘못된 첨부 이미지");
+
+        verify(postRepository, never()).save(any(CommunityPost.class));
     }
 
     @Test
@@ -155,6 +198,10 @@ class CommunityServiceTest {
     }
 
     private CreatePostRequest basicRequest(PostType type, Long relatedPostId) {
+        return basicRequest(type, relatedPostId, null);
+    }
+
+    private CreatePostRequest basicRequest(PostType type, Long relatedPostId, List<String> imageUrls) {
         return new CreatePostRequest(
                 type,
                 "제목",
@@ -171,7 +218,8 @@ class CommunityServiceTest {
                 null,
                 null,
                 null,
-                relatedPostId
+                relatedPostId,
+                imageUrls
         );
     }
 

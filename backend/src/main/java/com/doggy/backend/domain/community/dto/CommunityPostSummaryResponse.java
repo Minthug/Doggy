@@ -5,6 +5,7 @@ import com.doggy.backend.domain.community.entity.CommunityPost.PostStatus;
 import com.doggy.backend.domain.community.entity.CommunityPost.PostType;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 목록에서 실제로 표시하는 정보만 반환한다.
@@ -23,6 +24,7 @@ public record CommunityPostSummaryResponse(
         String productName,
         Integer ratingPercent,
         String reviewSummary,
+        List<String> imageUrls,
         PostStatus status,
         LocalDateTime createdAt
 ) {
@@ -40,6 +42,7 @@ public record CommunityPostSummaryResponse(
                 post.getProductName(),
                 post.getRatingPercent(),
                 post.getReviewSummary(),
+                List.copyOf(post.getImageUrls()),
                 post.getStatus(),
                 post.getCreatedAt()
         );

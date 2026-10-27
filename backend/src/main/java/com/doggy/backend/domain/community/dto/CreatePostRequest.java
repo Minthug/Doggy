@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record CreatePostRequest(
         @NotNull PostType type,
@@ -23,5 +24,6 @@ public record CreatePostRequest(
         @Size(max = 120) String reviewSummary,
         @Size(max = 300) String pros,
         @Size(max = 300) String cons,
-        Long relatedPostId
+        Long relatedPostId,
+        @Size(max = 5) List<@NotBlank @Size(max = 2048) String> imageUrls
 ) {}

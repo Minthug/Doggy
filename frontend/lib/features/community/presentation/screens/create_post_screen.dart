@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../../core/api/api_client.dart';
 import '../../data/models/community_post_model.dart';
 import '../../data/repositories/community_repository.dart';
 
@@ -32,6 +36,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   bool _loading = false;
   int? _relatedPostId;
   int _ratingPercent = 85;
+  final List<File> _imageFiles = [];
+
+  static const _maxImages = 5;
 
   @override
   void initState() {
@@ -66,6 +73,26 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       _type == PostType.FOUND ||
       _type == PostType.ADOPTION;
   bool get _isReview => _type.isReview;
+
+  Future<void> _pickImages() async {
+    final remaining = _maxImages - _imageFiles.length;
+    if (remaining <= 0) return;
+
+    final picked = await ImagePicker().pickMultiImage(
+      maxWidth: 1600,
+      maxHeight: 1600,
+      imageQuality: 85,
+    );
+    if (!mounted || picked.isEmpty) return;
+
+    final additions = picked.take(remaining).map((image) => File(image.path));
+    setState(() => _imageFiles.addAll(additions));
+    if (picked.length > remaining && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('사진은 최대 5장까지 첨부할 수 있어요')));
+    }
+  }
 
   Future<void> _pickDateTime() async {
     final date = await showDatePicker(
@@ -113,6 +140,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
+      final imageUrls = <String>[];
+      for (final imageFile in _imageFiles) {
+        imageUrls.add(await ref.read(imageUploadProvider).upload(imageFile));
+      }
       await ref
           .read(communityRepositoryProvider)
           .create(
@@ -150,6 +181,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                 ? null
                 : _consCtrl.text.trim(),
             relatedPostId: _type == PostType.FOUND ? _relatedPostId : null,
+            imageUrls: imageUrls,
           );
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -266,6 +298,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               maxLines: 5,
               validator: (v) =>
                   v == null || v.trim().isEmpty ? '내용을 입력해주세요' : null,
+            ),
+            const SizedBox(height: 20),
+            _PostImagePicker(
+              images: _imageFiles,
+              maxImages: _maxImages,
+              onAdd: _pickImages,
+              onRemove: (index) => setState(() => _imageFiles.removeAt(index)),
             ),
             if (_isDogPost) ...[
               const SizedBox(height: 20),
@@ -467,6 +506,113 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           vertical: 12,
         ),
       ),
+    );
+  }
+}
+
+class _PostImagePicker extends StatelessWidget {
+  final List<File> images;
+  final int maxImages;
+  final VoidCallback onAdd;
+  final ValueChanged<int> onRemove;
+
+  const _PostImagePicker({
+    required this.images,
+    required this.maxImages,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              '사진 첨부',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '선택 · ${images.length}/$maxImages',
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 104,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: images.length + (images.length < maxImages ? 1 : 0),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              if (index == images.length) {
+                return InkWell(
+                  onTap: onAdd,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 104,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_photo_alternate_outlined,
+                          color: Color(0xFF4CAF50),
+                        ),
+                        SizedBox(height: 5),
+                        Text('사진 추가', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.file(
+                      images[index],
+                      width: 104,
+                      height: 104,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    right: -5,
+                    top: -5,
+                    child: Material(
+                      color: Colors.black87,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        onTap: () => onRemove(index),
+                        customBorder: const CircleBorder(),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.close,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

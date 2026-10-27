@@ -5,6 +5,7 @@ import com.doggy.backend.domain.community.entity.CommunityPost.PostStatus;
 import com.doggy.backend.domain.community.entity.CommunityPost.PostType;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record CommunityPostResponse(
         Long id,
@@ -26,6 +27,7 @@ public record CommunityPostResponse(
         String reviewSummary,
         String pros,
         String cons,
+        List<String> imageUrls,
         PostStatus status,
         Long relatedPostId,
         LocalDateTime createdAt
@@ -51,6 +53,7 @@ public record CommunityPostResponse(
                 post.getReviewSummary(),
                 post.getPros(),
                 post.getCons(),
+                List.copyOf(post.getImageUrls()),
                 post.getStatus(),
                 post.getRelatedPostId(),
                 post.getCreatedAt()

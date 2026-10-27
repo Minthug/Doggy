@@ -11,11 +11,15 @@ import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
 import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.exception.BusinessException;
+import com.doggy.backend.global.image.ImageStorageProperties;
+import com.doggy.backend.global.image.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -26,9 +30,12 @@ public class CommunityService {
 
     private static final Set<PostType> REVIEW_TYPES = Set.of(PostType.FOOD_REVIEW, PostType.SUPPLY_REVIEW);
     private static final Set<PostType> DOG_POST_TYPES = Set.of(PostType.LOST, PostType.FOUND, PostType.ADOPTION);
+    private static final int MAX_IMAGES = 5;
 
     private final CommunityPostRepository postRepository;
     private final UserRepository userRepository;
+    private final ImageStorageService imageStorageService;
+    private final ImageStorageProperties imageStorageProperties;
 
     public List<CommunityPostSummaryResponse> getPosts(PostType type, int page, int size) {
         var pageable = PageRequest.of(RequestLimits.clampPage(page), RequestLimits.clampPageSize(size));
@@ -52,6 +59,7 @@ public class CommunityService {
         boolean isDogPost = DOG_POST_TYPES.contains(request.type());
         boolean hasSightingTime = request.type() == PostType.LOST || request.type() == PostType.FOUND;
         boolean isReview = REVIEW_TYPES.contains(request.type());
+        List<String> imageUrls = sanitizeImageUrls(request.imageUrls());
 
         CommunityPost post = postRepository.save(
                 CommunityPost.builder()
@@ -72,6 +80,7 @@ public class CommunityService {
                         .pros(isReview ? request.pros() : null)
                         .cons(isReview ? request.cons() : null)
                         .relatedPostId(relatedPostId)
+                        .imageUrls(imageUrls)
                         .build()
         );
         return CommunityPostResponse.from(post);
@@ -110,6 +119,27 @@ public class CommunityService {
         return relatedPost.getId();
     }
 
+    private List<String> sanitizeImageUrls(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return List.of();
+        }
+        if (imageUrls.size() > MAX_IMAGES) {
+            throw BusinessException.badRequest("사진은 최대 5장까지 첨부할 수 있습니다");
+        }
+
+        Set<String> uniqueUrls = new LinkedHashSet<>();
+        for (String imageUrl : imageUrls) {
+            String cleanUrl = imageUrl == null ? "" : imageUrl.trim();
+            if (cleanUrl.isEmpty()
+                    || cleanUrl.length() > 2048
+                    || imageStorageProperties.stripPublicPrefix(cleanUrl) == null) {
+                throw BusinessException.badRequest("잘못된 첨부 이미지입니다");
+            }
+            uniqueUrls.add(cleanUrl);
+        }
+        return new ArrayList<>(uniqueUrls);
+    }
+
     @Transactional(readOnly = false)
     public CommunityPostResponse resolve(Long userId, Long postId) {
         CommunityPost post = findPost(postId);
@@ -126,8 +156,10 @@ public class CommunityService {
         if (!post.getUser().getId().equals(userId)) {
             throw BusinessException.badRequest("본인 게시글만 삭제할 수 있습니다");
         }
+        List<String> imageUrls = List.copyOf(post.getImageUrls());
         postRepository.clearRelatedPostId(postId);
         postRepository.delete(post);
+        imageUrls.forEach(imageStorageService::delete);
     }
 
     public List<CommunityPostResponse> getSightings(Long postId) {

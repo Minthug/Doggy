@@ -309,6 +309,10 @@ class _PostCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
+            if (post.imageUrls.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _PostImagePreview(imageUrls: post.imageUrls),
+            ],
             if (post.type.isReview) ...[
               const SizedBox(height: 10),
               _ReviewPreview(post: post),
@@ -365,6 +369,62 @@ class _PostCard extends StatelessWidget {
     if (diff.inDays < 1) return '${diff.inHours}시간 전';
     if (diff.inDays < 7) return '${diff.inDays}일 전';
     return '${dt.month}/${dt.day}';
+  }
+}
+
+class _PostImagePreview extends StatelessWidget {
+  final List<String> imageUrls;
+
+  const _PostImagePreview({required this.imageUrls});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(
+              imageUrls.first,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Container(
+                color: Colors.grey[100],
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+            if (imageUrls.length > 1)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '+${imageUrls.length - 1}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

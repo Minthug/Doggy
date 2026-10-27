@@ -18,6 +18,7 @@ class CommunityPost {
   final String? reviewSummary;
   final String? pros;
   final String? cons;
+  final List<String> imageUrls;
   final PostStatus status;
   final int? relatedPostId;
   final DateTime createdAt;
@@ -42,6 +43,7 @@ class CommunityPost {
     this.reviewSummary,
     this.pros,
     this.cons,
+    this.imageUrls = const [],
     required this.status,
     this.relatedPostId,
     required this.createdAt,
@@ -69,6 +71,8 @@ class CommunityPost {
     reviewSummary: json['reviewSummary'],
     pros: json['pros'],
     cons: json['cons'],
+    imageUrls:
+        (json['imageUrls'] as List?)?.whereType<String>().toList() ?? const [],
     status: PostStatus.values.byName(json['status']),
     relatedPostId: json['relatedPostId'],
     createdAt: DateTime.parse(json['createdAt']),
