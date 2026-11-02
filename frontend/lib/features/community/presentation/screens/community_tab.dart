@@ -7,11 +7,62 @@ import '../../domain/providers/community_provider.dart';
 import 'create_post_screen.dart';
 import 'post_detail_screen.dart';
 
-class CommunityTab extends ConsumerWidget {
+class CommunityTab extends ConsumerStatefulWidget {
   const CommunityTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CommunityTab> createState() => _CommunityTabState();
+}
+
+class _CommunityTabState extends ConsumerState<CommunityTab> {
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients &&
+        _scrollController.position.extentAfter < 400) {
+      ref.read(communityPostsProvider.notifier).loadMore();
+    }
+  }
+
+  Future<void> _refresh() async {
+    try {
+      await ref.read(communityPostsProvider.notifier).refresh();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('새로고침하지 못했어요. 잠시 후 다시 시도해 주세요.')),
+      );
+    }
+  }
+
+  Future<void> _openCreate(PostType? initialType) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreatePostScreen(initialType: initialType),
+      ),
+    );
+    if (mounted) {
+      await ref.read(communityPostsProvider.notifier).refresh();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final selectedType = ref.watch(selectedPostTypeProvider);
     final postsAsync = ref.watch(communityPostsProvider);
 
@@ -28,37 +79,103 @@ class CommunityTab extends ConsumerWidget {
                   error: e,
                   onRetry: () => ref.invalidate(communityPostsProvider),
                 ),
-                data: (posts) => ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
-                  itemCount: posts.isEmpty ? 2 : posts.length + 1,
-                  itemBuilder: (ctx, i) {
-                    if (i == 0) return const _PromoBanner();
-                    if (posts.isEmpty) return const _EmptyView();
-                    final post = posts[i - 1];
-                    return _PostCard(
-                      post: post,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PostDetailScreen(postId: post.id),
-                        ),
-                      ).then((_) => ref.invalidate(communityPostsProvider)),
-                    );
-                  },
+                data: (feed) => RefreshIndicator(
+                  onRefresh: _refresh,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                    itemCount: _itemCount(feed),
+                    itemBuilder: (ctx, i) {
+                      if (feed.posts.isEmpty) {
+                        return _EmptyView(
+                          onCreate: () => _openCreate(selectedType),
+                        );
+                      }
+                      final showPromo = feed.posts.length >= 3;
+                      if (showPromo && i == 3) {
+                        return const _PromoBanner();
+                      }
+                      final postIndex = showPromo && i > 3 ? i - 1 : i;
+                      if (postIndex >= feed.posts.length) {
+                        return _LoadMoreFooter(
+                          isLoading: feed.isLoadingMore,
+                          hasError: feed.loadMoreError != null,
+                          onRetry: () => ref
+                              .read(communityPostsProvider.notifier)
+                              .loadMore(),
+                        );
+                      }
+                      final post = feed.posts[postIndex];
+                      return _PostCard(
+                        post: post,
+                        onTap: () =>
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    PostDetailScreen(postId: post.id),
+                              ),
+                            ).then(
+                              (_) => ref
+                                  .read(communityPostsProvider.notifier)
+                                  .refresh(),
+                            ),
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'community-create-post',
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const CreatePostScreen()),
-        ).then((_) => ref.invalidate(communityPostsProvider)),
-        backgroundColor: const Color(0xFF4CAF50),
-        child: const Icon(Icons.edit, color: Colors.white),
+      floatingActionButton: postsAsync.valueOrNull?.posts.isNotEmpty == true
+          ? FloatingActionButton(
+              heroTag: 'community-create-post',
+              onPressed: () => _openCreate(selectedType),
+              backgroundColor: const Color(0xFF4CAF50),
+              child: const Icon(Icons.edit, color: Colors.white),
+            )
+          : null,
+    );
+  }
+
+  int _itemCount(CommunityFeedState feed) {
+    if (feed.posts.isEmpty) return 1;
+    final promoCount = feed.posts.length >= 3 ? 1 : 0;
+    final hasFooter = feed.isLoadingMore || feed.loadMoreError != null;
+    return feed.posts.length + promoCount + (hasFooter ? 1 : 0);
+  }
+}
+
+class _LoadMoreFooter extends StatelessWidget {
+  final bool isLoading;
+  final bool hasError;
+  final VoidCallback onRetry;
+
+  const _LoadMoreFooter({
+    required this.isLoading,
+    required this.hasError,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      child: Center(
+        child: isLoading
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              )
+            : TextButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: Text(hasError ? '더 불러오기 다시 시도' : '더 불러오기'),
+              ),
       ),
     );
   }
@@ -137,50 +254,50 @@ class _Header extends ConsumerWidget {
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _FilterChip(
+          Row(
+            children: [
+              Expanded(
+                child: _FilterChip(
                   label: '전체',
                   selected: selectedType == null,
                   onTap: () =>
                       ref.read(selectedPostTypeProvider.notifier).state = null,
                 ),
-                const SizedBox(width: 8),
-                ...PostType.values.map(
-                  (t) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
+              ),
+              ...PostType.values.expand(
+                (t) => [
+                  const SizedBox(width: 4),
+                  Expanded(
                     child: _FilterChip(
-                      label: '${_typeIcon(t)} ${t.label}',
+                      label: _shortTypeLabel(t),
                       selected: selectedType == t,
                       onTap: () =>
                           ref.read(selectedPostTypeProvider.notifier).state = t,
                       color: _typeColor(t),
                     ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
         ],
       ),
     );
   }
 
-  String _typeIcon(PostType t) {
+  String _shortTypeLabel(PostType t) {
     switch (t) {
       case PostType.LOST:
-        return '🚨';
+        return '실종';
       case PostType.FOUND:
-        return '👀';
+        return '목격';
       case PostType.ADOPTION:
-        return '🏠';
+        return '입양';
       case PostType.FOOD_REVIEW:
-        return '🍖';
+        return '사료';
       case PostType.SUPPLY_REVIEW:
-        return '🧸';
+        return '용품';
     }
   }
 
@@ -215,22 +332,31 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? color : Colors.grey[100],
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? color : Colors.grey[300]!),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-            color: selected ? Colors.white : Colors.black87,
+    return Material(
+      color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          height: 38,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected
+                  ? color.withValues(alpha: 0.45)
+                  : Colors.grey[200]!,
+            ),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+              color: selected ? color : Colors.grey[700],
+            ),
           ),
         ),
       ),
@@ -336,19 +462,7 @@ class _PostCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                CircleAvatar(
-                  radius: 10,
-                  backgroundColor: const Color(
-                    0xFF4CAF50,
-                  ).withValues(alpha: 0.2),
-                  child: Text(
-                    post.nickname.isNotEmpty ? post.nickname[0] : '?',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Color(0xFF4CAF50),
-                    ),
-                  ),
-                ),
+                _AuthorAvatar(post: post),
                 const SizedBox(width: 6),
                 Text(
                   post.nickname,
@@ -423,6 +537,42 @@ class _PostImagePreview extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AuthorAvatar extends StatelessWidget {
+  final CommunityPost post;
+
+  const _AuthorAvatar({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = Container(
+      color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+      alignment: Alignment.center,
+      child: Text(
+        post.nickname.isNotEmpty ? post.nickname[0] : '?',
+        style: const TextStyle(
+          fontSize: 10,
+          color: Color(0xFF4CAF50),
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+    final profileImage = post.profileImage;
+
+    return ClipOval(
+      child: SizedBox.square(
+        dimension: 24,
+        child: profileImage == null || profileImage.isEmpty
+            ? fallback
+            : Image.network(
+                profileImage,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => fallback,
+              ),
       ),
     );
   }
@@ -601,23 +751,78 @@ class _InfoChip extends StatelessWidget {
 }
 
 class _EmptyView extends StatelessWidget {
-  const _EmptyView();
+  final VoidCallback onCreate;
+
+  const _EmptyView({required this.onCreate});
+
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 28),
+      padding: const EdgeInsets.fromLTRB(24, 30, 24, 26),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF2FAF3), Color(0xFFFFFFFF)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCEEDD)),
+      ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Text('🐾', style: TextStyle(fontSize: 48)),
-          SizedBox(height: 12),
-          Text('아직 게시글이 없어요', style: TextStyle(color: Colors.grey)),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+              color: Color(0xFFE1F2E2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.forum_outlined,
+              size: 30,
+              color: Color(0xFF388E3C),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            '아직 게시글이 없어요',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '궁금한 점이나 우리 아이 소식을\n이웃 보호자와 나눠보세요.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF6F766F),
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onCreate,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('첫 글 작성하기'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF43A047),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-// 커뮤니티 상단 배너 광고
+// 게시글 사이에 노출하는 소형 쇼핑 배너
 class _PromoBanner extends StatelessWidget {
   const _PromoBanner();
 
@@ -674,7 +879,7 @@ class _PromoBanner extends StatelessWidget {
           ),
         ),
         SizedBox(
-          height: 100,
+          height: 84,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _banners.length,
@@ -684,16 +889,16 @@ class _PromoBanner extends StatelessWidget {
               return GestureDetector(
                 onTap: () => _open(b.query),
                 child: Container(
-                  width: 220,
-                  padding: const EdgeInsets.all(14),
+                  width: 210,
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: b.color,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Row(
                     children: [
-                      Text(b.emoji, style: const TextStyle(fontSize: 30)),
-                      const SizedBox(width: 12),
+                      Text(b.emoji, style: const TextStyle(fontSize: 25)),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

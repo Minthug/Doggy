@@ -52,6 +52,13 @@ class WalkRepository {
     return WalkDetail.fromJson(response.data);
   }
 
+  Future<List<MarkingSpotCandidate>> getMarkingCandidates(int sessionId) async {
+    final response = await _dio.get('/api/walks/$sessionId/marking-candidates');
+    return (response.data as List)
+        .map((item) => MarkingSpotCandidate.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<MarkingSpot> shareMarkingSpot({
     required int sessionId,
     required MarkingSpotCandidate candidate,

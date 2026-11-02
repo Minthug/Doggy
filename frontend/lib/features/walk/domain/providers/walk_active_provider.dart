@@ -99,14 +99,41 @@ class WalkPoint {
   final double lat;
   final double lng;
   final DateTime recordedAt;
+  final double? accuracy;
 
-  WalkPoint({required this.lat, required this.lng, required this.recordedAt});
+  WalkPoint({
+    required this.lat,
+    required this.lng,
+    required this.recordedAt,
+    this.accuracy,
+  });
 
   Map<String, dynamic> toJson() => {
     'lat': lat,
     'lng': lng,
     'recordedAt': _formatDateTime(recordedAt),
+    if (accuracy != null) 'accuracy': accuracy,
   };
+}
+
+bool shouldRecordStationarySample({
+  required WalkPoint lastPoint,
+  required double currentLat,
+  required double currentLng,
+  required double currentAccuracy,
+  required DateTime now,
+}) {
+  if (currentAccuracy > 40) return false;
+  if (now.difference(lastPoint.recordedAt) < const Duration(seconds: 4)) {
+    return false;
+  }
+  return Geolocator.distanceBetween(
+        lastPoint.lat,
+        lastPoint.lng,
+        currentLat,
+        currentLng,
+      ) <=
+      12;
 }
 
 final walkActiveProvider = StateNotifierProvider<WalkActiveNotifier, WalkState>(
@@ -122,6 +149,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   Timer? _simTimer;
   Timer? _simPingTimer; // 시뮬레이션 전용 핑 타이머 (실제 GPS 없으므로 별도 유지)
   Timer? _locationWaitTimer;
+  Timer? _stationarySampleTimer;
   StreamSubscription<Position>? _positionSubscription;
   int _simIndex = 0;
 
@@ -134,6 +162,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   DateTime? _lastPingAt;
   static const _pingIntervalSeconds = 10;
   static const _locationWaitTimeout = Duration(seconds: 15);
+  static const _stationarySampleInterval = Duration(seconds: 5);
 
   // 시뮬레이션 경로 (봉담 기준)
   static const _simRoute = <({double lat, double lng})>[
@@ -185,6 +214,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     );
     _startTimer();
     _startTracking();
+    _startStationarySampling();
   }
 
   Future<void> startSimulatedWalk({List<Dog> dogs = const []}) async {
@@ -256,7 +286,12 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
   }
 
   void _applyPosition(double lat, double lng) {
-    final newPoint = WalkPoint(lat: lat, lng: lng, recordedAt: DateTime.now());
+    final newPoint = WalkPoint(
+      lat: lat,
+      lng: lng,
+      recordedAt: DateTime.now(),
+      accuracy: 5,
+    );
 
     double addedDistance = 0;
     if (state.points.isNotEmpty) {
@@ -293,6 +328,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _timer?.cancel();
     _simPingTimer?.cancel();
     _locationWaitTimer?.cancel();
+    _stationarySampleTimer?.cancel();
     if (state.isSimulating) {
       _simTimer?.cancel();
     } else {
@@ -314,6 +350,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       _startSimPingTimer();
     } else {
       _startTracking();
+      _startStationarySampling();
     }
   }
 
@@ -323,6 +360,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _simTimer?.cancel();
     _simPingTimer?.cancel();
     _locationWaitTimer?.cancel();
+    _stationarySampleTimer?.cancel();
     _positionSubscription?.cancel();
 
     final endedAt = DateTime.now();
@@ -339,7 +377,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
         );
         state = state.copyWith(
           status: WalkStatus.completed,
-          markingSpotCandidates: detail.markingSpotCandidates,
+          markingSpotCandidates: [],
         );
         _ref.invalidate(walkHistoryProvider);
         return detail;
@@ -350,6 +388,15 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       }
     }
     throw lastError!;
+  }
+
+  Future<void> loadMarkingCandidates() async {
+    final session = state.session;
+    if (session == null || state.status != WalkStatus.completed) return;
+    final candidates = await _repository.getMarkingCandidates(session.id);
+    if (mounted && state.session?.id == session.id) {
+      state = state.copyWith(markingSpotCandidates: candidates);
+    }
   }
 
   Future<void> shareMarkingSpot(MarkingSpotCandidate candidate) async {
@@ -385,6 +432,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _simTimer?.cancel();
     _simPingTimer?.cancel();
     _locationWaitTimer?.cancel();
+    _stationarySampleTimer?.cancel();
     _positionSubscription?.cancel();
     state = const WalkState();
   }
@@ -396,6 +444,39 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
       final elapsed =
           DateTime.now().difference(_walkStartedAt!).inSeconds - _pausedSeconds;
       state = state.copyWith(elapsedSeconds: elapsed < 0 ? 0 : elapsed);
+    });
+  }
+
+  void _startStationarySampling() {
+    _stationarySampleTimer?.cancel();
+    _stationarySampleTimer = Timer.periodic(_stationarySampleInterval, (_) {
+      if (state.status != WalkStatus.inProgress || state.isSimulating) return;
+      final position = state.currentPosition;
+      if (position == null || state.points.isEmpty) return;
+
+      final now = DateTime.now();
+      final lastPoint = state.points.last;
+      if (!shouldRecordStationarySample(
+        lastPoint: lastPoint,
+        currentLat: position.latitude,
+        currentLng: position.longitude,
+        currentAccuracy: position.accuracy,
+        now: now,
+      )) {
+        return;
+      }
+
+      state = state.copyWith(
+        points: [
+          ...state.points,
+          WalkPoint(
+            lat: position.latitude,
+            lng: position.longitude,
+            recordedAt: now,
+            accuracy: position.accuracy,
+          ),
+        ],
+      );
     });
   }
 
@@ -478,6 +559,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
                 lat: position.latitude,
                 lng: position.longitude,
                 recordedAt: DateTime.now(),
+                accuracy: position.accuracy,
               );
 
               double addedDistance = 0;
@@ -564,6 +646,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     _simTimer?.cancel();
     _simPingTimer?.cancel();
     _locationWaitTimer?.cancel();
+    _stationarySampleTimer?.cancel();
     _positionSubscription?.cancel();
     super.dispose();
   }

@@ -15,6 +15,7 @@ import com.doggy.backend.domain.walk.dto.WalkSessionResponse;
 import com.doggy.backend.domain.walk.dto.TodayWalkStatsResponse;
 import com.doggy.backend.domain.walk.entity.WalkRouteLike;
 import com.doggy.backend.domain.walk.entity.WalkRouteBookmark;
+import com.doggy.backend.domain.walk.entity.WalkPoint;
 import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.entity.WalkSession.Status;
 import com.doggy.backend.domain.walk.repository.WalkPointRepository;
@@ -291,6 +292,43 @@ class WalkServiceTest {
     @Nested
     @DisplayName("complete")
     class Complete {
+
+        @Test
+        void completionDoesNotWaitForMarkingAnalysis() {
+            WalkSession session = makeSession(10L, makeUser(1L), Status.IN_PROGRESS);
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+
+            var result = walkService.complete(1L, 10L,
+                    new CompleteWalkRequest(LocalDateTime.now(), List.of()));
+
+            assertThat(result.status()).isEqualTo(Status.COMPLETED);
+            assertThat(result.markingSpotCandidates()).isEmpty();
+            verifyNoInteractions(markingSpotService);
+        }
+
+        @Test
+        void candidatesAreCalculatedFromSavedPointsForOwner() {
+            WalkSession session = makeSession(10L, makeUser(1L), Status.COMPLETED);
+            WalkPoint point = mock(WalkPoint.class);
+            given(point.getRecordedAt()).willReturn(LocalDateTime.of(2026, 11, 2, 12, 0));
+            given(point.getLat()).willReturn(37.218);
+            given(point.getLng()).willReturn(126.944);
+            given(point.getAccuracy()).willReturn(null);
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+            given(walkPointRepository.findAllBySessionIdOrderByRecordedAt(10L)).willReturn(List.of(point));
+
+            walkService.getMarkingCandidates(1L, 10L);
+
+            verify(markingSpotService).detectCandidates(List.of(
+                    new WalkPointRequest(point.getRecordedAt(), 37.218, 126.944, null)));
+        }
+
+        @Test
+        void candidatesAreNotAvailableToAnotherUser() {
+            assertThatThrownBy(() -> walkService.getMarkingCandidates(2L, 10L))
+                    .isInstanceOf(BusinessException.class);
+            verifyNoInteractions(walkPointRepository, markingSpotService);
+        }
 
         @Test
         @DisplayName("이미 완료된 세션은 재완료 불가")

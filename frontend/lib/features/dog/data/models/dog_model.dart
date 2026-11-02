@@ -26,44 +26,45 @@ class Dog {
   });
 
   factory Dog.fromJson(Map<String, dynamic> json) => Dog(
-        id: json['id'],
-        name: json['name'],
-        breed: json['breed'],
-        profileImage: json['profileImage'],
-        gender: json['gender'],
-        isNeutered: json['isNeutered'] ?? false,
-        weightKg: json['weightKg'] != null
-            ? (json['weightKg'] as num).toDouble()
-            : null,
-        birthDate: json['birthDate'] != null
-            ? DateTime.parse(json['birthDate'])
-            : null,
-        warnings: (json['warnings'] as List<dynamic>?)
-                ?.map((e) => e as String)
-                .toList() ??
-            [],
-        isFavorited: json['isFavorited'] ?? false,
-      );
+    id: json['id'],
+    name: json['name'],
+    breed: json['breed'],
+    profileImage: json['profileImage'],
+    gender: json['gender'],
+    isNeutered: json['isNeutered'] ?? false,
+    weightKg: json['weightKg'] != null
+        ? (json['weightKg'] as num).toDouble()
+        : null,
+    birthDate: json['birthDate'] != null
+        ? DateTime.parse(json['birthDate'])
+        : null,
+    warnings:
+        (json['warnings'] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList() ??
+        [],
+    isFavorited: json['isFavorited'] ?? false,
+  );
 
   Dog copyWith({bool? isFavorited}) => Dog(
-        id: id,
-        name: name,
-        breed: breed,
-        profileImage: profileImage,
-        gender: gender,
-        isNeutered: isNeutered,
-        weightKg: weightKg,
-        birthDate: birthDate,
-        warnings: warnings,
-        isFavorited: isFavorited ?? this.isFavorited,
-      );
+    id: id,
+    name: name,
+    breed: breed,
+    profileImage: profileImage,
+    gender: gender,
+    isNeutered: isNeutered,
+    weightKg: weightKg,
+    birthDate: birthDate,
+    warnings: warnings,
+    isFavorited: isFavorited ?? this.isFavorited,
+  );
 
   /// RER = 70 × (체중kg ^ 0.75)
-  /// DER = RER × 계수 (중성화 성견: 1.6 / 일반 성견: 1.4)
+  /// DER = RER × 계수 (중성화 성견: 1.6 / 일반 성견: 1.8)
   int? get dailyCalories {
     if (weightKg == null || weightKg! <= 0) return null;
     final rer = 70 * pow(weightKg!, 0.75);
-    final factor = isNeutered ? 1.6 : 1.4;
+    final factor = isNeutered ? 1.6 : 1.8;
     return (rer * factor).round();
   }
 

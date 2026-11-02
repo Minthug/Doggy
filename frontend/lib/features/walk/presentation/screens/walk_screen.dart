@@ -268,11 +268,54 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
         return;
       }
       if (!mounted) return;
+      bool candidatesReady = false;
+      Object? candidateError;
+      final candidateFuture = notifier.loadMarkingCandidates().then(
+        (_) => candidatesReady = true,
+        onError: (Object error) {
+          candidateError = error;
+          candidatesReady = true;
+        },
+      );
       // ignore: use_build_context_synchronously
       final openHistory = await _showWalkResult(context, walkState);
-      if (!mounted) return;
-      // ignore: use_build_context_synchronously
-      await _showMarkingSpotCandidates(context);
+      if (!context.mounted) return;
+      if (!candidatesReady) {
+        final showCandidates = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => FutureBuilder<void>(
+            future: candidateFuture,
+            builder: (ctx, snapshot) => AlertDialog(
+              title: const Text('마킹 후보 확인'),
+              content: Text(snapshot.connectionState == ConnectionState.done
+                  ? candidateError == null
+                      ? '마킹 후보 확인이 끝났어요.'
+                      : '마킹 후보를 확인하지 못했어요.'
+                  : '마킹 후보를 확인하고 있어요. 기다리지 않고 넘어가도 됩니다.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('나중에'),
+                ),
+                if (snapshot.connectionState == ConnectionState.done &&
+                    candidateError == null)
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('후보 보기'),
+                  ),
+              ],
+            ),
+          ),
+        );
+        if (!context.mounted) return;
+        if (showCandidates == true) await _showMarkingSpotCandidates(context);
+      } else if (candidateError == null) {
+        await _showMarkingSpotCandidates(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('산책은 저장됐지만 마킹 후보를 확인하지 못했어요.')),
+        );
+      }
       notifier.resetWalk();
       // walkHistoryProvider + 파생 프로바이더 모두 명시적으로 무효화
       // (홈 탭이 트리에 없을 때 cascade가 동작 안 할 수 있으므로 직접 지정)

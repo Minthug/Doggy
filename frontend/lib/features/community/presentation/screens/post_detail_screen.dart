@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   CommunityPost? _post;
   List<CommunityPost> _sightings = [];
   bool _loading = true;
+  Object? _loadError;
 
   @override
   void initState() {
@@ -26,6 +28,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 
   Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    }
     try {
       final repo = ref.read(communityRepositoryProvider);
       final post = await repo.getPost(widget.postId);
@@ -38,10 +46,17 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           _post = post;
           _sightings = sightings;
           _loading = false;
+          _loadError = null;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _post = null;
+          _loading = false;
+          _loadError = error;
+        });
+      }
     }
   }
 
@@ -100,7 +115,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     if (_post == null) {
       return Scaffold(
         appBar: AppBar(),
-        body: const Center(child: Text('게시글을 찾을 수 없습니다')),
+        body: _PostDetailErrorView(error: _loadError, onRetry: _load),
       );
     }
 
@@ -164,19 +179,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                CircleAvatar(
-                  radius: 12,
-                  backgroundColor: const Color(
-                    0xFF4CAF50,
-                  ).withValues(alpha: 0.2),
-                  child: Text(
-                    post.nickname.isNotEmpty ? post.nickname[0] : '?',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF4CAF50),
-                    ),
-                  ),
-                ),
+                _AuthorAvatar(post: post),
                 const SizedBox(width: 8),
                 Text(
                   post.nickname,
@@ -380,6 +383,70 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 }
 
+class _PostDetailErrorView extends StatelessWidget {
+  final Object? error;
+  final VoidCallback onRetry;
+
+  const _PostDetailErrorView({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_outlined,
+              size: 42,
+              color: Color(0xFF9E9E9E),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              _messageFor(error),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF616161),
+                fontSize: 15,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('다시 시도'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _messageFor(Object? error) {
+    if (error is DioException) {
+      final statusCode = error.response?.statusCode;
+      if (statusCode == 404) {
+        return '게시글을 찾을 수 없습니다.\n삭제되었거나 존재하지 않는 글이에요.';
+      }
+      if (statusCode == 401) {
+        return '로그인이 필요합니다.\n다시 로그인한 뒤 이용해 주세요.';
+      }
+      if (statusCode != null && statusCode >= 500) {
+        return '서버에서 문제가 발생했습니다.\n잠시 후 다시 시도해 주세요.';
+      }
+      if (error.type == DioExceptionType.connectionError ||
+          error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.sendTimeout) {
+        return '게시글을 불러오지 못했습니다.\n네트워크 상태를 확인해 주세요.';
+      }
+    }
+    return '게시글을 불러오지 못했습니다.\n잠시 후 다시 시도해 주세요.';
+  }
+}
+
 class _PostImageGallery extends StatefulWidget {
   final List<String> imageUrls;
 
@@ -387,6 +454,42 @@ class _PostImageGallery extends StatefulWidget {
 
   @override
   State<_PostImageGallery> createState() => _PostImageGalleryState();
+}
+
+class _AuthorAvatar extends StatelessWidget {
+  final CommunityPost post;
+
+  const _AuthorAvatar({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = Container(
+      color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+      alignment: Alignment.center,
+      child: Text(
+        post.nickname.isNotEmpty ? post.nickname[0] : '?',
+        style: const TextStyle(
+          fontSize: 11,
+          color: Color(0xFF4CAF50),
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+    final profileImage = post.profileImage;
+
+    return ClipOval(
+      child: SizedBox.square(
+        dimension: 24,
+        child: profileImage == null || profileImage.isEmpty
+            ? fallback
+            : Image.network(
+                profileImage,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => fallback,
+              ),
+      ),
+    );
+  }
 }
 
 class _PostImageGalleryState extends State<_PostImageGallery> {

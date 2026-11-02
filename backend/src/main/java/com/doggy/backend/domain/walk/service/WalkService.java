@@ -142,17 +142,28 @@ public class WalkService {
 
         sendGoalAchievedNotificationIfNeeded(userId, session.getDogs(), prevMonthlyMeters, prevMonthlyMeters + distanceMeters);
 
-        List<MarkingSpotCandidateResponse> markingCandidates = markingSpotService.detectCandidates(request.points());
-
         // GeoJSON 생성 후 세션에 저장 (트랜잭션 내 — 방금 INSERT한 points 바로 읽음)
         try {
             String routeGeoJson = walkPointRepository.findRouteGeoJsonBySessionId(sessionId);
             if (routeGeoJson != null) session.saveRouteGeoJson(routeGeoJson);
-            return WalkDetailResponse.of(session, routeGeoJson, markingCandidates);
+            return WalkDetailResponse.of(session, routeGeoJson);
         } catch (Exception e) {
             log.warn("경로 GeoJSON 생성 실패: {}", e.getMessage());
-            return WalkDetailResponse.of(session, null, markingCandidates);
+            return WalkDetailResponse.of(session, null);
         }
+    }
+
+    public List<MarkingSpotCandidateResponse> getMarkingCandidates(Long userId, Long sessionId) {
+        WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+        if (session.getStatus() != Status.COMPLETED || session.getDetailsPurgedAt() != null) {
+            return List.of();
+        }
+        List<WalkPointRequest> points = walkPointRepository.findAllBySessionIdOrderByRecordedAt(sessionId)
+                .stream()
+                .map(point -> new WalkPointRequest(point.getRecordedAt(), point.getLat(), point.getLng(), point.getAccuracy()))
+                .toList();
+        return markingSpotService.detectCandidates(points);
     }
 
     private void sendGoalAchievedNotificationIfNeeded(Long userId, List<Dog> sessionDogs, int prevMeters, int newMeters) {

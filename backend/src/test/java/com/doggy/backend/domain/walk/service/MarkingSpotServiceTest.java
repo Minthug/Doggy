@@ -6,6 +6,9 @@ import com.doggy.backend.domain.walk.dto.MarkingSpotCandidateResponse;
 import com.doggy.backend.domain.walk.dto.WalkPointRequest;
 import com.doggy.backend.domain.walk.repository.MarkingSpotRepository;
 import com.doggy.backend.domain.walk.repository.MarkingSpotVisitRepository;
+import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository;
+import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository.TrafficCoordinate;
+import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository.TrafficContext;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,11 +16,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class MarkingSpotServiceTest {
@@ -27,6 +35,7 @@ class MarkingSpotServiceTest {
     @Mock WalkSessionRepository walkSessionRepository;
     @Mock DogRepository dogRepository;
     @Mock HouseholdService householdService;
+    @Mock TrafficMapFeatureRepository trafficMapFeatureRepository;
 
     @Test
     void detectsCandidateWhenRouteStopsAndMovesAgain() {
@@ -67,6 +76,42 @@ class MarkingSpotServiceTest {
     }
 
     @Test
+    void detectsShortMarkingStopFromStationarySamples() {
+        MarkingSpotService service = service();
+        given(spotRepository.findAllByGridKeyIn(anyCollection())).willReturn(List.of());
+        LocalDateTime base = LocalDateTime.now();
+
+        List<WalkPointRequest> points = List.of(
+                point(base, 37.218000, 126.944000),
+                point(base.plusSeconds(5), 37.218160, 126.944000),
+                point(base.plusSeconds(10), 37.218161, 126.944001),
+                point(base.plusSeconds(15), 37.218160, 126.944001),
+                point(base.plusSeconds(20), 37.218320, 126.944000)
+        );
+
+        List<MarkingSpotCandidateResponse> candidates = service.detectCandidates(points);
+
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).dwellSeconds()).isBetween(8, 120);
+    }
+
+    @Test
+    void ignoresLongBreakAndInaccurateGpsAsMarking() {
+        MarkingSpotService service = service();
+        LocalDateTime base = LocalDateTime.now();
+
+        List<WalkPointRequest> points = List.of(
+                point(base, 37.218000, 126.944000),
+                point(base.plusSeconds(5), 37.218160, 126.944000),
+                point(base.plusSeconds(155), 37.218161, 126.944001),
+                new WalkPointRequest(base.plusSeconds(160), 37.218162, 126.944002, 80f),
+                point(base.plusSeconds(165), 37.218320, 126.944000)
+        );
+
+        assertThat(service.detectCandidates(points)).isEmpty();
+    }
+
+    @Test
     void detectsUpToFifteenCandidatesOnFiveKilometerRoute() {
         MarkingSpotService service = service();
         given(spotRepository.findAllByGridKeyIn(anyCollection())).willReturn(List.of());
@@ -78,6 +123,77 @@ class MarkingSpotServiceTest {
         assertThat(candidates).hasSize(15);
         assertThat(candidates).allSatisfy(candidate ->
                 assertThat(candidate.dwellSeconds()).isGreaterThanOrEqualTo(12));
+        verify(trafficMapFeatureRepository, times(1)).findContexts(anyList());
+    }
+
+    @Test
+    void trafficFacilitiesLowerRankButDoNotDiscardCandidate() {
+        MarkingSpotService service = service();
+        given(spotRepository.findAllByGridKeyIn(anyCollection())).willReturn(List.of());
+        given(trafficMapFeatureRepository.findContexts(anyList()))
+                .willReturn(List.of(new TrafficContext(true, true, true, true, false)));
+        LocalDateTime base = LocalDateTime.now();
+
+        List<WalkPointRequest> points = List.of(
+                point(base, 37.218000, 126.944000),
+                point(base.plusSeconds(5), 37.218160, 126.944000),
+                point(base.plusSeconds(15), 37.218160, 126.944000),
+                point(base.plusSeconds(20), 37.218320, 126.944000)
+        );
+
+        assertThat(service.detectCandidates(points)).hasSize(1);
+    }
+
+    @Test
+    void trafficQueryFailureIsNotSilentlyTreatedAsNeutral() {
+        MarkingSpotService service = service();
+        given(trafficMapFeatureRepository.findContexts(anyList()))
+                .willThrow(new IllegalStateException("traffic table missing"));
+        LocalDateTime base = LocalDateTime.of(2026, 11, 2, 12, 0);
+        List<WalkPointRequest> points = List.of(
+                point(base, 37.218000, 126.944000),
+                point(base.plusSeconds(5), 37.218160, 126.944000),
+                point(base.plusSeconds(15), 37.218160, 126.944000),
+                point(base.plusSeconds(20), 37.218320, 126.944000)
+        );
+
+        assertThatThrownBy(() -> service.detectCandidates(points))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("traffic table missing");
+    }
+
+    @Test
+    void walkingAreaCandidateSurvivesWhenMoreThanFifteenStopsExist() {
+        MarkingSpotService service = service();
+        given(spotRepository.findAllByGridKeyIn(anyCollection())).willReturn(List.of());
+        given(trafficMapFeatureRepository.findContexts(anyList())).willAnswer(invocation -> {
+            List<TrafficCoordinate> coordinates = invocation.getArgument(0);
+            return coordinates.stream().map(coordinate -> coordinate.lat() > 37.233
+                    ? new TrafficContext(false, false, false, false, true)
+                    : new TrafficContext(true, true, true, true, false)).toList();
+        });
+
+        LocalDateTime time = LocalDateTime.of(2026, 11, 2, 12, 0);
+        List<WalkPointRequest> points = new ArrayList<>();
+        LocalDateTime parkStop = null;
+        for (int i = 0; i < 16; i++) {
+            double lat = 37.218 + i * 0.001;
+            points.add(point(time, lat - 0.0002, 126.944));
+            time = time.plusSeconds(5);
+            points.add(point(time, lat, 126.944));
+            if (i == 15) parkStop = time.plusSeconds(15);
+            time = time.plusSeconds(i == 15 ? 30 : 10);
+            points.add(point(time, lat, 126.944));
+            time = time.plusSeconds(5);
+            points.add(point(time, lat + 0.0002, 126.944));
+            time = time.plusSeconds(5);
+        }
+
+        List<MarkingSpotCandidateResponse> candidates = service.detectCandidates(points);
+
+        assertThat(candidates).hasSize(15);
+        assertThat(candidates).extracting(MarkingSpotCandidateResponse::detectedAt)
+                .contains(parkStop);
     }
 
     private MarkingSpotService service() {
@@ -86,7 +202,8 @@ class MarkingSpotServiceTest {
                 visitRepository,
                 walkSessionRepository,
                 dogRepository,
-                householdService
+                householdService,
+                trafficMapFeatureRepository
         );
     }
 

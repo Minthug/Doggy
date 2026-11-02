@@ -10,10 +10,14 @@ import com.doggy.backend.domain.walk.entity.MarkingSpotVisit;
 import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.repository.MarkingSpotRepository;
 import com.doggy.backend.domain.walk.repository.MarkingSpotVisitRepository;
+import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository;
+import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository.TrafficCoordinate;
+import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository.TrafficContext;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
 import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,14 +25,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class MarkingSpotService {
 
     private static final double GRID_SIZE = 0.0003; // 약 25~35m 단위 공개 좌표
-    private static final int MIN_DWELL_SECONDS = 12;
+    private static final int MIN_DWELL_SECONDS = 8;
+    private static final int MAX_DWELL_SECONDS = 120;
+    private static final float MAX_ACCURACY_METERS = 40;
     private static final int MIN_MOVE_BEFORE_METERS = 8;
     private static final int MIN_MOVE_AFTER_METERS = 8;
     private static final int MAX_CANDIDATES = 15;
@@ -39,9 +47,17 @@ public class MarkingSpotService {
     private final WalkSessionRepository walkSessionRepository;
     private final DogRepository dogRepository;
     private final HouseholdService householdService;
+    private final TrafficMapFeatureRepository trafficMapFeatureRepository;
 
     public List<MarkingSpotCandidateResponse> detectCandidates(List<WalkPointRequest> points) {
         if (points == null || points.size() < 4) {
+            return List.of();
+        }
+
+        points = points.stream()
+                .filter(point -> point.accuracy() == null || point.accuracy() <= MAX_ACCURACY_METERS)
+                .toList();
+        if (points.size() < 4) {
             return List.of();
         }
 
@@ -60,7 +76,7 @@ public class MarkingSpotService {
                 WalkPointRequest first = points.get(start);
                 WalkPointRequest last = points.get(end - 1);
                 int dwellSeconds = Math.max(0, (int) java.time.Duration.between(first.recordedAt(), last.recordedAt()).getSeconds());
-                if (dwellSeconds >= MIN_DWELL_SECONDS && movedBefore(points, start) && movedAfter(points, end - 1)) {
+                if (isMarkingDuration(dwellSeconds) && movedBefore(points, start) && movedAfter(points, end - 1)) {
                     double lat = averageLat(points.subList(start, end));
                     double lng = averageLng(points.subList(start, end));
                     raw.add(new MarkingCandidate(lat, lng, first.recordedAt().plusSeconds(dwellSeconds / 2L), dwellSeconds));
@@ -74,15 +90,24 @@ public class MarkingSpotService {
             return List.of();
         }
 
+        List<TrafficContext> trafficContexts = loadTrafficContexts(merged);
+        List<ScoredCandidate> selected = IntStream.range(0, merged.size())
+                .mapToObj(index -> new ScoredCandidate(
+                        merged.get(index), candidateScore(merged.get(index), trafficContexts.get(index))))
+                .sorted(Comparator.comparingInt(ScoredCandidate::score).reversed()
+                        .thenComparing(scored -> scored.candidate().detectedAt()))
+                .limit(MAX_CANDIDATES)
+                .toList();
+
         Map<String, MarkingSpot> existingByGridKey = spotRepository.findAllByGridKeyIn(
-                        merged.stream().map(c -> gridKey(c.lat(), c.lng())).collect(Collectors.toSet()))
+                        selected.stream().map(scored -> gridKey(scored.candidate().lat(), scored.candidate().lng()))
+                                .collect(Collectors.toSet()))
                 .stream()
                 .collect(Collectors.toMap(MarkingSpot::getGridKey, spot -> spot));
 
-        return merged.stream()
-                .sorted(Comparator.comparingInt(MarkingCandidate::dwellSeconds).reversed())
-                .limit(MAX_CANDIDATES)
-                .map(candidate -> {
+        return selected.stream()
+                .map(scored -> {
+                    MarkingCandidate candidate = scored.candidate();
                     SnappedCoordinate snapped = snap(candidate.lat(), candidate.lng());
                     MarkingSpot spot = existingByGridKey.get(snapped.gridKey());
                     return new MarkingSpotCandidateResponse(
@@ -97,6 +122,43 @@ public class MarkingSpotService {
                 .toList();
     }
 
+    /**
+     * Traffic facilities lower confidence but never remove a candidate on their own.
+     * This keeps short real markings near roads while ranking likely signal waits lower.
+     */
+    private int candidateScore(MarkingCandidate candidate, TrafficContext context) {
+        int score = baseCandidateScore(candidate);
+        if (context.nearSignal()) score -= 2;
+        if (context.nearCrosswalk()) score -= 2;
+        if (context.nearIntersection()) score -= 1;
+        if (context.nearRoad() && !context.nearWalkingArea()) score -= 1;
+        if (context.nearWalkingArea()) score += 2;
+        return score;
+    }
+
+    private int baseCandidateScore(MarkingCandidate candidate) {
+        int score = candidate.dwellSeconds() <= 20 ? 6
+                : candidate.dwellSeconds() <= 45 ? 4
+                : candidate.dwellSeconds() <= 90 ? 2 : 0;
+        return score;
+    }
+
+    private List<TrafficContext> loadTrafficContexts(List<MarkingCandidate> candidates) {
+        List<TrafficContext> contexts;
+        try {
+            contexts = trafficMapFeatureRepository.findContexts(candidates.stream()
+                    .map(candidate -> new TrafficCoordinate(candidate.lat(), candidate.lng()))
+                    .toList());
+        } catch (RuntimeException error) {
+            log.error("교통 지도 조회 실패: candidateCount={}", candidates.size(), error);
+            throw error;
+        }
+        if (contexts == null || contexts.size() != candidates.size()) {
+            return Collections.nCopies(candidates.size(), TrafficContext.neutral());
+        }
+        return contexts;
+    }
+
     private List<MarkingCandidate> detectGapCandidates(List<WalkPointRequest> points) {
         List<MarkingCandidate> candidates = new ArrayList<>();
         for (int i = 1; i < points.size() - 1; i++) {
@@ -105,7 +167,7 @@ public class MarkingSpotService {
             WalkPointRequest next = points.get(i + 1);
 
             int gapSeconds = Math.max(0, (int) java.time.Duration.between(current.recordedAt(), next.recordedAt()).getSeconds());
-            if (gapSeconds < MIN_DWELL_SECONDS) {
+            if (!isMarkingDuration(gapSeconds)) {
                 continue;
             }
             double beforeMeters = distanceMeters(previous.lat(), previous.lng(), current.lat(), current.lng());
@@ -120,6 +182,10 @@ public class MarkingSpotService {
             }
         }
         return candidates;
+    }
+
+    private boolean isMarkingDuration(int seconds) {
+        return seconds >= MIN_DWELL_SECONDS && seconds <= MAX_DWELL_SECONDS;
     }
 
     @Transactional(readOnly = false)
@@ -291,6 +357,8 @@ public class MarkingSpotService {
     }
 
     private record MarkingCandidate(double lat, double lng, LocalDateTime detectedAt, int dwellSeconds) {}
+
+    private record ScoredCandidate(MarkingCandidate candidate, int score) {}
 
     private record SnappedCoordinate(double lat, double lng, String gridKey) {}
 }

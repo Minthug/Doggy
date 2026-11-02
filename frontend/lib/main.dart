@@ -91,13 +91,37 @@ class _DoggyAppState extends State<DoggyApp> {
 
   @override
   Widget build(BuildContext context) {
+    final baseTheme = ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4CAF50)),
+      useMaterial3: true,
+      fontFamily: 'NanumSquareRound',
+    );
+
     return MaterialApp(
       navigatorKey: navigatorKey,
       title: 'Doggy',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4CAF50)),
-        useMaterial3: true,
+      theme: baseTheme.copyWith(
+        textTheme: baseTheme.textTheme.copyWith(
+          bodyLarge: baseTheme.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+          bodyMedium: baseTheme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+          bodySmall: baseTheme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+          labelLarge: baseTheme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+          labelMedium: baseTheme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+          labelSmall: baseTheme.textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ),
       routes: {
         '/login': (_) => const LoginScreen(),

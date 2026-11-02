@@ -6,11 +6,11 @@ import '../../../household/presentation/screens/household_screen.dart';
 import 'push_setting_screen.dart';
 import '../../../dog/data/models/dog_model.dart';
 import '../../../dog/domain/providers/dog_provider.dart';
+import '../../../dog/presentation/screens/dog_detail_screen.dart';
 import '../../../dog/presentation/screens/dog_register_screen.dart';
 import '../../../home/domain/providers/home_provider.dart';
 import '../../../walk/data/models/walk_model.dart';
 import '../../../walk/domain/providers/walk_provider.dart';
-import '../../domain/supply_inventory_provider.dart';
 import 'profile_settings_screen.dart';
 
 // base64 또는 URL 이미지를 ImageProvider로 변환
@@ -36,8 +36,7 @@ class ProfileTab extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text('프로필',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('프로필', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -49,8 +48,10 @@ class ProfileTab extends ConsumerWidget {
                 profileImage: profile.profileImage,
                 nicknameChanged: profile.nicknameChanged,
               ),
-              loading: () => const _ProfileHeader(nickname: '...', profileImage: null),
-              error: (_, __) => const _ProfileHeader(nickname: '사용자', profileImage: null),
+              loading: () =>
+                  const _ProfileHeader(nickname: '...', profileImage: null),
+              error: (_, __) =>
+                  const _ProfileHeader(nickname: '사용자', profileImage: null),
             ),
 
             const SizedBox(height: 12),
@@ -70,19 +71,22 @@ class ProfileTab extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('내 반려견',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text(
+                    '내 반려견',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   TextButton.icon(
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => const DogRegisterScreen()),
+                        builder: (_) => const DogRegisterScreen(),
+                      ),
                     ),
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('추가'),
                     style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF4CAF50)),
+                      foregroundColor: const Color(0xFF4CAF50),
+                    ),
                   ),
                 ],
               ),
@@ -94,7 +98,8 @@ class ProfileTab extends ConsumerWidget {
                       onAdd: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const DogRegisterScreen()),
+                          builder: (_) => const DogRegisterScreen(),
+                        ),
                       ),
                     )
                   : ListView.builder(
@@ -109,10 +114,6 @@ class ProfileTab extends ConsumerWidget {
               error: (_, __) => const SizedBox.shrink(),
             ),
 
-            const SizedBox(height: 12),
-
-            // 사료 재고
-            const _SupplyInventoryCard(),
             const SizedBox(height: 12),
 
             // 가족 관리
@@ -130,8 +131,9 @@ class ProfileTab extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 8),
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                      ),
                     ],
                   ),
                   child: const Row(
@@ -139,8 +141,8 @@ class ProfileTab extends ConsumerWidget {
                       Icon(Icons.people_outlined, color: Color(0xFF4CAF50)),
                       SizedBox(width: 12),
                       Expanded(
-                          child: Text('가족 관리',
-                              style: TextStyle(fontSize: 15))),
+                        child: Text('가족 관리', style: TextStyle(fontSize: 15)),
+                      ),
                       Icon(Icons.chevron_right, color: Colors.grey),
                     ],
                   ),
@@ -156,8 +158,7 @@ class ProfileTab extends ConsumerWidget {
               child: GestureDetector(
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(
-                      builder: (_) => const PushSettingScreen()),
+                  MaterialPageRoute(builder: (_) => const PushSettingScreen()),
                 ),
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -166,18 +167,21 @@ class ProfileTab extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 8),
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                      ),
                     ],
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.notifications_outlined,
-                          color: Color(0xFF4CAF50)),
+                      Icon(
+                        Icons.notifications_outlined,
+                        color: Color(0xFF4CAF50),
+                      ),
                       SizedBox(width: 12),
                       Expanded(
-                          child: Text('알림 설정',
-                              style: TextStyle(fontSize: 15))),
+                        child: Text('알림 설정', style: TextStyle(fontSize: 15)),
+                      ),
                       Icon(Icons.chevron_right, color: Colors.grey),
                     ],
                   ),
@@ -201,26 +205,33 @@ class ProfileTab extends ConsumerWidget {
                         content: const Text('로그아웃 하시겠습니까?'),
                         actions: [
                           TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('취소')),
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('취소'),
+                          ),
                           TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('로그아웃',
-                                  style: TextStyle(color: Colors.red))),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text(
+                              '로그아웃',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
                         ],
                       ),
                     );
                     if (confirmed == true && context.mounted) {
                       await ref.read(authActionProvider).logout();
                       if (context.mounted) {
-                        Navigator.of(context).pushNamedAndRemoveUntil(
-                            '/login', (_) => false);
+                        Navigator.of(
+                          context,
+                        ).pushNamedAndRemoveUntil('/login', (_) => false);
                       }
                     }
                   },
                   icon: const Icon(Icons.logout, color: Colors.red),
-                  label: const Text('로그아웃',
-                      style: TextStyle(color: Colors.red)),
+                  label: const Text(
+                    '로그아웃',
+                    style: TextStyle(color: Colors.red),
+                  ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.red),
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -284,8 +295,11 @@ class _ProfileHeader extends StatelessWidget {
                   backgroundColor: const Color(0xFFE8F5E9),
                   backgroundImage: _imageProvider(),
                   child: profileImage == null
-                      ? const Icon(Icons.person, size: 40,
-                          color: Color(0xFF4CAF50))
+                      ? const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: Color(0xFF4CAF50),
+                        )
                       : null,
                 ),
                 Container(
@@ -326,7 +340,9 @@ class _MonthlyStatsCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+            ),
           ],
         ),
         child: Column(
@@ -334,8 +350,7 @@ class _MonthlyStatsCard extends StatelessWidget {
           children: [
             Text(
               '${stats.month}월 산책 기록',
-              style: const TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Row(
@@ -394,12 +409,12 @@ class _StatItem extends StatelessWidget {
           child: Icon(icon, color: color, size: 22),
         ),
         const SizedBox(height: 8),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 2),
-        Text(label,
-            style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
   }
@@ -412,128 +427,120 @@ class _DogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final calories = dog.dailyCalories;
-
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => DogRegisterScreen(dog: dog)),
+        MaterialPageRoute(builder: (_) => DogDetailScreen(dog: dog)),
       ),
       child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
-        ],
-      ),
-      child: Row(
-        children: [
-          // 프로필 이미지
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: const Color(0xFFE8F5E9),
-            backgroundImage: _dogImageProvider(dog.profileImage),
-            child: dog.profileImage == null
-                ? const Text('🐶', style: TextStyle(fontSize: 22))
-                : null,
-          ),
-          const SizedBox(width: 14),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // 프로필 이미지
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: const Color(0xFFE8F5E9),
+              backgroundImage: _dogImageProvider(dog.profileImage),
+              child: dog.profileImage == null
+                  ? const Text('🐶', style: TextStyle(fontSize: 22))
+                  : null,
+            ),
+            const SizedBox(width: 14),
 
-          // 정보
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(dog.name,
+            // 정보
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        dog.name,
                         style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
-                    if (dog.genderLabel.isNotEmpty) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: dog.gender == 'MALE'
-                              ? Colors.blue.withValues(alpha: 0.1)
-                              : Colors.pink.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
-                        child: Text(
-                          dog.genderLabel,
-                          style: TextStyle(
-                            fontSize: 11,
+                      ),
+                      if (dog.genderLabel.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
                             color: dog.gender == 'MALE'
-                                ? Colors.blue
-                                : Colors.pink,
-                            fontWeight: FontWeight.bold,
+                                ? Colors.blue.withValues(alpha: 0.1)
+                                : Colors.pink.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            dog.genderLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: dog.gender == 'MALE'
+                                  ? Colors.blue
+                                  : Colors.pink,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                    if (dog.isNeutered) ...[
-                      const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text('중성화',
+                      ],
+                      if (dog.isNeutered) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            '중성화',
                             style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.purple,
-                                fontWeight: FontWeight.bold)),
-                      ),
+                              fontSize: 11,
+                              color: Colors.purple,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-                if (dog.breed != null) ...[
-                  const SizedBox(height: 3),
-                  Text(dog.breed!,
-                      style: const TextStyle(
-                          fontSize: 13, color: Colors.grey)),
-                ],
-                if (dog.weightKg != null) ...[
-                  const SizedBox(height: 3),
-                  Text('${dog.weightKg!.toStringAsFixed(1)}kg',
-                      style: const TextStyle(
-                          fontSize: 13, color: Colors.grey)),
-                ],
-              ],
-            ),
-          ),
-
-          // 칼로리
-          if (calories != null)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Text('하루 권장 칼로리',
-                    style: TextStyle(fontSize: 11, color: Colors.grey)),
-                const SizedBox(height: 4),
-                Text(
-                  '$calories kcal',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF4CAF50),
                   ),
-                ),
-                Text(
-                  dog.isNeutered ? '(중성화 기준)' : '(일반 기준)',
-                  style: const TextStyle(fontSize: 10, color: Colors.grey),
-                ),
-              ],
+                  if (dog.breed != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      dog.breed!,
+                      style: const TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                  ],
+                  if (dog.weightKg != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      '${dog.weightKg!.toStringAsFixed(1)}kg',
+                      style: const TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                  ],
+                ],
+              ),
             ),
-        ],
-      ),
+
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }
@@ -556,16 +563,22 @@ class _EmptyDogs extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-                color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
-                style: BorderStyle.solid),
+              color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
+              style: BorderStyle.solid,
+            ),
           ),
           child: const Column(
             children: [
-              Icon(Icons.add_circle_outline,
-                  size: 40, color: Color(0xFF4CAF50)),
+              Icon(
+                Icons.add_circle_outline,
+                size: 40,
+                color: Color(0xFF4CAF50),
+              ),
               SizedBox(height: 8),
-              Text('반려견을 등록해주세요',
-                  style: TextStyle(color: Colors.grey, fontSize: 14)),
+              Text(
+                '반려견을 등록해주세요',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
             ],
           ),
         ),
@@ -590,353 +603,6 @@ class _LoadingCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
         ),
         child: const Center(child: CircularProgressIndicator()),
-      ),
-    );
-  }
-}
-
-// 사료 재고 카드
-class _SupplyInventoryCard extends ConsumerWidget {
-  const _SupplyInventoryCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final supplyAsync = ref.watch(supplyInventoryProvider);
-    final dogs = ref.watch(myDogsProvider).valueOrNull ?? [];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('사료 재고',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 14),
-            supplyAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const Text('재고를 불러오지 못했습니다',
-                  style: TextStyle(color: Colors.grey)),
-              data: (items) => Column(
-                children: items.asMap().entries.map(
-                  (e) => _SupplyRow(
-                    item: e.value,
-                    onTap: () => _showEditDialog(context, ref, e.key, e.value, dogs),
-                  ),
-                ).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showEditDialog(
-      BuildContext context, WidgetRef ref, int index, SupplyItem item, List<Dog> dogs) {
-    showDialog(
-      context: context,
-      builder: (ctx) => _SupplyEditDialog(
-        item: item,
-        dogs: dogs,
-        onSave: (total, current, daily, kcalPerKg) {
-          ref.read(supplyInventoryProvider.notifier).updateItem(
-                index, current, total, daily, kcalPerKg,
-              );
-        },
-      ),
-    );
-  }
-}
-
-class _SupplyEditDialog extends StatefulWidget {
-  final SupplyItem item;
-  final List<Dog> dogs;
-  final void Function(int total, int current, int daily, double kcalPerKg) onSave;
-
-  const _SupplyEditDialog({
-    required this.item,
-    required this.dogs,
-    required this.onSave,
-  });
-
-  @override
-  State<_SupplyEditDialog> createState() => _SupplyEditDialogState();
-}
-
-class _SupplyEditDialogState extends State<_SupplyEditDialog> {
-  late final TextEditingController _totalCtrl;
-  late final TextEditingController _currentCtrl;
-  late final TextEditingController _dailyCtrl;
-  late final TextEditingController _kcalCtrl;
-
-  // RER = (30 × kg) + 70, DER = RER × 계수
-  static double _rer(double kg) => 30 * kg + 70;
-  static double _der(double rer, bool neutered) => rer * (neutered ? 1.6 : 1.8);
-
-  int? _calcRecommended(double kcalPerKg) {
-    if (kcalPerKg <= 0 || widget.dogs.isEmpty) return null;
-    final totalDer = widget.dogs.fold<double>(0, (sum, d) {
-      final kg = d.weightKg ?? 5.0;
-      return sum + _der(_rer(kg), d.isNeutered);
-    });
-    final kcalPerG = kcalPerKg / 1000;
-    // 간식은 총 DER의 10% 이내 → 사료는 나머지 90% 기준
-    final ratio = widget.item.name == '간식' ? 0.1 : 0.9;
-    return (totalDer * ratio / kcalPerG).round();
-  }
-
-  void _autoFill() {
-    final kcal = double.tryParse(_kcalCtrl.text.trim()) ?? 0;
-    final rec = _calcRecommended(kcal);
-    if (rec != null) setState(() => _dailyCtrl.text = '$rec');
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    final item = widget.item;
-    _totalCtrl   = TextEditingController(text: item.isSet ? '${item.totalGrams}' : '');
-    _currentCtrl = TextEditingController(text: item.isSet ? '${item.currentGrams}' : '');
-    _dailyCtrl   = TextEditingController(text: item.hasDailyRate ? '${item.dailyGrams}' : '');
-    _kcalCtrl    = TextEditingController(text: item.hasKcal ? '${item.kcalPerKg.toStringAsFixed(0)}' : '');
-    _kcalCtrl.addListener(() => setState(() {}));
-  }
-
-  @override
-  void dispose() {
-    _totalCtrl.dispose();
-    _currentCtrl.dispose();
-    _dailyCtrl.dispose();
-    _kcalCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final item = widget.item;
-    final kcal = double.tryParse(_kcalCtrl.text.trim()) ?? 0;
-    final recommended = _calcRecommended(kcal);
-
-    return AlertDialog(
-      title: Text('${item.emoji} ${item.name} 재고 설정'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _totalCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '총량 (g)',
-                hintText: '예: 5000',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _currentCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '현재 남은 양 (g)',
-                hintText: '예: 2500',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 4),
-            const Text('권장량 자동 계산', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF4CAF50))),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _kcalCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: '사료 칼로리 (kcal/kg)',
-                hintText: '예: 3500',
-                helperText: '포장지의 칼로리 정보를 입력하세요',
-                border: const OutlineInputBorder(),
-                suffixIcon: recommended != null
-                    ? IconButton(
-                        icon: const Icon(Icons.auto_fix_high, color: Color(0xFF4CAF50)),
-                        tooltip: '권장량 자동입력',
-                        onPressed: _autoFill,
-                      )
-                    : null,
-              ),
-            ),
-            if (recommended != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.pets, size: 14, color: Color(0xFF4CAF50)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        '${widget.dogs.map((d) => d.name).join(' + ')} 기준 권장 ${item.name}: ${recommended}g/일'
-                        '${item.name == '간식' ? ' (총 열량의 10%)' : ''}',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF2E7D32)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: _dailyCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: '하루 섭취량 (g)',
-                hintText: recommended != null ? '권장 ${recommended}g' : '예: 150',
-                helperText: '설정하면 매일 자동 차감됩니다',
-                border: const OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        ElevatedButton(
-          onPressed: () {
-            final total   = int.tryParse(_totalCtrl.text.trim()) ?? 0;
-            final current = int.tryParse(_currentCtrl.text.trim()) ?? 0;
-            final daily   = int.tryParse(_dailyCtrl.text.trim()) ?? 0;
-            final kcalVal = double.tryParse(_kcalCtrl.text.trim()) ?? 0;
-            Navigator.pop(context);
-            if (total > 0) widget.onSave(total, current, daily, kcalVal);
-          },
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50)),
-          child: const Text('저장', style: TextStyle(color: Colors.white)),
-        ),
-      ],
-    );
-  }
-}
-
-class _SupplyRow extends StatelessWidget {
-  final SupplyItem item;
-  final VoidCallback onTap;
-
-  const _SupplyRow({required this.item, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final Color barColor = item.isEmpty
-        ? Colors.red
-        : item.isLow
-            ? Colors.orange
-            : const Color(0xFF4CAF50);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(item.emoji, style: const TextStyle(fontSize: 18)),
-                const SizedBox(width: 8),
-                Text(item.name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 14)),
-                const Spacer(),
-                if (!item.isSet)
-                  const Text('탭해서 설정',
-                      style: TextStyle(fontSize: 12, color: Colors.grey))
-                else ...[
-                  Text(
-                    '${item.displayCurrent} / ${item.displayTotal}',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: barColor,
-                        fontWeight: FontWeight.w500),
-                  ),
-                  if (item.isLow) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: barColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        item.isEmpty ? '소진' : '부족',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: barColor,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ],
-                const SizedBox(width: 6),
-                const Icon(Icons.edit_outlined, size: 14, color: Colors.grey),
-              ],
-            ),
-            if (item.isSet) ...[
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: item.percentage,
-                  minHeight: 8,
-                  backgroundColor: Colors.grey[200],
-                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
-                ),
-              ),
-              if (item.hasDailyRate) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      '하루 ${item.displayDaily}씩',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                    const Spacer(),
-                    Text(
-                      item.isEmpty
-                          ? '재고 소진'
-                          : item.daysLeft != null
-                              ? '약 ${item.daysLeft}일 남음'
-                              : '',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: item.isEmpty
-                            ? Colors.red
-                            : item.daysLeft != null && item.daysLeft! <= 3
-                                ? Colors.orange
-                                : Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ],
-        ),
       ),
     );
   }

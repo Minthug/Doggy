@@ -157,6 +157,13 @@ public class WalkController {
                 .body(markingSpotService.createVisit(principal.getId(), sessionId, request));
     }
 
+    @GetMapping("/{sessionId}/marking-candidates")
+    public ResponseEntity<List<MarkingSpotCandidateResponse>> getMarkingCandidates(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId) {
+        return ResponseEntity.ok(walkService.getMarkingCandidates(principal.getId(), sessionId));
+    }
+
     @GetMapping("/marking-spots/{spotId}")
     public ResponseEntity<MarkingSpotDetailResponse> getMarkingSpot(
             @PathVariable Long spotId) {

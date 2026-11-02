@@ -11,7 +11,9 @@ import '../../data/repositories/community_repository.dart';
 
 class CreatePostScreen extends ConsumerStatefulWidget {
   final CommunityPost? relatedLostPost;
-  const CreatePostScreen({super.key, this.relatedLostPost});
+  final PostType? initialType;
+
+  const CreatePostScreen({super.key, this.relatedLostPost, this.initialType});
 
   @override
   ConsumerState<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -19,7 +21,8 @@ class CreatePostScreen extends ConsumerStatefulWidget {
 
 class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   final _formKey = GlobalKey<FormState>();
-  PostType _type = PostType.ADOPTION;
+  PostType? _type;
+  bool _showTypeError = false;
   final _titleCtrl = TextEditingController();
   final _contentCtrl = TextEditingController();
   final _dogNameCtrl = TextEditingController();
@@ -43,6 +46,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   @override
   void initState() {
     super.initState();
+    _type = widget.initialType;
     final related = widget.relatedLostPost;
     if (related != null) {
       _type = PostType.FOUND;
@@ -72,7 +76,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       _type == PostType.LOST ||
       _type == PostType.FOUND ||
       _type == PostType.ADOPTION;
-  bool get _isReview => _type.isReview;
+  bool get _isReview => _type?.isReview ?? false;
 
   Future<void> _pickImages() async {
     final remaining = _maxImages - _imageFiles.length;
@@ -137,6 +141,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   Future<void> _submit() async {
     if (_loading) return;
+    final type = _type;
+    if (type == null) {
+      setState(() => _showTypeError = true);
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
@@ -147,7 +156,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       await ref
           .read(communityRepositoryProvider)
           .create(
-            type: _type,
+            type: type,
             title: _titleCtrl.text.trim(),
             content: _contentCtrl.text.trim(),
             dogName: !_isDogPost || _dogNameCtrl.text.trim().isEmpty
@@ -159,7 +168,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             lastSeenArea: !_isDogPost || _areaCtrl.text.trim().isEmpty
                 ? null
                 : _areaCtrl.text.trim(),
-            lastSeenAt: _type == PostType.ADOPTION || !_isDogPost
+            lastSeenAt: type == PostType.ADOPTION || !_isDogPost
                 ? null
                 : _lastSeenAt,
             lat: _isDogPost ? _lat : null,
@@ -180,7 +189,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             cons: !_isReview || _consCtrl.text.trim().isEmpty
                 ? null
                 : _consCtrl.text.trim(),
-            relatedPostId: _type == PostType.FOUND ? _relatedPostId : null,
+            relatedPostId: type == PostType.FOUND ? _relatedPostId : null,
             imageUrls: imageUrls,
           );
       if (mounted) Navigator.pop(context);
@@ -245,7 +254,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         final selected = _type == t;
                         final color = _typeColor(t);
                         return GestureDetector(
-                          onTap: () => setState(() => _type = t),
+                          onTap: () => setState(() {
+                            _type = t;
+                            _showTypeError = false;
+                          }),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
                             padding: const EdgeInsets.symmetric(
@@ -272,6 +284,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                       })
                       .toList(),
             ),
+            if (_showTypeError) ...[
+              const SizedBox(height: 8),
+              const Text(
+                '카테고리를 선택해 주세요',
+                style: TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ],
             const SizedBox(height: 20),
             _field(
               controller: _titleCtrl,
