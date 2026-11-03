@@ -73,7 +73,7 @@ public class UserService {
         return refreshTokenService.issueTokens(userAuth.getUser(), deviceId);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public TokenResponse refresh(String refreshToken, String deviceId) {
         return refreshTokenService.rotate(refreshToken, deviceId);
     }

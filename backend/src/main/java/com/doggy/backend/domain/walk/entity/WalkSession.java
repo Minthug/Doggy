@@ -62,6 +62,12 @@ public class WalkSession extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String routeGeoJson;
 
+    @Column(length = 64)
+    private String routeFingerprint;
+
+    @Column(nullable = false)
+    private boolean markingEligible = true;
+
     @Column(nullable = false)
     private boolean isArchived = false;
 
@@ -114,6 +120,11 @@ public class WalkSession extends BaseEntity {
 
     public void saveRouteGeoJson(String geoJson) {
         this.routeGeoJson = geoJson;
+    }
+
+    public void setMarkingRouteQuality(String fingerprint, boolean eligible) {
+        this.routeFingerprint = fingerprint;
+        this.markingEligible = eligible;
     }
 
     public void archive(String tracePathData) {

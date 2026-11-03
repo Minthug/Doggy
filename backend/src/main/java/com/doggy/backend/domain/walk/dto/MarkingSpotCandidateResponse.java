@@ -8,6 +8,8 @@ public record MarkingSpotCandidateResponse(
         double lng,
         LocalDateTime detectedAt,
         int dwellSeconds,
-        int nearbyVisitCount
+        int nearbyVisitCount,
+        int score,
+        String source
 ) {
 }

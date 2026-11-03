@@ -34,7 +34,7 @@ public class RefreshTokenService {
         return new TokenResponse(accessToken, refreshToken);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public TokenResponse rotate(String refreshToken, String deviceId) {
         if (!jwtProvider.validateRefreshToken(refreshToken)) {
             throw BusinessException.unauthorized("유효하지 않은 리프레시 토큰입니다");

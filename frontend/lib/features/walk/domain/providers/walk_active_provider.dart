@@ -121,9 +121,14 @@ bool shouldRecordStationarySample({
   required double currentLat,
   required double currentLng,
   required double currentAccuracy,
+  required DateTime positionRecordedAt,
   required DateTime now,
 }) {
   if (currentAccuracy > 40) return false;
+  final positionAge = now.difference(positionRecordedAt);
+  if (positionAge.isNegative || positionAge > const Duration(seconds: 10)) {
+    return false;
+  }
   if (now.difference(lastPoint.recordedAt) < const Duration(seconds: 4)) {
     return false;
   }
@@ -416,6 +421,17 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
     );
   }
 
+  Future<void> submitMarkingFeedback(Map<String, bool> answers) async {
+    final session = state.session;
+    if (session == null) return;
+    await _repository.submitMarkingFeedback(
+      sessionId: session.id,
+      answers: answers,
+      dogIds: state.selectedDogs.map((dog) => dog.id).toList(),
+    );
+    state = state.copyWith(markingSpotCandidates: []);
+  }
+
   static const stepLat = 0.00009;
   static const stepLng = 0.00011;
 
@@ -461,6 +477,7 @@ class WalkActiveNotifier extends StateNotifier<WalkState> {
         currentLat: position.latitude,
         currentLng: position.longitude,
         currentAccuracy: position.accuracy,
+        positionRecordedAt: position.timestamp,
         now: now,
       )) {
         return;

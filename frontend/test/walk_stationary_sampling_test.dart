@@ -17,6 +17,7 @@ void main() {
         currentLat: 37.218001,
         currentLng: 126.944001,
         currentAccuracy: 8,
+        positionRecordedAt: startedAt,
         now: startedAt.add(const Duration(seconds: 5)),
       ),
       isTrue,
@@ -30,6 +31,7 @@ void main() {
         currentLat: 37.218200,
         currentLng: 126.944000,
         currentAccuracy: 8,
+        positionRecordedAt: startedAt,
         now: startedAt.add(const Duration(seconds: 5)),
       ),
       isFalse,
@@ -40,7 +42,22 @@ void main() {
         currentLat: 37.218001,
         currentLng: 126.944001,
         currentAccuracy: 60,
+        positionRecordedAt: startedAt,
         now: startedAt.add(const Duration(seconds: 5)),
+      ),
+      isFalse,
+    );
+  });
+
+  test('GPS 업데이트가 끊긴 위치는 정지 샘플로 재사용하지 않는다', () {
+    expect(
+      shouldRecordStationarySample(
+        lastPoint: lastPoint,
+        currentLat: 37.218001,
+        currentLng: 126.944001,
+        currentAccuracy: 8,
+        positionRecordedAt: startedAt,
+        now: startedAt.add(const Duration(seconds: 30)),
       ),
       isFalse,
     );

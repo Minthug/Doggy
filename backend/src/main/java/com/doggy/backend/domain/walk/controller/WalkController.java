@@ -154,7 +154,18 @@ public class WalkController {
             @PathVariable Long sessionId,
             @Valid @RequestBody CreateMarkingSpotVisitRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(markingSpotService.createVisit(principal.getId(), sessionId, request));
+                .body(markingSpotService.createVisit(principal.getId(), sessionId, request,
+                        walkService.getMarkingCandidates(principal.getId(), sessionId)));
+    }
+
+    @PostMapping("/{sessionId}/marking-feedback")
+    public ResponseEntity<Void> submitMarkingFeedback(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId,
+            @Valid @RequestBody MarkingCandidateFeedbackRequest request) {
+        markingSpotService.submitFeedback(principal.getId(), sessionId, request,
+                walkService.getMarkingCandidates(principal.getId(), sessionId));
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{sessionId}/marking-candidates")

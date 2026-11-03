@@ -111,6 +111,9 @@ public interface WalkSessionRepository extends JpaRepository<WalkSession, Long>,
 
     Optional<WalkSession> findTopByUserIdOrderByStartedAtDesc(Long userId);
 
+    boolean existsByUserIdAndRouteFingerprintAndStatusAndIdNot(
+            Long userId, String routeFingerprint, Status status, Long id);
+
     @Query("SELECT w FROM WalkSession w WHERE w.user.id = :userId AND w.status = :status")
     Optional<WalkSession> findActiveSession(@Param("userId") Long userId, @Param("status") Status status);
 

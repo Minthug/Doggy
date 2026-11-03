@@ -188,6 +188,12 @@ class MarkingSpotCandidate {
     }
     return '$dwellSeconds초';
   }
+
+  String get timeText {
+    final time = DateTime.tryParse(detectedAt ?? '');
+    if (time == null) return '시간 미상';
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
 }
 
 class MarkingSpot {

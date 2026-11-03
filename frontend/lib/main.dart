@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'core/api/api_config.dart';
+import 'core/api/api_client.dart';
 import 'core/app/app_metadata.dart';
 import 'core/app/app_version_check.dart';
 import 'core/naver_map_init.dart';
@@ -167,14 +168,14 @@ class _SplashScreen extends StatelessWidget {
   }
 }
 
-class _AuthGate extends StatefulWidget {
+class _AuthGate extends ConsumerStatefulWidget {
   const _AuthGate();
 
   @override
-  State<_AuthGate> createState() => _AuthGateState();
+  ConsumerState<_AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends State<_AuthGate> {
+class _AuthGateState extends ConsumerState<_AuthGate> {
   bool? _isLoggedIn;
   AppVersionStatus? _versionStatus;
 
@@ -186,11 +187,14 @@ class _AuthGateState extends State<_AuthGate> {
 
   Future<void> _checkAppState() async {
     final versionStatus = await AppVersionCheckClient().check();
-    final token = await TokenStorage.getAccessToken();
+    if (!mounted) return;
+    final isLoggedIn = versionStatus.updateRequired
+        ? false
+        : await hasValidSession(ref.read(dioProvider));
     if (mounted) {
       setState(() {
         _versionStatus = versionStatus;
-        _isLoggedIn = token != null;
+        _isLoggedIn = isLoggedIn;
       });
     }
   }

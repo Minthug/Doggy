@@ -307,6 +307,85 @@ class WalkServiceTest {
         }
 
         @Test
+        void sustainedFastTravelDisablesMarkingWithoutDiscardingWalk() {
+            WalkSession session = makeSession(10L, makeUser(1L), Status.IN_PROGRESS);
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+            LocalDateTime base = LocalDateTime.now().minusMinutes(2);
+            List<WalkPointRequest> points = List.of(
+                    new WalkPointRequest(base, 37.0, 127.0, null),
+                    new WalkPointRequest(base.plusSeconds(5), 37.001, 127.0, null),
+                    new WalkPointRequest(base.plusSeconds(10), 37.002, 127.0, null),
+                    new WalkPointRequest(base.plusSeconds(15), 37.003, 127.0, null));
+
+            walkService.complete(1L, 10L, new CompleteWalkRequest(LocalDateTime.now(), points));
+
+            assertThat(session.getStatus()).isEqualTo(Status.COMPLETED);
+            assertThat(session.isMarkingEligible()).isFalse();
+            assertThat(walkService.getMarkingCandidates(1L, 10L)).isEmpty();
+            verifyNoInteractions(markingSpotService);
+        }
+
+        @Test
+        void singleGpsJumpDoesNotDisableMarking() {
+            WalkSession session = makeSession(10L, makeUser(1L), Status.IN_PROGRESS);
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+            LocalDateTime base = LocalDateTime.now().minusMinutes(2);
+            List<WalkPointRequest> points = List.of(
+                    new WalkPointRequest(base, 37.0, 127.0, null),
+                    new WalkPointRequest(base.plusSeconds(5), 37.001, 127.0, null),
+                    new WalkPointRequest(base.plusSeconds(15), 37.00101, 127.0, null),
+                    new WalkPointRequest(base.plusSeconds(25), 37.00102, 127.0, null));
+
+            walkService.complete(1L, 10L, new CompleteWalkRequest(LocalDateTime.now(), points));
+
+            assertThat(session.isMarkingEligible()).isTrue();
+        }
+
+        @Test
+        void replayedCoordinateSequenceDisablesMarking() {
+            WalkSession session = makeSession(10L, makeUser(1L), Status.IN_PROGRESS);
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+            given(walkSessionRepository.existsByUserIdAndRouteFingerprintAndStatusAndIdNot(
+                    eq(1L), anyString(), eq(Status.COMPLETED), eq(10L))).willReturn(true);
+            LocalDateTime base = LocalDateTime.now().minusMinutes(2);
+            List<WalkPointRequest> points = java.util.stream.IntStream.range(0, 10)
+                    .mapToObj(i -> new WalkPointRequest(base.plusSeconds(i * 15L),
+                            37.0 + i * 0.00025, 127.0, null))
+                    .toList();
+
+            walkService.complete(1L, 10L, new CompleteWalkRequest(LocalDateTime.now(), points));
+
+            assertThat(session.getRouteFingerprint()).hasSize(64);
+            assertThat(session.isMarkingEligible()).isFalse();
+        }
+
+        @Test
+        void walkingSameCourseAgainWithNewGpsSamplesKeepsMarking() {
+            WalkSession first = makeSession(10L, makeUser(1L), Status.IN_PROGRESS);
+            WalkSession second = makeSession(11L, first.getUser(), Status.IN_PROGRESS);
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(first));
+            given(walkSessionRepository.findByIdAndUserId(11L, 1L)).willReturn(Optional.of(second));
+            LocalDateTime base = LocalDateTime.now().minusMinutes(8);
+            List<WalkPointRequest> firstPoints = java.util.stream.IntStream.range(0, 10)
+                    .mapToObj(i -> new WalkPointRequest(base.plusSeconds(i * 15L),
+                            37.0 + i * 0.00025, 127.0, null))
+                    .toList();
+            walkService.complete(1L, 10L, new CompleteWalkRequest(base.plusMinutes(3), firstPoints));
+            given(walkSessionRepository.existsByUserIdAndRouteFingerprintAndStatusAndIdNot(
+                    eq(1L), anyString(), eq(Status.COMPLETED), eq(11L)))
+                    .willAnswer(invocation -> first.getRouteFingerprint().equals(invocation.getArgument(1)));
+            List<WalkPointRequest> secondPoints = java.util.stream.IntStream.range(0, 10)
+                    .mapToObj(i -> new WalkPointRequest(base.plusMinutes(4).plusSeconds(i * 16L),
+                            37.0 + i * 0.00025 + (i == 5 ? 0.000002 : 0), 127.0, null))
+                    .toList();
+
+            walkService.complete(1L, 11L, new CompleteWalkRequest(base.plusMinutes(7), secondPoints));
+
+            assertThat(second.getRouteFingerprint()).isNotEqualTo(first.getRouteFingerprint());
+            assertThat(second.isMarkingEligible()).isTrue();
+        }
+
+        @Test
         void candidatesAreCalculatedFromSavedPointsForOwner() {
             WalkSession session = makeSession(10L, makeUser(1L), Status.COMPLETED);
             WalkPoint point = mock(WalkPoint.class);

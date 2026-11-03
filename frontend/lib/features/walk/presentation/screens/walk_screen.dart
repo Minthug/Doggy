@@ -270,8 +270,10 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       if (!mounted) return;
       bool candidatesReady = false;
       Object? candidateError;
-      final candidateFuture = notifier.loadMarkingCandidates().then(
-        (_) => candidatesReady = true,
+      final candidateFuture = notifier.loadMarkingCandidates().then<void>(
+        (_) {
+          candidatesReady = true;
+        },
         onError: (Object error) {
           candidateError = error;
           candidatesReady = true;
@@ -287,11 +289,13 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
             future: candidateFuture,
             builder: (ctx, snapshot) => AlertDialog(
               title: const Text('마킹 후보 확인'),
-              content: Text(snapshot.connectionState == ConnectionState.done
-                  ? candidateError == null
-                      ? '마킹 후보 확인이 끝났어요.'
-                      : '마킹 후보를 확인하지 못했어요.'
-                  : '마킹 후보를 확인하고 있어요. 기다리지 않고 넘어가도 됩니다.'),
+              content: Text(
+                snapshot.connectionState == ConnectionState.done
+                    ? candidateError == null
+                          ? '마킹 후보 확인이 끝났어요.'
+                          : '마킹 후보를 확인하지 못했어요.'
+                    : '마킹 후보를 확인하고 있어요. 기다리지 않고 넘어가도 됩니다.',
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
@@ -522,6 +526,8 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     final state = ref.read(walkActiveProvider);
     final candidates = state.markingSpotCandidates;
     if (candidates.isEmpty || state.selectedDogs.isEmpty) return;
+    final answers = <String, bool>{};
+    var submitting = false;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -530,79 +536,103 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.pets, color: Color(0xFF4CAF50)),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        '마킹 스팟 후보',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.pets, color: Color(0xFF4CAF50)),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          '마킹한 곳이 있나요?',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  '산책 중 잠시 머문 곳이에요. 맞는 곳만 공유해주세요.',
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
-                ),
-                const SizedBox(height: 12),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: candidates.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 8),
-                    itemBuilder: (itemContext, index) {
-                      final candidate = candidates[index];
-                      return _MarkingCandidateTile(
-                        index: index + 1,
-                        dwellText: candidate.dwellText,
-                        nearbyVisitCount: candidate.nearbyVisitCount,
-                        onShare: () async {
-                          try {
-                            await ref
-                                .read(walkActiveProvider.notifier)
-                                .shareMarkingSpot(candidate);
-                            if (!itemContext.mounted) return;
-                            ScaffoldMessenger.of(itemContext).showSnackBar(
-                              const SnackBar(content: Text('발자국을 남겼어요')),
-                            );
-                          } catch (_) {
-                            if (!itemContext.mounted) return;
-                            ScaffoldMessenger.of(itemContext).showSnackBar(
-                              const SnackBar(content: Text('발자국 저장에 실패했습니다')),
-                            );
-                          }
-                        },
-                      );
-                    },
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('나중에 할게요'),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '산책 경로에서 고른 최대 3곳이에요. 각 장소를 확인해주세요.',
+                    style: TextStyle(fontSize: 13, color: Colors.black54),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: candidates.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (itemContext, index) {
+                        final candidate = candidates[index];
+                        return _MarkingCandidateTile(
+                          index: index + 1,
+                          timeText: candidate.timeText,
+                          dwellText: candidate.dwellText,
+                          nearbyVisitCount: candidate.nearbyVisitCount,
+                          answer: answers[candidate.candidateKey],
+                          onAnswer: (marked) {
+                            setSheetState(
+                              () => answers[candidate.candidateKey] = marked,
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed:
+                          submitting || answers.length != candidates.length
+                          ? null
+                          : () async {
+                              setSheetState(() => submitting = true);
+                              try {
+                                await ref
+                                    .read(walkActiveProvider.notifier)
+                                    .submitMarkingFeedback(answers);
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('마킹 확인을 저장했어요'),
+                                    ),
+                                  );
+                                }
+                              } catch (_) {
+                                if (ctx.mounted) {
+                                  setSheetState(() => submitting = false);
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('저장하지 못했어요. 다시 시도해주세요'),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      child: const Text('확인 저장'),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: submitting ? null : () => Navigator.pop(ctx),
+                    child: const Text('이번에는 건너뛰기'),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -613,15 +643,19 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
 
 class _MarkingCandidateTile extends StatelessWidget {
   final int index;
+  final String timeText;
   final String dwellText;
   final int nearbyVisitCount;
-  final Future<void> Function() onShare;
+  final bool? answer;
+  final ValueChanged<bool> onAnswer;
 
   const _MarkingCandidateTile({
     required this.index,
+    required this.timeText,
     required this.dwellText,
     required this.nearbyVisitCount,
-    required this.onShare,
+    required this.answer,
+    required this.onAnswer,
   });
 
   @override
@@ -645,7 +679,7 @@ class _MarkingCandidateTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$dwellText 머문 곳',
+                  '$timeText 무렵 · $dwellText 머문 곳',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 2),
@@ -659,13 +693,19 @@ class _MarkingCandidateTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: onShare,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4CAF50),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('남기기'),
+          Column(
+            children: [
+              ChoiceChip(
+                label: const Text('했어요'),
+                selected: answer == true,
+                onSelected: (_) => onAnswer(true),
+              ),
+              ChoiceChip(
+                label: const Text('아니에요'),
+                selected: answer == false,
+                onSelected: (_) => onAnswer(false),
+              ),
+            ],
           ),
         ],
       ),

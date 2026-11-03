@@ -6,9 +6,11 @@ import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.walk.dto.*;
 import com.doggy.backend.domain.walk.entity.MarkingSpot;
+import com.doggy.backend.domain.walk.entity.MarkingCandidateFeedback;
 import com.doggy.backend.domain.walk.entity.MarkingSpotVisit;
 import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.repository.MarkingSpotRepository;
+import com.doggy.backend.domain.walk.repository.MarkingCandidateFeedbackRepository;
 import com.doggy.backend.domain.walk.repository.MarkingSpotVisitRepository;
 import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository;
 import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository.TrafficCoordinate;
@@ -39,10 +41,12 @@ public class MarkingSpotService {
     private static final float MAX_ACCURACY_METERS = 40;
     private static final int MIN_MOVE_BEFORE_METERS = 8;
     private static final int MIN_MOVE_AFTER_METERS = 8;
-    private static final int MAX_CANDIDATES = 15;
+    private static final int MAX_CANDIDATES = 3;
     private static final int MAX_VISIT_DOGS = 5;
+    private static final double MAX_GAP_SPEED_METERS_PER_SECOND = 0.8;
 
     private final MarkingSpotRepository spotRepository;
+    private final MarkingCandidateFeedbackRepository feedbackRepository;
     private final MarkingSpotVisitRepository visitRepository;
     private final WalkSessionRepository walkSessionRepository;
     private final DogRepository dogRepository;
@@ -79,7 +83,7 @@ public class MarkingSpotService {
                 if (isMarkingDuration(dwellSeconds) && movedBefore(points, start) && movedAfter(points, end - 1)) {
                     double lat = averageLat(points.subList(start, end));
                     double lng = averageLng(points.subList(start, end));
-                    raw.add(new MarkingCandidate(lat, lng, first.recordedAt().plusSeconds(dwellSeconds / 2L), dwellSeconds));
+                    raw.add(new MarkingCandidate(lat, lng, first.recordedAt().plusSeconds(dwellSeconds / 2L), dwellSeconds, "STAY"));
                 }
             }
             start = Math.max(end, start + 1);
@@ -91,11 +95,22 @@ public class MarkingSpotService {
         }
 
         List<TrafficContext> trafficContexts = loadTrafficContexts(merged);
+        Map<String, MarkingCandidateFeedbackRepository.CandidateVoteCount> voteCounts =
+                feedbackRepository.findVoteCounts(merged.stream()
+                                .map(candidate -> gridKey(candidate.lat(), candidate.lng()))
+                                .collect(Collectors.toSet()))
+                        .stream()
+                        .collect(Collectors.toMap(
+                                MarkingCandidateFeedbackRepository.CandidateVoteCount::getCandidateKey,
+                                vote -> vote));
+        Set<String> selectedGridKeys = new HashSet<>();
         List<ScoredCandidate> selected = IntStream.range(0, merged.size())
                 .mapToObj(index -> new ScoredCandidate(
-                        merged.get(index), candidateScore(merged.get(index), trafficContexts.get(index))))
+                        merged.get(index), candidateScore(merged.get(index), trafficContexts.get(index))
+                        + feedbackBonus(voteCounts.get(gridKey(merged.get(index).lat(), merged.get(index).lng())))))
                 .sorted(Comparator.comparingInt(ScoredCandidate::score).reversed()
                         .thenComparing(scored -> scored.candidate().detectedAt()))
+                .filter(scored -> selectedGridKeys.add(gridKey(scored.candidate().lat(), scored.candidate().lng())))
                 .limit(MAX_CANDIDATES)
                 .toList();
 
@@ -116,7 +131,9 @@ public class MarkingSpotService {
                             snapped.lng(),
                             candidate.detectedAt(),
                             candidate.dwellSeconds(),
-                            spot != null ? spot.getVisitCount() : 0
+                            spot != null ? spot.getVisitCount() : 0,
+                            scored.score(),
+                            candidate.source()
                     );
                 })
                 .toList();
@@ -134,6 +151,11 @@ public class MarkingSpotService {
         if (context.nearRoad() && !context.nearWalkingArea()) score -= 1;
         if (context.nearWalkingArea()) score += 2;
         return score;
+    }
+
+    private int feedbackBonus(MarkingCandidateFeedbackRepository.CandidateVoteCount votes) {
+        if (votes == null || votes.getPositiveCount() < 3) return 0;
+        return votes.getPositiveCount() * 3 >= votes.getTotalCount() * 2 ? 1 : 0;
     }
 
     private int baseCandidateScore(MarkingCandidate candidate) {
@@ -172,12 +194,14 @@ public class MarkingSpotService {
             }
             double beforeMeters = distanceMeters(previous.lat(), previous.lng(), current.lat(), current.lng());
             double afterMeters = distanceMeters(current.lat(), current.lng(), next.lat(), next.lng());
-            if (beforeMeters >= MIN_MOVE_BEFORE_METERS && afterMeters >= MIN_MOVE_AFTER_METERS) {
+            if (beforeMeters >= MIN_MOVE_BEFORE_METERS && afterMeters >= MIN_MOVE_AFTER_METERS
+                    && afterMeters / gapSeconds <= MAX_GAP_SPEED_METERS_PER_SECOND) {
                 candidates.add(new MarkingCandidate(
                         current.lat(),
                         current.lng(),
                         current.recordedAt().plusSeconds(gapSeconds / 2L),
-                        gapSeconds
+                        gapSeconds,
+                        "GAP"
                 ));
             }
         }
@@ -186,6 +210,68 @@ public class MarkingSpotService {
 
     private boolean isMarkingDuration(int seconds) {
         return seconds >= MIN_DWELL_SECONDS && seconds <= MAX_DWELL_SECONDS;
+    }
+
+    public boolean hasFeedback(Long sessionId) {
+        return feedbackRepository.existsBySessionId(sessionId);
+    }
+
+    @Transactional(readOnly = false)
+    public void submitFeedback(Long userId, Long sessionId, MarkingCandidateFeedbackRequest request,
+                               List<MarkingSpotCandidateResponse> candidates) {
+        WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+        List<MarkingCandidateFeedback> existing = feedbackRepository.findAllBySessionId(sessionId);
+        if (!existing.isEmpty()) {
+            Set<String> repeatedKeys = new HashSet<>();
+            boolean sameAnswers = request.answers() != null && existing.size() == request.answers().size()
+                    && request.answers().stream().allMatch(answer -> answer != null
+                            && repeatedKeys.add(answer.candidateKey()) && existing.stream().anyMatch(saved ->
+                            saved.getCandidateKey().equals(answer.candidateKey())
+                                    && Boolean.valueOf(saved.isMarked()).equals(answer.marked())));
+            if (sameAnswers) return;
+            throw BusinessException.badRequest("이미 답변한 마킹 후보입니다");
+        }
+        if (session.getStatus() != WalkSession.Status.COMPLETED || candidates.isEmpty()
+                || request.answers() == null || request.answers().size() != candidates.size()) {
+            throw BusinessException.badRequest("확인할 마킹 후보가 없거나 이미 답변했습니다");
+        }
+
+        Map<String, MarkingSpotCandidateResponse> byKey = candidates.stream()
+                .collect(Collectors.toMap(MarkingSpotCandidateResponse::candidateKey, candidate -> candidate));
+        Set<String> answered = new HashSet<>();
+        for (MarkingCandidateAnswer answer : request.answers()) {
+            if (answer == null || answer.candidateKey() == null || answer.marked() == null
+                    || !byKey.containsKey(answer.candidateKey()) || !answered.add(answer.candidateKey())) {
+                throw BusinessException.badRequest("마킹 후보 답변이 올바르지 않습니다");
+            }
+        }
+        if (request.answers().stream().anyMatch(answer -> answer.marked())
+                && (request.dogIds() == null || request.dogIds().isEmpty())) {
+            throw BusinessException.badRequest("마킹한 강아지를 선택해주세요");
+        }
+
+        for (MarkingCandidateAnswer answer : request.answers()) {
+            MarkingSpotCandidateResponse candidate = byKey.get(answer.candidateKey());
+            feedbackRepository.save(new MarkingCandidateFeedback(session, candidate.candidateKey(),
+                    candidate.detectedAt(), candidate.dwellSeconds(), candidate.score(), candidate.source(), answer.marked()));
+            if (answer.marked()) {
+                createVisit(userId, sessionId, new CreateMarkingSpotVisitRequest(candidate.lat(), candidate.lng(),
+                        candidate.detectedAt(), request.dogIds()));
+            }
+        }
+    }
+
+    @Transactional(readOnly = false)
+    public MarkingSpotResponse createVisit(Long userId, Long sessionId, CreateMarkingSpotVisitRequest request,
+                                           List<MarkingSpotCandidateResponse> candidates) {
+        SnappedCoordinate requested = snap(request.lat(), request.lng());
+        MarkingSpotCandidateResponse candidate = candidates.stream()
+                .filter(item -> item.candidateKey().equals(requested.gridKey()))
+                .findFirst()
+                .orElseThrow(() -> BusinessException.badRequest("산책에서 확인된 마킹 후보가 아닙니다"));
+        return createVisit(userId, sessionId, new CreateMarkingSpotVisitRequest(
+                candidate.lat(), candidate.lng(), candidate.detectedAt(), request.dogIds()));
     }
 
     @Transactional(readOnly = false)
@@ -206,6 +292,10 @@ public class MarkingSpotService {
         }
 
         SnappedCoordinate snapped = snap(request.lat(), request.lng());
+        if (visitRepository.countDistinctSpotsBySessionId(sessionId) >= MAX_CANDIDATES
+                && !visitRepository.existsBySessionIdAndSpotGridKey(sessionId, snapped.gridKey())) {
+            throw BusinessException.badRequest("한 산책에서 발자국은 최대 3곳까지 남길 수 있습니다");
+        }
         MarkingSpot spot = spotRepository.findByGridKey(snapped.gridKey())
                 .orElseGet(() -> spotRepository.save(MarkingSpot.builder()
                         .lat(snapped.lat())
@@ -283,7 +373,11 @@ public class MarkingSpotService {
             OptionalInt index = findNearbyCandidate(merged, candidate);
             if (index.isPresent()) {
                 MarkingCandidate current = merged.get(index.getAsInt());
-                if (candidate.dwellSeconds() > current.dwellSeconds()) {
+                int candidateScore = baseCandidateScore(candidate);
+                int currentScore = baseCandidateScore(current);
+                if (candidateScore > currentScore
+                        || (candidateScore == currentScore
+                        && candidate.dwellSeconds() < current.dwellSeconds())) {
                     merged.set(index.getAsInt(), candidate);
                 }
             } else {
@@ -356,7 +450,7 @@ public class MarkingSpotService {
         return earthRadius * c;
     }
 
-    private record MarkingCandidate(double lat, double lng, LocalDateTime detectedAt, int dwellSeconds) {}
+    private record MarkingCandidate(double lat, double lng, LocalDateTime detectedAt, int dwellSeconds, String source) {}
 
     private record ScoredCandidate(MarkingCandidate candidate, int score) {}
 

@@ -3,6 +3,7 @@ package com.doggy.backend.global.security.jwt;
 import com.doggy.backend.domain.user.dto.TokenResponse;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
+import com.doggy.backend.domain.user.service.UserService;
 import com.doggy.backend.global.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -87,6 +89,22 @@ class RefreshTokenServiceTest {
                 .hasMessageContaining("유효하지 않은 리프레시 토큰");
 
         verify(refreshTokenRepository).revokeActiveTokensByUserId(eq(1L), any(LocalDateTime.class));
+    }
+
+    @Test
+    void refreshReuseRejectionDoesNotRollBackRevocation() throws NoSuchMethodException {
+        var transactions = new AnnotationTransactionAttributeSource();
+        var rejection = BusinessException.unauthorized("유효하지 않은 리프레시 토큰입니다");
+
+        var outer = transactions.getTransactionAttribute(
+                UserService.class.getMethod("refresh", String.class, String.class), UserService.class);
+        var inner = transactions.getTransactionAttribute(
+                RefreshTokenService.class.getMethod("rotate", String.class, String.class), RefreshTokenService.class);
+
+        assertThat(outer).isNotNull();
+        assertThat(inner).isNotNull();
+        assertThat(outer.rollbackOn(rejection)).isFalse();
+        assertThat(inner.rollbackOn(rejection)).isFalse();
     }
 
     @Test

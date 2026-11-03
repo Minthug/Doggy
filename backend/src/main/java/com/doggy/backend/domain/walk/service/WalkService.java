@@ -27,11 +27,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,6 +50,7 @@ public class WalkService {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
     private static final int DETAIL_RETENTION_DAYS = 7;
+    private static final double MAX_PLAUSIBLE_WALK_SPEED_METERS_PER_SECOND = 12;
 
     private final WalkSessionRepository walkSessionRepository;
     private final WalkPointRepository walkPointRepository;
@@ -115,6 +121,12 @@ public class WalkService {
             throw BusinessException.badRequest("이미 완료된 산책입니다");
         }
 
+        String fingerprint = routeFingerprint(request.points());
+        boolean repeatedRoute = fingerprint != null
+                && walkSessionRepository.existsByUserIdAndRouteFingerprintAndStatusAndIdNot(
+                        userId, fingerprint, Status.COMPLETED, sessionId);
+        session.setMarkingRouteQuality(fingerprint, !repeatedRoute && !hasSustainedFastTravel(request.points()));
+
         if (!request.points().isEmpty()) {
             String sql = "INSERT INTO walk_points (session_id, recorded_at, lat, lng, accuracy) VALUES (?, ?, ?, ?, ?)";
             jdbcTemplate.batchUpdate(sql, request.points(), request.points().size(), (ps, p) -> {
@@ -156,7 +168,11 @@ public class WalkService {
     public List<MarkingSpotCandidateResponse> getMarkingCandidates(Long userId, Long sessionId) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
-        if (session.getStatus() != Status.COMPLETED || session.getDetailsPurgedAt() != null) {
+        if (session.getStatus() != Status.COMPLETED || session.getDetailsPurgedAt() != null
+                || !session.isMarkingEligible()) {
+            return List.of();
+        }
+        if (markingSpotService.hasFeedback(sessionId)) {
             return List.of();
         }
         List<WalkPointRequest> points = walkPointRepository.findAllBySessionIdOrderByRecordedAt(sessionId)
@@ -545,6 +561,44 @@ public class WalkService {
             );
         }
         return (int) totalMeters;
+    }
+
+    private boolean hasSustainedFastTravel(List<WalkPointRequest> points) {
+        int consecutiveFastSegments = 0;
+        for (int i = 1; i < points.size(); i++) {
+            WalkPointRequest previous = points.get(i - 1);
+            WalkPointRequest current = points.get(i);
+            long seconds = Duration.between(previous.recordedAt(), current.recordedAt()).getSeconds();
+            double meters = haversine(previous.lat(), previous.lng(), current.lat(), current.lng());
+            if (seconds > 0 && seconds <= 60 && meters >= 30
+                    && meters / seconds > MAX_PLAUSIBLE_WALK_SPEED_METERS_PER_SECOND) {
+                if (++consecutiveFastSegments >= 3) return true;
+            } else {
+                consecutiveFastSegments = 0;
+            }
+        }
+        return false;
+    }
+
+    private String routeFingerprint(List<WalkPointRequest> points) {
+        // shortcut: 좌표와 기록 간격이 모두 동일한 재생만 감지한다. 학습 점수에 반영할 때 유사 경로·다계정 남용을 추가로 확인한다.
+        if (points.size() < 10 || calculateDistance(points) < 200) return null;
+        StringBuilder coordinates = new StringBuilder(points.size() * 48);
+        for (int i = 0; i < points.size(); i++) {
+            WalkPointRequest point = points.get(i);
+            coordinates.append(Double.doubleToLongBits(point.lat())).append(':')
+                    .append(Double.doubleToLongBits(point.lng())).append(':');
+            if (i > 0) {
+                coordinates.append(Duration.between(points.get(i - 1).recordedAt(), point.recordedAt()).toMillis());
+            }
+            coordinates.append(';');
+        }
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(coordinates.toString().getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
     }
 
     private double haversine(double lat1, double lng1, double lat2, double lng2) {

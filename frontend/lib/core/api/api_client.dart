@@ -6,6 +6,9 @@ import '../app/app_metadata.dart';
 import 'api_config.dart';
 import '../storage/device_id_storage.dart';
 import '../storage/token_storage.dart';
+import '../../main.dart' show navigatorKey;
+
+Future<String>? _refreshInFlight;
 
 final dioProvider = Provider<Dio>((ref) {
   final baseUrl = validatedApiBaseUrl();
@@ -67,7 +70,7 @@ final dioProvider = Provider<Dio>((ref) {
       },
       onError: (error, handler) async {
         // 에러 응답 body 로그 출력 (디버깅용)
-        if (error.response != null) {
+        if (kDebugMode && error.response != null) {
           // ignore: avoid_print
           print(
             '[API ERROR] ${error.response?.statusCode} '
@@ -75,41 +78,47 @@ final dioProvider = Provider<Dio>((ref) {
             'body: ${error.response?.data}',
           );
         }
-        // 401이면 refreshToken으로 재발급 시도
-        if (error.response?.statusCode == 401) {
-          final refreshToken = await TokenStorage.getRefreshToken();
-          if (refreshToken != null) {
-            try {
-              final deviceId = await DeviceIdStorage.getOrCreateDeviceId();
-              final response = await Dio(
-                BaseOptions(
-                  connectTimeout: const Duration(seconds: 20),
-                  receiveTimeout: const Duration(seconds: 20),
-                ),
-              ).post(
-                '$baseUrl/api/auth/refresh',
-                options: Options(
-                  headers: {
-                    'Refresh-Token': refreshToken,
-                    'X-Device-Id': deviceId,
-                    ...AppMetadata.headers(),
-                  },
-                ),
-              );
-              final newAccessToken = response.data['accessToken'];
-              final newRefreshToken = response.data['refreshToken'];
-              await TokenStorage.saveTokens(
-                accessToken: newAccessToken,
-                refreshToken: newRefreshToken,
-              );
-              // 원래 요청 재시도
-              error.requestOptions.headers['Authorization'] =
-                  'Bearer $newAccessToken';
-              final retryResponse = await dio.fetch(error.requestOptions);
-              return handler.resolve(retryResponse);
-            } catch (_) {
-              await TokenStorage.clear();
+        if (error.response?.statusCode == 401 &&
+            !error.requestOptions.path.startsWith('/api/auth/') &&
+            error.requestOptions.extra['_retriedAfterRefresh'] == true) {
+          await _clearSessionAndOpenLogin();
+          return handler.next(error);
+        }
+        // 인증 요청과 이미 재시도한 요청은 토큰을 재발급하지 않는다.
+        if (shouldRefreshToken(error)) {
+          try {
+            final storedAccessToken = await TokenStorage.getAccessToken();
+            final failedAuthorization = error
+                .requestOptions
+                .headers['Authorization']
+                ?.toString();
+            final newAccessToken =
+                storedAccessToken != null &&
+                    failedAuthorization != null &&
+                    failedAuthorization != 'Bearer $storedAccessToken'
+                ? storedAccessToken
+                : await _refreshAccessToken(baseUrl);
+            error.requestOptions.headers['Authorization'] =
+                'Bearer $newAccessToken';
+            error.requestOptions.extra['_retriedAfterRefresh'] = true;
+            final retryResponse = await dio.fetch(error.requestOptions);
+            return handler.resolve(retryResponse);
+          } catch (refreshError) {
+            if (refreshError is _MissingRefreshToken ||
+                (refreshError is DioException &&
+                    (refreshError.response?.statusCode == 401 ||
+                        refreshError.response?.statusCode == 403))) {
+              await _clearSessionAndOpenLogin();
+              return handler.next(error);
             }
+            if (error.requestOptions.extra['_retriedAfterRefresh'] == true) {
+              return handler.next(
+                refreshError is DioException ? refreshError : error,
+              );
+            }
+            return handler.next(
+              refreshError is DioException ? refreshError : error,
+            );
           }
         }
         handler.next(error);
@@ -119,6 +128,87 @@ final dioProvider = Provider<Dio>((ref) {
 
   return dio;
 });
+
+bool shouldRefreshToken(DioException error) =>
+    error.response?.statusCode == 401 &&
+    !error.requestOptions.path.startsWith('/api/auth/') &&
+    error.requestOptions.extra['_retriedAfterRefresh'] != true;
+
+Future<String> _refreshAccessToken(String baseUrl) {
+  final inFlight = _refreshInFlight;
+  if (inFlight != null) return inFlight;
+
+  late final Future<String> shared;
+  shared = _performTokenRefresh(baseUrl).then(
+    (accessToken) {
+      if (identical(_refreshInFlight, shared)) _refreshInFlight = null;
+      return accessToken;
+    },
+    onError: (Object error, StackTrace stackTrace) {
+      if (identical(_refreshInFlight, shared)) _refreshInFlight = null;
+      Error.throwWithStackTrace(error, stackTrace);
+    },
+  );
+  _refreshInFlight = shared;
+  return shared;
+}
+
+Future<String> _performTokenRefresh(String baseUrl) async {
+  final refreshToken = await TokenStorage.getRefreshToken();
+  if (refreshToken == null) throw const _MissingRefreshToken();
+
+  final deviceId = await DeviceIdStorage.getOrCreateDeviceId();
+  final response =
+      await Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 20),
+          receiveTimeout: const Duration(seconds: 20),
+        ),
+      ).post(
+        '$baseUrl/api/auth/refresh',
+        options: Options(
+          headers: {
+            'Refresh-Token': refreshToken,
+            'X-Device-Id': deviceId,
+            ...AppMetadata.headers(),
+          },
+        ),
+      );
+  final newAccessToken = response.data['accessToken'];
+  final newRefreshToken = response.data['refreshToken'];
+  if (newAccessToken is! String || newRefreshToken is! String) {
+    throw DioException(
+      requestOptions: response.requestOptions,
+      response: response,
+      type: DioExceptionType.badResponse,
+      error: 'Invalid token refresh response',
+    );
+  }
+  await TokenStorage.saveTokens(
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken,
+  );
+  return newAccessToken;
+}
+
+class _MissingRefreshToken implements Exception {
+  const _MissingRefreshToken();
+}
+
+Future<bool> hasValidSession(Dio dio) async {
+  if (await TokenStorage.getAccessToken() == null) return false;
+  try {
+    await dio.get('/api/users/me');
+    return true;
+  } on DioException catch (error) {
+    return error.response?.statusCode != 401;
+  }
+}
+
+Future<void> _clearSessionAndOpenLogin() async {
+  await TokenStorage.clear();
+  navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (_) => false);
+}
 
 final imageUploadProvider = Provider<ImageUploadClient>((ref) {
   return ImageUploadClient(ref.watch(dioProvider));

@@ -55,8 +55,26 @@ class WalkRepository {
   Future<List<MarkingSpotCandidate>> getMarkingCandidates(int sessionId) async {
     final response = await _dio.get('/api/walks/$sessionId/marking-candidates');
     return (response.data as List)
-        .map((item) => MarkingSpotCandidate.fromJson(item as Map<String, dynamic>))
+        .map(
+          (item) => MarkingSpotCandidate.fromJson(item as Map<String, dynamic>),
+        )
         .toList();
+  }
+
+  Future<void> submitMarkingFeedback({
+    required int sessionId,
+    required Map<String, bool> answers,
+    required List<int> dogIds,
+  }) async {
+    await _dio.post(
+      '/api/walks/$sessionId/marking-feedback',
+      data: {
+        'answers': answers.entries
+            .map((entry) => {'candidateKey': entry.key, 'marked': entry.value})
+            .toList(),
+        'dogIds': dogIds,
+      },
+    );
   }
 
   Future<MarkingSpot> shareMarkingSpot({
