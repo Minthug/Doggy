@@ -85,6 +85,7 @@ class WalkSession {
 
 class WalkDetail {
   final int id;
+  final int? ownerId;
   final String? startedAt;
   final String? endedAt;
   final int distanceMeters;
@@ -100,6 +101,7 @@ class WalkDetail {
 
   WalkDetail({
     required this.id,
+    this.ownerId,
     this.startedAt,
     this.endedAt,
     required this.distanceMeters,
@@ -116,6 +118,7 @@ class WalkDetail {
 
   factory WalkDetail.fromJson(Map<String, dynamic> json) => WalkDetail(
     id: json['id'],
+    ownerId: json['ownerId'] as int?,
     startedAt: json['startedAt'],
     endedAt: json['endedAt'],
     distanceMeters: _nonNegativeInt(json['distanceMeters']),

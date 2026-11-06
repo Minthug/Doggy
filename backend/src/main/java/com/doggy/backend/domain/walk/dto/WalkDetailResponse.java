@@ -8,6 +8,7 @@ import java.util.List;
 
 public record WalkDetailResponse(
         Long id,
+        Long ownerId,
         LocalDateTime startedAt,
         LocalDateTime endedAt,
         int distanceMeters,
@@ -43,6 +44,7 @@ public record WalkDetailResponse(
                 .toList();
         return new WalkDetailResponse(
                 session.getId(),
+                session.getUser().getId(),
                 session.getStartedAt(),
                 session.getEndedAt(),
                 session.getDistanceMeters(),

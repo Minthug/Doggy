@@ -7,6 +7,7 @@ import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
 import '../../domain/providers/walk_provider.dart';
 import '../../../dog/data/repositories/dog_repository.dart';
+import '../../../home/domain/providers/home_provider.dart';
 import '../models/dog_trace_visual.dart';
 
 final _walkDetailProvider = FutureProvider.family<WalkDetail, int>((
@@ -32,6 +33,7 @@ class WalkDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detailAsync = ref.watch(_walkDetailProvider(sessionId));
     final detail = detailAsync.valueOrNull;
+    final ownerId = ref.watch(userProfileProvider).valueOrNull?.id;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -54,7 +56,7 @@ class WalkDetailScreen extends ConsumerWidget {
                 color: const Color(0xFF7A9B76),
               ),
             ),
-          if (detail == null || !detail.detailsPurged)
+          if (detail != null && ownerId != null && detail.ownerId == ownerId && !detail.detailsPurged)
             TextButton.icon(
               onPressed: () => _showPublishDialog(context, ref),
               icon: const Icon(Icons.share_outlined, size: 18),

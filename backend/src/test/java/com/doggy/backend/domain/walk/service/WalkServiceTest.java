@@ -278,8 +278,30 @@ class WalkServiceTest {
             WalkSession session = makeSession(10L, user, Status.COMPLETED);
             session.saveRouteGeoJson(
                     "{\"type\":\"LineString\",\"coordinates\":[[127.1,37.5],[127.2,37.6]]}");
-            LocalDateTime joinedAt = LocalDateTime.now().minusDays(30);
 
+            given(walkSessionRepository.findAccessibleByOwnerId(
+                    eq(10L), eq(1L), any(LocalDateTime.class), eq(Status.COMPLETED)))
+                    .willReturn(Optional.of(session));
+            given(walkTracePathService.createPathData(any(String.class)))
+                    .willReturn("v1|70,530;860,-460");
+            given(markingSpotService.getSessionSpots(10L)).willReturn(List.of());
+
+            var response = walkService.archive(1L, 10L);
+
+            assertThat(response.archived()).isTrue();
+            assertThat(response.ownerId()).isEqualTo(1L);
+            assertThat(response.tracePathData()).isEqualTo("v1|70,530;860,-460");
+            assertThat(session.isArchived()).isTrue();
+        }
+
+        @Test
+        @DisplayName("같은 가구원은 공유된 완료 산책을 보관할 수 있음")
+        void householdMemberCanArchive() {
+            WalkSession session = makeSession(10L, makeUser(2L), Status.COMPLETED);
+            ReflectionTestUtils.setField(session, "householdId", 7L);
+            session.saveRouteGeoJson(
+                    "{\"type\":\"LineString\",\"coordinates\":[[127.1,37.5],[127.2,37.6]]}");
+            LocalDateTime joinedAt = session.getStartedAt().minusDays(1);
             given(householdService.findHouseholdIdByUserId(1L))
                     .willReturn(new HouseholdIdCache(7L, joinedAt));
             given(walkSessionRepository.findAccessibleById(
@@ -293,8 +315,78 @@ class WalkServiceTest {
             var response = walkService.archive(1L, 10L);
 
             assertThat(response.archived()).isTrue();
-            assertThat(response.tracePathData()).isEqualTo("v1|70,530;860,-460");
-            assertThat(session.isArchived()).isTrue();
+            assertThat(response.ownerId()).isEqualTo(2L);
+        }
+
+        @Test
+        @DisplayName("가구에 속하지 않은 사용자는 다른 사람의 산책을 보관할 수 없음")
+        void rejectsUnrelatedUserArchive() {
+            given(walkSessionRepository.findAccessibleByOwnerId(
+                    eq(10L), eq(1L), any(LocalDateTime.class), eq(Status.COMPLETED)))
+                    .willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> walkService.archive(1L, 10L))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("산책 기록을 찾을 수 없습니다");
+            verify(walkSessionRepository, never()).findAccessibleById(
+                    any(), any(), any(), any(), any(), any());
+            verifyNoInteractions(walkTracePathService);
+        }
+    }
+
+    @Nested
+    @DisplayName("unarchive")
+    class Unarchive {
+
+        @Test
+        @DisplayName("소유자는 보관한 산책을 해제할 수 있음")
+        void ownerCanUnarchive() {
+            WalkSession session = makeSession(10L, makeUser(1L), Status.COMPLETED);
+            session.archive("v1|70,530;860,-460");
+            given(walkSessionRepository.findAccessibleByOwnerId(
+                    eq(10L), eq(1L), any(LocalDateTime.class), eq(Status.COMPLETED)))
+                    .willReturn(Optional.of(session));
+            given(markingSpotService.getSessionSpots(10L)).willReturn(List.of());
+
+            var response = walkService.unarchive(1L, 10L);
+
+            assertThat(response.archived()).isFalse();
+            assertThat(response.tracePathData()).isNull();
+        }
+
+        @Test
+        @DisplayName("같은 가구원은 공유 산책의 보관을 해제할 수 있음")
+        void householdMemberCanUnarchive() {
+            WalkSession session = makeSession(10L, makeUser(2L), Status.COMPLETED);
+            ReflectionTestUtils.setField(session, "householdId", 7L);
+            session.archive("v1|70,530;860,-460");
+            LocalDateTime joinedAt = session.getStartedAt().minusDays(1);
+            given(householdService.findHouseholdIdByUserId(1L))
+                    .willReturn(new HouseholdIdCache(7L, joinedAt));
+            given(walkSessionRepository.findAccessibleById(
+                    eq(10L), eq(1L), eq(7L), eq(joinedAt),
+                    any(LocalDateTime.class), eq(Status.COMPLETED)))
+                    .willReturn(Optional.of(session));
+            given(markingSpotService.getSessionSpots(10L)).willReturn(List.of());
+
+            var response = walkService.unarchive(1L, 10L);
+
+            assertThat(response.archived()).isFalse();
+            assertThat(response.ownerId()).isEqualTo(2L);
+        }
+
+        @Test
+        @DisplayName("가구에 속하지 않은 사용자는 다른 사람의 산책 보관을 해제할 수 없음")
+        void rejectsUnrelatedUserUnarchive() {
+            given(walkSessionRepository.findAccessibleByOwnerId(
+                    eq(10L), eq(1L), any(LocalDateTime.class), eq(Status.COMPLETED)))
+                    .willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> walkService.unarchive(1L, 10L))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("산책 기록을 찾을 수 없습니다");
+            verify(walkSessionRepository, never()).findAccessibleById(
+                    any(), any(), any(), any(), any(), any());
         }
     }
 
