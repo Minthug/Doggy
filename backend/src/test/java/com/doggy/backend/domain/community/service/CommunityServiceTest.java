@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -156,7 +157,7 @@ class CommunityServiceTest {
         InOrder order = inOrder(postRepository);
         order.verify(postRepository).clearRelatedPostId(10L);
         order.verify(postRepository).delete(post);
-        verify(imageStorageService).delete("http://localhost:8080/images/community.jpg");
+        verify(imageStorageService).delete("http://localhost:8080/images/community.jpg", 1L);
     }
 
     @Test
@@ -172,6 +173,24 @@ class CommunityServiceTest {
         ArgumentCaptor<CommunityPost> captor = ArgumentCaptor.forClass(CommunityPost.class);
         verify(postRepository).save(captor.capture());
         assertThat(captor.getValue().getImageUrls()).containsExactly(imageUrl);
+        verify(imageStorageService).validateOwner(imageUrl, 1L);
+    }
+
+    @Test
+    void rejectsAnotherUsersImageBeforeSavingPost() {
+        User user = user(1L);
+        String imageUrl = "http://localhost:8080/images/u2_photo.jpg";
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(imageStorageProperties.stripPublicPrefix(imageUrl)).willReturn("u2_photo.jpg");
+        doThrow(BusinessException.badRequest("본인이 업로드한 이미지만 사용할 수 있습니다"))
+                .when(imageStorageService).validateOwner(imageUrl, 1L);
+
+        assertThatThrownBy(() -> communityService.create(
+                1L, basicRequest(PostType.LOST, null, List.of(imageUrl))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("본인이 업로드한");
+
+        verify(postRepository, never()).save(any(CommunityPost.class));
     }
 
     @Test

@@ -7,15 +7,18 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Table(name = "households")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Household extends BaseEntity {
+
+    private static final SecureRandom INVITE_RANDOM = new SecureRandom();
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,6 +44,8 @@ public class Household extends BaseEntity {
     }
 
     private static String generateCode() {
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+        byte[] bytes = new byte[10];
+        INVITE_RANDOM.nextBytes(bytes);
+        return HexFormat.of().withUpperCase().formatHex(bytes);
     }
 }

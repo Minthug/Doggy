@@ -97,9 +97,12 @@ public class UserService {
             throw BusinessException.badRequest("닉네임은 1회만 변경할 수 있습니다");
         }
         String oldImage = user.getProfileImage();
+        if (!java.util.Objects.equals(oldImage, request.profileImage())) {
+            imageStorageService.validateOwner(request.profileImage(), userId);
+        }
         user.updateProfile(request.nickname(), request.profileImage());
         if (oldImage != null && !oldImage.equals(request.profileImage())) {
-            imageStorageService.delete(oldImage);
+            imageStorageService.delete(oldImage, userId);
         }
         return UserProfileResponse.from(user);
     }

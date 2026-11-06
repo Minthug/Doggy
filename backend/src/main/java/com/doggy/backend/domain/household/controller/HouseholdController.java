@@ -4,7 +4,9 @@ import com.doggy.backend.domain.household.dto.CreateHouseholdRequest;
 import com.doggy.backend.domain.household.dto.HouseholdResponse;
 import com.doggy.backend.domain.household.dto.JoinHouseholdRequest;
 import com.doggy.backend.domain.household.service.HouseholdService;
+import com.doggy.backend.global.ratelimit.RateLimitService;
 import com.doggy.backend.global.security.UserPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,6 +22,7 @@ import java.util.Map;
 public class HouseholdController {
 
     private final HouseholdService householdService;
+    private final RateLimitService rateLimitService;
 
     @PostMapping
     public ResponseEntity<HouseholdResponse> create(
@@ -38,7 +41,9 @@ public class HouseholdController {
     @PostMapping("/join")
     public ResponseEntity<HouseholdResponse> join(
             @AuthenticationPrincipal UserPrincipal principal,
+            HttpServletRequest servletRequest,
             @Valid @RequestBody JoinHouseholdRequest request) {
+        rateLimitService.checkHouseholdJoin(principal.getId(), servletRequest);
         return ResponseEntity.ok(householdService.join(principal.getId(), request));
     }
 

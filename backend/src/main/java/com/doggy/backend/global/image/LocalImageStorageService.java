@@ -11,10 +11,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 public class LocalImageStorageService implements ImageStorageService {
+
+    private static final Pattern OWNED_FILENAME = Pattern.compile(
+            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|png|webp)");
 
     private final AlertService alertService;
     private final ImageStorageProperties properties;
@@ -36,10 +40,13 @@ public class LocalImageStorageService implements ImageStorageService {
     }
 
     @Override
-    public String store(MultipartFile file) {
+    public String store(MultipartFile file, Long userId) {
+        if (userId == null) {
+            throw BusinessException.unauthorized("로그인이 필요합니다");
+        }
         ImageType imageType = validate(file);
 
-        String filename = UUID.randomUUID() + imageType.extension;
+        String filename = "u" + userId + "_" + UUID.randomUUID() + imageType.extension;
         Path dest = uploadPath.resolve(filename);
 
         try {
@@ -54,9 +61,18 @@ public class LocalImageStorageService implements ImageStorageService {
     }
 
     @Override
-    public void delete(String imageUrl) {
+    public void validateOwner(String imageUrl, Long userId) {
         String filename = properties.stripPublicPrefix(imageUrl);
-        if (filename == null) {
+        if (filename != null && !isOwnedFilename(filename, userId)) {
+            throw BusinessException.badRequest("본인이 업로드한 이미지만 사용할 수 있습니다");
+        }
+    }
+
+    @Override
+    public void delete(String imageUrl, Long userId) {
+        String filename = properties.stripPublicPrefix(imageUrl);
+        // shortcut: 소유자를 알 수 없는 기존 UUID 파일은 자동 삭제하지 않는다. 별도 정리 작업에서 참조를 확인한다.
+        if (filename == null || !isOwnedFilename(filename, userId)) {
             return;
         }
         Path target = uploadPath.resolve(filename).normalize();
@@ -69,6 +85,13 @@ public class LocalImageStorageService implements ImageStorageService {
         } catch (IOException e) {
             log.warn("이미지 삭제 실패: {}", filename, e);
         }
+    }
+
+    private boolean isOwnedFilename(String filename, Long userId) {
+        if (userId == null) return false;
+        String prefix = "u" + userId + "_";
+        return filename.startsWith(prefix)
+                && OWNED_FILENAME.matcher(filename.substring(prefix.length())).matches();
     }
 
     private ImageType validate(MultipartFile file) {

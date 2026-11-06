@@ -217,10 +217,17 @@ class WalkServiceTest {
                     .build();
             ReflectionTestUtils.setField(trace, "id", 20L);
             ReflectionTestUtils.setField(trace, "status", Status.COMPLETED);
+            trace.makePublic("공개 산책");
             Dog dog = Dog.builder().user(other).name("보리").breed("웰시코기").build();
             ReflectionTestUtils.setField(dog, "id", 4L);
             trace.getDogs().add(dog);
-            String route = "{\"type\":\"LineString\",\"coordinates\":[[126.9,37.2],[127.0,37.3]]}";
+            String route = """
+                    {"type":"LineString","coordinates":[
+                    [127.000001,37.000001],[127.003001,37.000001],
+                    [127.006001,37.000001],[127.009001,37.000001],
+                    [127.012001,37.000001],[127.015001,37.000001],
+                    [127.018001,37.000001]]}
+                    """;
 
             given(householdService.findHouseholdIdByUserId(1L)).willReturn(null);
             given(walkSessionRepository.findAccessibleByOwnerId(
@@ -237,7 +244,9 @@ class WalkServiceTest {
 
             assertThat(response).hasSize(1);
             assertThat(response.getFirst().recency().name()).isEqualTo("TODAY");
-            assertThat(response.getFirst().routeGeoJson()).isEqualTo(route);
+            assertThat(response.getFirst().routeGeoJson())
+                    .doesNotContain("127.000001", "127.018001")
+                    .contains("[127.003,37.0]");
             assertThat(response.getFirst().dogs()).extracting("name").containsExactly("보리");
         }
 

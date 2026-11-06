@@ -65,6 +65,21 @@ class RateLimitServiceTest {
                 .isInstanceOf(BusinessException.class);
     }
 
+    @Test
+    void householdJoinStopsAfterFiveAttemptsForSameUser() {
+        MockHttpServletRequest request = request("203.0.113.40");
+
+        for (int i = 0; i < 5; i++) {
+            assertThatCode(() -> rateLimitService.checkHouseholdJoin(1L, request))
+                    .doesNotThrowAnyException();
+        }
+
+        assertThatThrownBy(() -> rateLimitService.checkHouseholdJoin(1L, request))
+                .isInstanceOf(BusinessException.class);
+        assertThatCode(() -> rateLimitService.checkHouseholdJoin(2L, request))
+                .doesNotThrowAnyException();
+    }
+
     private MockHttpServletRequest request(String remoteAddress) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr(remoteAddress);

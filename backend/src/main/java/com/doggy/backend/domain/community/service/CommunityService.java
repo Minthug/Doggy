@@ -59,7 +59,7 @@ public class CommunityService {
         boolean isDogPost = DOG_POST_TYPES.contains(request.type());
         boolean hasSightingTime = request.type() == PostType.LOST || request.type() == PostType.FOUND;
         boolean isReview = REVIEW_TYPES.contains(request.type());
-        List<String> imageUrls = sanitizeImageUrls(request.imageUrls());
+        List<String> imageUrls = sanitizeImageUrls(request.imageUrls(), userId);
 
         CommunityPost post = postRepository.save(
                 CommunityPost.builder()
@@ -119,7 +119,7 @@ public class CommunityService {
         return relatedPost.getId();
     }
 
-    private List<String> sanitizeImageUrls(List<String> imageUrls) {
+    private List<String> sanitizeImageUrls(List<String> imageUrls, Long userId) {
         if (imageUrls == null || imageUrls.isEmpty()) {
             return List.of();
         }
@@ -135,6 +135,7 @@ public class CommunityService {
                     || imageStorageProperties.stripPublicPrefix(cleanUrl) == null) {
                 throw BusinessException.badRequest("잘못된 첨부 이미지입니다");
             }
+            imageStorageService.validateOwner(cleanUrl, userId);
             uniqueUrls.add(cleanUrl);
         }
         return new ArrayList<>(uniqueUrls);
@@ -159,7 +160,7 @@ public class CommunityService {
         List<String> imageUrls = List.copyOf(post.getImageUrls());
         postRepository.clearRelatedPostId(postId);
         postRepository.delete(post);
-        imageUrls.forEach(imageStorageService::delete);
+        imageUrls.forEach(imageUrl -> imageStorageService.delete(imageUrl, userId));
     }
 
     public List<CommunityPostResponse> getSightings(Long postId) {

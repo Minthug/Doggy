@@ -44,6 +44,7 @@ public class DogService {
     public DogResponse create(Long userId, CreateDogRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
+        imageStorageService.validateOwner(request.profileImage(), userId);
 
         Dog dog = Dog.builder()
                 .user(user)
@@ -119,6 +120,9 @@ public class DogService {
             throw BusinessException.forbidden("강아지 소유자 또는 가구 오너만 수정할 수 있습니다");
         }
         String oldImage = dog.getProfileImage();
+        if (!java.util.Objects.equals(oldImage, request.profileImage())) {
+            imageStorageService.validateOwner(request.profileImage(), userId);
+        }
         dog.update(
                 request.name(),
                 request.breed(),
@@ -130,7 +134,7 @@ public class DogService {
                 request.warnings()
         );
         if (oldImage != null && !oldImage.equals(request.profileImage())) {
-            imageStorageService.delete(oldImage);
+            imageStorageService.delete(oldImage, userId);
         }
         return DogResponse.from(dog);
     }
@@ -147,7 +151,7 @@ public class DogService {
         if (!isDogOwner && !isHouseholdOwner) {
             throw BusinessException.forbidden("강아지 소유자 또는 가구 오너만 삭제할 수 있습니다");
         }
-        imageStorageService.delete(dog.getProfileImage());
+        imageStorageService.delete(dog.getProfileImage(), userId);
         walkSessionRepository.removeDogFromAllSessions(dogId);
         dogRepository.delete(dog);
     }

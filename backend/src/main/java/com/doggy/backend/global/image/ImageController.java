@@ -29,7 +29,7 @@ public class ImageController {
             HttpServletRequest servletRequest,
             @RequestParam("file") MultipartFile file) {
         rateLimitService.checkImageUpload(principal != null ? principal.getId() : null, servletRequest);
-        String url = imageStorageService.store(file);
+        String url = imageStorageService.store(file, principal.getId());
         return ResponseEntity.ok(Map.of("url", url));
     }
 }

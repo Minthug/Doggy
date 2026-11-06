@@ -323,9 +323,11 @@ public class WalkService {
                 .map(id -> {
                     WalkSession traceSession = sessionsById.get(id);
                     String routeGeoJson = routesById.get(id);
-                    if (traceSession == null || routeGeoJson == null || traceSession.getDogs().isEmpty()) {
+                    if (traceSession == null || !traceSession.isPublic() || traceSession.getDogs().isEmpty()) {
                         return null;
                     }
+                    String publicRouteGeoJson = PublicRoutePrivacy.minimizeGeoJson(routeGeoJson);
+                    if (publicRouteGeoJson == null) return null;
                     LocalDate traceDate = traceSession.getStartedAt().atZone(SERVICE_ZONE).toLocalDate();
                     var recency = traceDate.equals(targetDate)
                             ? WalkTraceDiscoveryResponse.Recency.TODAY
@@ -334,7 +336,7 @@ public class WalkService {
                             .map(dog -> new WalkTraceDiscoveryResponse.DogInfo(
                                     dog.getId(), dog.getName(), dog.getBreed(), dog.getProfileImage()))
                             .toList();
-                    return new WalkTraceDiscoveryResponse(id, recency, routeGeoJson, dogs);
+                    return new WalkTraceDiscoveryResponse(id, recency, publicRouteGeoJson, dogs);
                 })
                 .filter(java.util.Objects::nonNull)
                 .toList();

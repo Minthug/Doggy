@@ -79,6 +79,7 @@ class HouseholdServiceTest {
             HouseholdResponse response = householdService.create(1L, new CreateHouseholdRequest("우리집"));
 
             assertThat(response.name()).isEqualTo("우리집");
+            assertThat(response.inviteCode()).matches("[A-F0-9]{20}");
             verify(householdMemberRepository).save(argThat(m -> m.getRole() == Role.OWNER));
         }
     }
@@ -92,7 +93,7 @@ class HouseholdServiceTest {
         void fail_alreadyInHousehold() {
             given(householdRepository.findByUserId(2L)).willReturn(Optional.of(makeHousehold(10L, "기존가구")));
 
-            assertThatThrownBy(() -> householdService.join(2L, new JoinHouseholdRequest("ABCD1234")))
+            assertThatThrownBy(() -> householdService.join(2L, new JoinHouseholdRequest("ABCDEF0123456789ABCD")))
                     .isInstanceOf(BusinessException.class)
                     .hasMessageContaining("이미 가구에 속해 있습니다");
         }
@@ -101,9 +102,9 @@ class HouseholdServiceTest {
         @DisplayName("유효하지 않은 초대 코드로 참가 불가")
         void fail_invalidInviteCode() {
             given(householdRepository.findByUserId(2L)).willReturn(Optional.empty());
-            given(householdRepository.findByInviteCode("INVALID1")).willReturn(Optional.empty());
+            given(householdRepository.findByInviteCode("FFFFFFFFFFFFFFFFFFFF")).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> householdService.join(2L, new JoinHouseholdRequest("INVALID1")))
+            assertThatThrownBy(() -> householdService.join(2L, new JoinHouseholdRequest("FFFFFFFFFFFFFFFFFFFF")))
                     .isInstanceOf(BusinessException.class)
                     .hasMessageContaining("유효하지 않은 초대 코드입니다");
         }
@@ -160,6 +161,7 @@ class HouseholdServiceTest {
             String newCode = householdService.refreshInviteCode(1L);
 
             assertThat(newCode).isNotEqualTo(oldCode);
+            assertThat(newCode).matches("[A-F0-9]{20}");
         }
     }
 

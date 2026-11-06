@@ -25,6 +25,8 @@ public class RateLimitService {
     private static final Duration OAUTH2_EXCHANGE_WINDOW = Duration.ofMinutes(1);
     private static final int IMAGE_UPLOAD_LIMIT = 10;
     private static final Duration IMAGE_UPLOAD_WINDOW = Duration.ofMinutes(1);
+    private static final int HOUSEHOLD_JOIN_LIMIT = 5;
+    private static final Duration HOUSEHOLD_JOIN_WINDOW = Duration.ofHours(1);
 
     private final AlertService alertService;
     private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();
@@ -53,6 +55,11 @@ public class RateLimitService {
     public void checkImageUpload(Long userId, HttpServletRequest request) {
         String subject = userId != null ? "user:" + userId : "ip:" + clientIp(request);
         check("image-upload", "image-upload:" + subject, IMAGE_UPLOAD_LIMIT, IMAGE_UPLOAD_WINDOW, request);
+    }
+
+    public void checkHouseholdJoin(Long userId, HttpServletRequest request) {
+        check("household-join", "household-join:user:" + userId,
+                HOUSEHOLD_JOIN_LIMIT, HOUSEHOLD_JOIN_WINDOW, request);
     }
 
     private void check(String event, String key, int maxRequests, Duration window, HttpServletRequest request) {

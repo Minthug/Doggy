@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -144,10 +145,11 @@ class _NoHouseholdView extends ConsumerWidget {
         content: TextField(
           controller: ctrl,
           decoration: const InputDecoration(
-            hintText: '8자리 코드 입력',
+            hintText: '20자리 코드 입력',
             labelText: '초대 코드',
           ),
           autofocus: true,
+          maxLength: 20,
           textCapitalization: TextCapitalization.characters,
         ),
         actions: [
@@ -161,10 +163,19 @@ class _NoHouseholdView extends ConsumerWidget {
               try {
                 await ref.read(householdRepositoryProvider).join(ctrl.text.trim());
                 onRefresh();
+              } on DioException catch (error) {
+                if (context.mounted) {
+                  final tooManyRequests = error.response?.statusCode == 429;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(tooManyRequests
+                        ? '참여 시도가 너무 많아요. 잠시 후 다시 시도해 주세요.'
+                        : '유효하지 않은 초대 코드입니다')),
+                  );
+                }
               } catch (_) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('유효하지 않은 초대 코드입니다')));
+                      const SnackBar(content: Text('가구 참여에 실패했습니다')));
                 }
               }
             },
@@ -210,15 +221,17 @@ class _HouseholdView extends ConsumerWidget {
                 const Text('초대 코드', style: TextStyle(color: Colors.grey, fontSize: 13)),
                 const SizedBox(height: 6),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      household.inviteCode,
-                      style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 4,
-                          color: Color(0xFF4CAF50)),
+                    Expanded(
+                      child: Text(
+                        household.inviteCode,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                            color: Color(0xFF4CAF50)),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     IconButton(
