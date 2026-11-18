@@ -1,0 +1,2 @@
+ALTER TABLE walk_points
+    ADD COLUMN segment_start BOOLEAN NOT NULL DEFAULT FALSE;

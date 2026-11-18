@@ -1,8 +1,11 @@
 package com.doggy.backend.global.weather;
 
+import com.doggy.backend.global.common.RequestLimits;
+import com.doggy.backend.global.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -14,6 +17,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +42,8 @@ public class WeatherService {
     private static final double DEFAULT_LNG = 126.944858;
     private static final Duration WALK_INDEX_CACHE_TTL = Duration.ofMinutes(5);
     private static final Duration WALK_FORECAST_CACHE_TTL = Duration.ofMinutes(5);
+    private static final int MAX_CACHE_ENTRIES = 512;
+    private static final int MAX_CONCURRENT_FETCHES = 8;
 
     @Value("${weather.api.key}")
     private String apiKey;
@@ -55,6 +61,7 @@ public class WeatherService {
 
     private final ConcurrentMap<String, CacheEntry<WalkIndexResponse>> walkIndexCache = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, CacheEntry<WalkForecastResponse>> walkForecastCache = new ConcurrentHashMap<>();
+    private final Semaphore fetchSlots = new Semaphore(MAX_CONCURRENT_FETCHES);
 
     // ── 공개 API ────────────────────────────────────────────────
 
@@ -71,6 +78,7 @@ public class WeatherService {
     }
 
     private WalkIndexResponse doGetWalkIndex(double lat, double lng) {
+        RequestLimits.validateLatLng(lat, lng);
         return getCached(
                 walkIndexCache,
                 weatherCacheKey("walk-index", lat, lng),
@@ -111,6 +119,7 @@ public class WeatherService {
     }
 
     private WalkForecastResponse doGetWalkForecast(double lat, double lng) {
+        RequestLimits.validateLatLng(lat, lng);
         return getCached(
                 walkForecastCache,
                 weatherCacheKey("walk-forecast", lat, lng),
@@ -385,27 +394,64 @@ public class WeatherService {
         }
     }
 
-    private <T> T getCached(
+    <T> T getCached(
             ConcurrentMap<String, CacheEntry<T>> cache,
             String key,
             Duration ttl,
             Supplier<T> supplier
     ) {
-        long now = System.currentTimeMillis();
-        CacheEntry<T> cached = cache.get(key);
-        if (cached != null && cached.isFresh(now)) {
-            return cached.value();
+        CacheEntry<T> pending = new CacheEntry<>();
+        while (true) {
+            CacheEntry<T> current = cache.get(key);
+            if (current != null && current.isFresh(System.currentTimeMillis())) {
+                return current.value();
+            }
+            if (current == null ? cache.putIfAbsent(key, pending) == null
+                    : cache.replace(key, current, pending)) {
+                break;
+            }
         }
 
-        synchronized (cache) {
-            cached = cache.get(key);
-            if (cached != null && cached.isFresh(now)) {
-                return cached.value();
+        boolean acquired = false;
+        T value;
+        try {
+            if (!fetchSlots.tryAcquire()) {
+                throw BusinessException.tooManyRequests("날씨 조회가 많습니다. 잠시 후 다시 시도해주세요");
             }
-            T value = supplier.get();
-            cache.put(key, new CacheEntry<>(value, now + ttl.toMillis()));
-            return value;
+            acquired = true;
+            value = supplier.get();
+            pending.complete(value, System.currentTimeMillis() + ttl.toMillis());
+        } catch (RuntimeException | Error error) {
+            cache.remove(key, pending);
+            pending.fail(error);
+            throw error;
+        } finally {
+            if (acquired) fetchSlots.release();
         }
+        trimCache(cache);
+        return value;
+    }
+
+    @Scheduled(fixedDelay = 300_000)
+    void cleanupExpiredCaches() {
+        removeExpired(walkIndexCache);
+        removeExpired(walkForecastCache);
+    }
+
+    private <T> void trimCache(ConcurrentMap<String, CacheEntry<T>> cache) {
+        synchronized (cache) {
+            removeExpired(cache);
+            while (cache.size() > MAX_CACHE_ENTRIES) {
+                cache.entrySet().stream()
+                        .min(Comparator.comparingLong(entry -> entry.getValue().expiresAtMillis()))
+                        .ifPresent(entry -> cache.remove(entry.getKey(), entry.getValue()));
+            }
+        }
+    }
+
+    private <T> void removeExpired(ConcurrentMap<String, CacheEntry<T>> cache) {
+        long now = System.currentTimeMillis();
+        cache.entrySet().removeIf(entry -> !entry.getValue().isFresh(now));
     }
 
     private String weatherCacheKey(String prefix, double lat, double lng) {
@@ -547,9 +593,46 @@ public class WeatherService {
         }
     }
     record HourlyForecast(int tmp, int pop, int pty) {}
-    record CacheEntry<T>(T value, long expiresAtMillis) {
+    static final class CacheEntry<T> {
+        private final CompletableFuture<T> future;
+        private volatile long expiresAtMillis;
+
+        CacheEntry() {
+            this.future = new CompletableFuture<>();
+            this.expiresAtMillis = Long.MAX_VALUE;
+        }
+
+        CacheEntry(T value, long expiresAtMillis) {
+            this.future = CompletableFuture.completedFuture(value);
+            this.expiresAtMillis = expiresAtMillis;
+        }
+
         boolean isFresh(long nowMillis) {
             return nowMillis < expiresAtMillis;
+        }
+
+        long expiresAtMillis() {
+            return expiresAtMillis;
+        }
+
+        T value() {
+            try {
+                return future.join();
+            } catch (CompletionException error) {
+                if (error.getCause() instanceof RuntimeException runtime) throw runtime;
+                if (error.getCause() instanceof Error failure) throw failure;
+                throw error;
+            }
+        }
+
+        void complete(T value, long expiresAtMillis) {
+            this.expiresAtMillis = expiresAtMillis;
+            future.complete(value);
+        }
+
+        void fail(Throwable error) {
+            this.expiresAtMillis = 0;
+            future.completeExceptionally(error);
         }
     }
 }

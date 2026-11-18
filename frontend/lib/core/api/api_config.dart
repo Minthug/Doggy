@@ -10,19 +10,19 @@ const _allowInsecureHttp = bool.fromEnvironment(
   defaultValue: false,
 );
 
-String validatedApiBaseUrl() {
-  final uri = Uri.parse(apiBaseUrl);
+String validatedApiBaseUrl([String baseUrl = apiBaseUrl]) {
+  final uri = Uri.parse(baseUrl);
   if (!uri.hasScheme || uri.host.isEmpty) {
     throw StateError('BASE_URL must be an absolute URL');
   }
 
-  final isHttp = uri.scheme == 'http';
-  if (isHttp && !(kDebugMode && _allowInsecureHttp)) {
+  if (uri.scheme != 'https' &&
+      !(uri.scheme == 'http' && kDebugMode && _allowInsecureHttp)) {
     throw StateError(
-      'Insecure HTTP BASE_URL is only allowed in debug builds with '
+      'BASE_URL must use HTTPS, except HTTP in debug builds with '
       'ALLOW_INSECURE_HTTP=true',
     );
   }
 
-  return apiBaseUrl;
+  return baseUrl;
 }

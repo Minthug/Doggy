@@ -1,11 +1,10 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rive/rive.dart' as rive;
 import '../../domain/providers/walk_provider.dart';
 import '../models/dog_trace_visual.dart';
+import '../models/route_segments.dart';
 
 class DogTraceMapScreen extends ConsumerStatefulWidget {
   const DogTraceMapScreen({super.key});
@@ -203,16 +202,18 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
     await controller.clearOverlays();
 
     for (final trace in traces) {
-      await controller.addOverlay(
-        NPolylineOverlay(
-          id: 'trace-${trace.id}',
-          coords: trace.points,
-          color: trace.color.withValues(alpha: 0.42),
-          width: 4,
-          lineCap: NLineCap.round,
-          lineJoin: NLineJoin.round,
-        ),
-      );
+      for (var i = 0; i < trace.segments.length; i++) {
+        await controller.addOverlay(
+          NPolylineOverlay(
+            id: 'trace-${trace.id}-$i',
+            coords: trace.segments[i],
+            color: trace.color.withValues(alpha: 0.42),
+            width: 4,
+            lineCap: NLineCap.round,
+            lineJoin: NLineJoin.round,
+          ),
+        );
+      }
       final marker = NMarker(
         id: 'dog-${trace.id}',
         position: trace.points[trace.markerIndex],
@@ -237,14 +238,14 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
     );
     await controller.addOverlay(markingSpot);
 
-    final ownRoute = _parseRoute(
+    final ownSegments = parseRouteSegments(
       ref.read(latestTodayWalkDetailProvider).valueOrNull?.routeGeoJson,
     );
-    if (ownRoute.length >= 2) {
+    for (var i = 0; i < ownSegments.length; i++) {
       await controller.addOverlay(
         NPolylineOverlay(
-          id: 'my-route-outline',
-          coords: ownRoute,
+          id: 'my-route-outline-$i',
+          coords: ownSegments[i],
           color: const Color(0xFFF5F8F3).withValues(alpha: 0.9),
           width: 9,
           lineCap: NLineCap.round,
@@ -253,36 +254,14 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
       );
       await controller.addOverlay(
         NPolylineOverlay(
-          id: 'my-route',
-          coords: ownRoute,
+          id: 'my-route-$i',
+          coords: ownSegments[i],
           color: const Color(0xFF719B7B),
           width: 6,
           lineCap: NLineCap.round,
           lineJoin: NLineJoin.round,
         ),
       );
-    }
-  }
-
-  List<NLatLng> _parseRoute(String? routeGeoJson) {
-    if (routeGeoJson == null || routeGeoJson.isEmpty) return const [];
-    try {
-      final decoded = jsonDecode(routeGeoJson);
-      if (decoded is! Map<String, dynamic>) return const [];
-      final coordinates = decoded['coordinates'];
-      if (coordinates is! List) return const [];
-      return coordinates
-          .whereType<List>()
-          .where((coordinate) => coordinate.length >= 2)
-          .map(
-            (coordinate) => NLatLng(
-              (coordinate[1] as num).toDouble(),
-              (coordinate[0] as num).toDouble(),
-            ),
-          )
-          .toList();
-    } catch (_) {
-      return const [];
     }
   }
 

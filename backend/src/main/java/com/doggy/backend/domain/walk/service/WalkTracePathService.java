@@ -23,19 +23,23 @@ public class WalkTracePathService {
 
     /**
      * 실제 위치를 복원할 수 없도록 경로를 상대 좌표로 정규화하고 델타 인코딩한다.
-     * 형식: v1|첫X,첫Y;deltaX,deltaY;...
+     * 형식: v1|첫X,첫Y;deltaX,deltaY;... (단일 구간)
+     *       v2|구간1|구간2... (일시정지로 나뉜 구간)
      */
     public String createPathData(String routeGeoJson) {
-        List<Point> points = parsePoints(routeGeoJson);
+        List<List<Point>> segments = parseSegments(routeGeoJson).stream()
+                .filter(segment -> segment.size() >= 2)
+                .map(this::sample)
+                .toList();
+        List<Point> points = segments.stream().flatMap(List::stream).toList();
         if (points.size() < 2) {
             throw BusinessException.badRequest("보관할 산책 경로가 없습니다");
         }
 
-        List<Point> sampled = sample(points);
-        double minX = sampled.stream().mapToDouble(Point::x).min().orElseThrow();
-        double maxX = sampled.stream().mapToDouble(Point::x).max().orElseThrow();
-        double minY = sampled.stream().mapToDouble(Point::y).min().orElseThrow();
-        double maxY = sampled.stream().mapToDouble(Point::y).max().orElseThrow();
+        double minX = points.stream().mapToDouble(Point::x).min().orElseThrow();
+        double maxX = points.stream().mapToDouble(Point::x).max().orElseThrow();
+        double minY = points.stream().mapToDouble(Point::y).min().orElseThrow();
+        double maxY = points.stream().mapToDouble(Point::y).max().orElseThrow();
         double rangeX = Math.max(maxX - minX, 0.000001);
         double rangeY = Math.max(maxY - minY, 0.000001);
         double scale = Math.min(
@@ -44,42 +48,51 @@ public class WalkTracePathService {
         double offsetX = (WIDTH - rangeX * scale) / 2.0;
         double offsetY = (HEIGHT - rangeY * scale) / 2.0;
 
-        List<IntPoint> normalized = sampled.stream()
-                .map(point -> new IntPoint(
+        StringBuilder encoded = new StringBuilder(segments.size() == 1 ? VERSION : "v2|");
+        for (int segmentIndex = 0; segmentIndex < segments.size(); segmentIndex++) {
+            if (segmentIndex > 0) encoded.append('|');
+            IntPoint previous = null;
+            for (Point point : segments.get(segmentIndex)) {
+                IntPoint current = new IntPoint(
                         (int) Math.round(offsetX + (point.x - minX) * scale),
-                        (int) Math.round(HEIGHT - (offsetY + (point.y - minY) * scale))))
-                .toList();
-
-        StringBuilder encoded = new StringBuilder(VERSION);
-        IntPoint previous = normalized.get(0);
-        encoded.append(previous.x).append(',').append(previous.y);
-        for (int i = 1; i < normalized.size(); i++) {
-            IntPoint current = normalized.get(i);
-            encoded.append(';')
-                    .append(current.x - previous.x)
-                    .append(',')
-                    .append(current.y - previous.y);
-            previous = current;
+                        (int) Math.round(HEIGHT - (offsetY + (point.y - minY) * scale)));
+                if (previous == null) encoded.append(current.x).append(',').append(current.y);
+                else encoded.append(';').append(current.x - previous.x).append(',').append(current.y - previous.y);
+                previous = current;
+            }
         }
         return encoded.toString();
     }
 
-    private List<Point> parsePoints(String geoJson) {
+    private List<List<Point>> parseSegments(String geoJson) {
         if (geoJson == null || geoJson.isBlank()) return List.of();
         try {
-            JsonNode coordinates = objectMapper.readTree(geoJson).path("coordinates");
+            JsonNode root = objectMapper.readTree(geoJson);
+            JsonNode coordinates = root.path("coordinates");
             if (!coordinates.isArray()) return List.of();
-            List<Point> points = new ArrayList<>();
-            for (JsonNode coordinate : coordinates) {
-                if (coordinate.isArray() && coordinate.size() >= 2
-                        && coordinate.get(0).isNumber() && coordinate.get(1).isNumber()) {
-                    points.add(new Point(coordinate.get(0).asDouble(), coordinate.get(1).asDouble()));
-                }
+            if ("LineString".equals(root.path("type").asText())) {
+                return List.of(readPoints(coordinates));
             }
-            return points;
+            if (!"MultiLineString".equals(root.path("type").asText())) return List.of();
+            List<List<Point>> segments = new ArrayList<>();
+            for (JsonNode coordinate : coordinates) {
+                segments.add(readPoints(coordinate));
+            }
+            return segments;
         } catch (Exception e) {
             throw BusinessException.badRequest("산책 흔적 데이터를 만들 수 없습니다");
         }
+    }
+
+    private List<Point> readPoints(JsonNode coordinates) {
+        List<Point> points = new ArrayList<>();
+        for (JsonNode coordinate : coordinates) {
+            if (coordinate.isArray() && coordinate.size() >= 2
+                    && coordinate.get(0).isNumber() && coordinate.get(1).isNumber()) {
+                points.add(new Point(coordinate.get(0).asDouble(), coordinate.get(1).asDouble()));
+            }
+        }
+        return points;
     }
 
     private List<Point> sample(List<Point> points) {

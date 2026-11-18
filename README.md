@@ -252,11 +252,17 @@ graph TD
 | 소셜 로그인 | Kakao / Google / Naver OAuth2 |
 | OAuth redirect URI | 환경변수 `${SERVER_BASE_URL}` (IP 하드코딩 제거) |
 
+OAuth 로그인 요청은 서버 세션에 보관하며, 해당 세션의 비활성 만료 시간은 180초입니다. 서버를 여러 인스턴스로 운영할 때는
+OAuth 시작과 콜백이 같은 세션 저장소를 사용하도록 공유 세션 또는 스티키 라우팅을 구성해야 합니다.
+
 ### 운영 환경 변수
 
 네이버클라우드 서버에는 실제 값을 환경 변수로 주입하고, repo에는 시크릿 값을 커밋하지 않습니다.
 로컬 실행용 `backend/src/main/resources/application.properties`와 `application-local.properties`는 git ignore 대상입니다.
 설정 키 목록은 `backend/src/main/resources/application.properties.example`을 기준으로 관리합니다.
+리버스 프록시를 사용하는 배포에서는 해당 프록시의 IP만 `TRUSTED_PROXY_IP_REGEX`에 정확히 지정하고,
+프록시가 외부 요청의 `X-Forwarded-For`와 `X-Real-IP`를 제거한 뒤 신뢰할 수 있는 값을 설정해야 합니다.
+기본값은 전달 IP 헤더를 신뢰하지 않아 요청 제한에 접속한 프록시의 IP가 사용됩니다.
 Redis는 현재 운영에서 사용하지 않습니다. 재도입 시에는 `docs/redis-cache.md`의 보안 가이드를 먼저 반영합니다.
 
 필수:

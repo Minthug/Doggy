@@ -15,6 +15,9 @@ import 'firebase_options.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/auth/presentation/screens/signup_screen.dart';
 import 'features/home/presentation/screens/main_screen.dart';
+import 'features/dog/domain/providers/dog_provider.dart';
+import 'features/household/domain/providers/household_provider.dart';
+import 'features/auth/data/oauth_login_attempt.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,11 +63,15 @@ class _DoggyAppState extends State<DoggyApp> {
         uri.host == 'auth' &&
         uri.path == '/callback') {
       final code = uri.queryParameters['code'];
-      if (code != null && code.isNotEmpty) {
+      if (code == null || code.isEmpty) return;
+      final verifier = await OAuthLoginAttempt.takeVerifier(
+        uri.queryParameters['challenge'],
+      );
+      if (verifier != null) {
         try {
           final response = await Dio().post<Map<String, dynamic>>(
             '${validatedApiBaseUrl()}/api/auth/oauth2/exchange',
-            data: {'code': code},
+            data: {'code': code, 'verifier': verifier},
             options: Options(
               headers: {
                 'Content-Type': 'application/json',
@@ -78,13 +85,16 @@ class _DoggyAppState extends State<DoggyApp> {
             accessToken: data['accessToken'] as String,
             refreshToken: data['refreshToken'] as String,
           );
+          if (!mounted) return;
+          final container = ProviderScope.containerOf(context);
+          container.invalidate(myDogsProvider);
+          container.invalidate(myHouseholdProvider);
           navigatorKey.currentState?.pushNamedAndRemoveUntil(
             '/home',
             (_) => false,
           );
         } catch (e) {
           debugPrint('[OAuth exchange error] $e');
-          await TokenStorage.clear();
         }
       }
     }

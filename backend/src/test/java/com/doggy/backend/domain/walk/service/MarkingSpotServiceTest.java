@@ -9,10 +9,12 @@ import com.doggy.backend.domain.walk.dto.MarkingSpotCandidateResponse;
 import com.doggy.backend.domain.walk.dto.MarkingCandidateAnswer;
 import com.doggy.backend.domain.walk.dto.MarkingCandidateFeedbackRequest;
 import com.doggy.backend.domain.walk.dto.MarkingSpotResponse;
+import com.doggy.backend.domain.walk.dto.ManualMarkingFeedbackRequest;
 import com.doggy.backend.domain.walk.dto.CreateMarkingSpotVisitRequest;
 import com.doggy.backend.domain.walk.dto.WalkPointRequest;
 import com.doggy.backend.domain.walk.entity.MarkingCandidateFeedback;
 import com.doggy.backend.domain.walk.entity.WalkSession;
+import com.doggy.backend.domain.walk.entity.WalkPoint;
 import com.doggy.backend.domain.walk.repository.MarkingSpotRepository;
 import com.doggy.backend.domain.walk.repository.MarkingCandidateFeedbackRepository;
 import com.doggy.backend.domain.walk.repository.MarkingCandidateFeedbackRepository.CandidateVoteCount;
@@ -21,6 +23,7 @@ import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository;
 import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository.TrafficCoordinate;
 import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository.TrafficContext;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
+import com.doggy.backend.domain.walk.repository.WalkPointRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -54,6 +57,7 @@ class MarkingSpotServiceTest {
     @Mock MarkingCandidateFeedbackRepository feedbackRepository;
     @Mock MarkingSpotVisitRepository visitRepository;
     @Mock WalkSessionRepository walkSessionRepository;
+    @Mock WalkPointRepository walkPointRepository;
     @Mock DogRepository dogRepository;
     @Mock HouseholdService householdService;
     @Mock TrafficMapFeatureRepository trafficMapFeatureRepository;
@@ -77,6 +81,9 @@ class MarkingSpotServiceTest {
 
         assertThat(candidates).hasSize(1);
         assertThat(candidates.get(0).dwellSeconds()).isGreaterThanOrEqualTo(12);
+        assertThat(candidates.get(0).candidateKey()).isEqualTo(gridKey(37.21816825, 126.94400375));
+        assertThat(candidates.get(0).lat()).isBetween(37.21816, 37.21818);
+        assertThat(candidates.get(0).lng()).isBetween(126.94400, 126.94401);
     }
 
     @Test
@@ -124,6 +131,19 @@ class MarkingSpotServiceTest {
     }
 
     @Test
+    void pauseGapIsNotAMarkingCandidate() {
+        MarkingSpotService service = service();
+        LocalDateTime base = LocalDateTime.of(2026, 11, 3, 12, 0);
+        List<WalkPointRequest> points = List.of(
+                point(base, 37.218000, 126.944),
+                point(base.plusSeconds(5), 37.218160, 126.944),
+                new WalkPointRequest(base.plusSeconds(30), 37.218295, 126.944, null, true),
+                point(base.plusSeconds(35), 37.218455, 126.944));
+
+        assertThat(service.detectCandidates(points)).isEmpty();
+    }
+
+    @Test
     void storesBothAnswersAndCreatesVisitOnlyForConfirmedCandidate() {
         MarkingSpotService service = spy(service());
         WalkSession session = mock(WalkSession.class);
@@ -157,6 +177,71 @@ class MarkingSpotServiceTest {
 
         assertThatThrownBy(() -> service().createVisit(9L, 7L, request, List.of()))
                 .hasMessageContaining("산책에서 확인된 마킹 후보가 아닙니다");
+    }
+
+    @Test
+    void manualFeedbackUsesNearestRecordedPointAndCreatesVisit() {
+        MarkingSpotService service = spy(service());
+        WalkSession session = mock(WalkSession.class);
+        given(session.getStatus()).willReturn(WalkSession.Status.COMPLETED);
+        given(session.isMarkingEligible()).willReturn(true);
+        given(walkSessionRepository.findByIdAndUserId(7L, 9L)).willReturn(Optional.of(session));
+        LocalDateTime time = LocalDateTime.of(2026, 11, 3, 12, 0);
+        WalkPoint point = WalkPoint.builder().session(session).recordedAt(time)
+                .lat(37.218).lng(126.944).accuracy(5f).build();
+        given(walkPointRepository.findAllBySessionIdOrderByRecordedAt(7L)).willReturn(List.of(point));
+        doReturn(new MarkingSpotResponse(1L, 37.218, 126.944, 1, time))
+                .when(service).createVisit(anyLong(), anyLong(), any());
+
+        service.submitManualFeedback(9L, 7L,
+                new ManualMarkingFeedbackRequest(37.21805, 126.944, List.of(3L)));
+
+        verify(service).createVisit(eq(9L), eq(7L), argThat(request ->
+                request.lat().equals(37.218) && request.lng().equals(126.944)
+                        && request.detectedAt().equals(time)));
+        ArgumentCaptor<MarkingCandidateFeedback> saved = ArgumentCaptor.forClass(MarkingCandidateFeedback.class);
+        verify(feedbackRepository).save(saved.capture());
+        assertThat(saved.getValue().getSource()).isEqualTo("MANUAL");
+        assertThat(saved.getValue().isMarked()).isTrue();
+    }
+
+    @Test
+    void manualFeedbackRejectsPointOutsideWalkRoute() {
+        MarkingSpotService service = service();
+        WalkSession session = mock(WalkSession.class);
+        given(session.getStatus()).willReturn(WalkSession.Status.COMPLETED);
+        given(session.isMarkingEligible()).willReturn(true);
+        given(walkSessionRepository.findByIdAndUserId(7L, 9L)).willReturn(Optional.of(session));
+        WalkPoint point = WalkPoint.builder().session(session).recordedAt(LocalDateTime.now())
+                .lat(37.218).lng(126.944).accuracy(5f).build();
+        given(walkPointRepository.findAllBySessionIdOrderByRecordedAt(7L)).willReturn(List.of(point));
+
+        assertThatThrownBy(() -> service.submitManualFeedback(9L, 7L,
+                new ManualMarkingFeedbackRequest(37.23, 126.944, List.of(3L))))
+                .hasMessageContaining("30m");
+        verify(feedbackRepository, times(0)).save(any());
+    }
+
+    @Test
+    void manualFeedbackRetryDoesNotCreateAnotherVisit() {
+        MarkingSpotService service = service();
+        WalkSession session = mock(WalkSession.class);
+        given(session.getStatus()).willReturn(WalkSession.Status.COMPLETED);
+        given(session.isMarkingEligible()).willReturn(true);
+        given(walkSessionRepository.findByIdAndUserId(7L, 9L)).willReturn(Optional.of(session));
+        WalkPoint point = WalkPoint.builder().session(session).recordedAt(LocalDateTime.now())
+                .lat(37.218).lng(126.944).accuracy(5f).build();
+        given(walkPointRepository.findAllBySessionIdOrderByRecordedAt(7L)).willReturn(List.of(point));
+        MarkingCandidateFeedback existing = mock(MarkingCandidateFeedback.class);
+        given(existing.getSource()).willReturn("MANUAL");
+        given(feedbackRepository.findBySessionIdAndCandidateKey(7L, gridKey(37.218, 126.944)))
+                .willReturn(Optional.of(existing));
+
+        service.submitManualFeedback(9L, 7L,
+                new ManualMarkingFeedbackRequest(37.218, 126.944, List.of(3L)));
+
+        verify(feedbackRepository, times(0)).save(any());
+        verify(visitRepository, times(0)).save(any());
     }
 
     @Test
@@ -364,6 +449,7 @@ class MarkingSpotServiceTest {
                 feedbackRepository,
                 visitRepository,
                 walkSessionRepository,
+                walkPointRepository,
                 dogRepository,
                 householdService,
                 trafficMapFeatureRepository

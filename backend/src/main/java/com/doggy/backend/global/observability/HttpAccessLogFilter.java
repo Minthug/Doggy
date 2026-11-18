@@ -29,7 +29,9 @@ public class HttpAccessLogFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getRequestURI().equals("/actuator/health");
+        String path = request.getRequestURI();
+        return path.equals("/actuator/health")
+                || (request.getMethod().equals("PATCH") && path.matches("/api/walks/[^/]+/location"));
     }
 
     @Override

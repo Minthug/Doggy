@@ -33,12 +33,17 @@ public class WalkPoint {
 
     private Float accuracy;
 
+    @Column(nullable = false)
+    private boolean segmentStart;
+
     @Builder
-    public WalkPoint(WalkSession session, LocalDateTime recordedAt, double lat, double lng, Float accuracy) {
+    public WalkPoint(WalkSession session, LocalDateTime recordedAt, double lat, double lng,
+                     Float accuracy, boolean segmentStart) {
         this.session = session;
         this.recordedAt = recordedAt;
         this.lat = lat;
         this.lng = lng;
         this.accuracy = accuracy;
+        this.segmentStart = segmentStart;
     }
 }

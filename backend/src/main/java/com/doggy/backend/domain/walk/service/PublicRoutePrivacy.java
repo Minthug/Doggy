@@ -12,6 +12,7 @@ final class PublicRoutePrivacy {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final double PRIVATE_EDGE_METERS = 200.0;
+    private static final double ROUNDING_MARGIN_METERS = 80.0;
     private static final double COORDINATE_SCALE = 1_000.0;
     private static final int MAX_PUBLIC_POINTS = 200;
 
@@ -29,24 +30,45 @@ final class PublicRoutePrivacy {
             if (coordinates == null || !coordinates.isArray()) {
                 return null;
             }
-
-            List<Coordinate> original = readCoordinates(coordinates);
-            List<Coordinate> trimmed = trimPrivateEdges(original);
-            if (trimmed.size() < 2) {
-                return null;
+            boolean multiple = "MultiLineString".equals(root.path("type").asText());
+            if (!multiple && !"LineString".equals(root.path("type").asText())) return null;
+            List<List<Coordinate>> visible = new ArrayList<>();
+            if (multiple) {
+                for (JsonNode segment : coordinates) {
+                    List<Coordinate> trimmed = trimPrivateEdges(readCoordinates(segment));
+                    if (trimmed.size() >= 2) visible.add(limitPoints(trimmed));
+                }
+            } else {
+                List<Coordinate> trimmed = trimPrivateEdges(readCoordinates(coordinates));
+                if (trimmed.size() >= 2) visible.add(limitPoints(trimmed));
             }
-
-            List<Coordinate> simplified = limitPoints(trimmed);
+            if (visible.isEmpty()) return null;
             ObjectNode masked = OBJECT_MAPPER.createObjectNode();
-            masked.put("type", "LineString");
+            masked.put("type", multiple ? "MultiLineString" : "LineString");
             ArrayNode maskedCoordinates = masked.putArray("coordinates");
-            for (Coordinate coordinate : simplified) {
-                ArrayNode point = OBJECT_MAPPER.createArrayNode();
-                point.add(roundCoordinate(coordinate.lng()));
-                point.add(roundCoordinate(coordinate.lat()));
-                maskedCoordinates.add(point);
+            for (List<Coordinate> segment : visible) {
+                ArrayNode target = multiple ? maskedCoordinates.addArray() : maskedCoordinates;
+                for (Coordinate coordinate : segment) {
+                    ArrayNode point = target.addArray();
+                    point.add(roundCoordinate(coordinate.lng()));
+                    point.add(roundCoordinate(coordinate.lat()));
+                }
             }
             return OBJECT_MAPPER.writeValueAsString(masked);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    static SearchPoint searchPoint(String routeGeoJson) {
+        String publicRoute = minimizeGeoJson(routeGeoJson);
+        if (publicRoute == null) return null;
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(publicRoute);
+            JsonNode coordinates = root.get("coordinates");
+            JsonNode first = "MultiLineString".equals(root.path("type").asText())
+                    ? coordinates.get(0).get(0) : coordinates.get(0);
+            return new SearchPoint(first.get(1).asDouble(), first.get(0).asDouble());
         } catch (Exception ignored) {
             return null;
         }
@@ -68,8 +90,17 @@ final class PublicRoutePrivacy {
     }
 
     private static List<Coordinate> trimPrivateEdges(List<Coordinate> coordinates) {
-        if (coordinates.size() < 3) {
+        if (coordinates.size() < 2) {
             return List.of();
+        }
+        if (coordinates.size() == 2) {
+            Coordinate start = coordinates.getFirst();
+            Coordinate end = coordinates.getLast();
+            double distance = distanceMeters(start, end);
+            double privateEdge = PRIVATE_EDGE_METERS + ROUNDING_MARGIN_METERS;
+            if (distance <= 2 * privateEdge) return List.of();
+            double fraction = privateEdge / distance;
+            return List.of(interpolate(start, end, fraction), interpolate(end, start, fraction));
         }
 
         int startIndex = trimStartIndex(coordinates);
@@ -79,6 +110,11 @@ final class PublicRoutePrivacy {
         }
 
         return coordinates.subList(startIndex, endIndex + 1);
+    }
+
+    private static Coordinate interpolate(Coordinate from, Coordinate to, double fraction) {
+        return new Coordinate(from.lat() + (to.lat() - from.lat()) * fraction,
+                from.lng() + (to.lng() - from.lng()) * fraction);
     }
 
     private static int trimStartIndex(List<Coordinate> coordinates) {
@@ -135,5 +171,8 @@ final class PublicRoutePrivacy {
     }
 
     private record Coordinate(double lat, double lng) {
+    }
+
+    record SearchPoint(double lat, double lng) {
     }
 }

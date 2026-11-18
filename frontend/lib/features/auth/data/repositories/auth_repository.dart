@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/api/api_client.dart';
 import '../../../../core/storage/token_storage.dart';
+import '../../../dog/domain/providers/dog_provider.dart';
+import '../../../household/domain/providers/household_provider.dart';
 import '../models/auth_model.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -67,7 +69,11 @@ class AuthRepository {
         );
       }
     } finally {
-      await TokenStorage.clear();
+      try {
+        await Future.wait([clearDogsCache(), clearHouseholdCache()]);
+      } finally {
+        await TokenStorage.clear();
+      }
     }
   }
 }

@@ -6,14 +6,20 @@ import '../../data/repositories/dog_repository.dart';
 const _cacheKey = 'my_dogs';
 
 final myDogsProvider = FutureProvider<List<Dog>>((ref) async {
+  var disposed = false;
+  ref.onDispose(() => disposed = true);
+  final cacheKey = await LocalCache.currentUserKey(_cacheKey);
+  if (cacheKey == null || disposed) return [];
   // 1. 캐시에서 즉시 반환
-  final cached = await LocalCache.read(_cacheKey);
+  final cached = await LocalCache.read(cacheKey);
   if (cached != null) {
     // 백그라운드에서 갱신 (stale-while-revalidate)
     Future.microtask(() async {
       try {
         final fresh = await ref.read(dogRepositoryProvider).getMyDogs();
-        await LocalCache.write(_cacheKey, fresh.map(_dogToJson).toList());
+        if (!disposed) {
+          await LocalCache.write(cacheKey, fresh.map(_dogToJson).toList());
+        }
       } catch (_) {}
     });
     return (cached as List)
@@ -23,7 +29,9 @@ final myDogsProvider = FutureProvider<List<Dog>>((ref) async {
 
   // 2. 캐시 없으면 서버에서 가져와서 저장
   final dogs = await ref.read(dogRepositoryProvider).getMyDogs();
-  await LocalCache.write(_cacheKey, dogs.map(_dogToJson).toList());
+  if (!disposed) {
+    await LocalCache.write(cacheKey, dogs.map(_dogToJson).toList());
+  }
   return dogs;
 });
 
@@ -40,4 +48,8 @@ Map<String, dynamic> _dogToJson(Dog d) => {
   'isFavorited': d.isFavorited,
 };
 
-Future<void> clearDogsCache() => LocalCache.remove(_cacheKey);
+Future<void> clearDogsCache() async {
+  final key = await LocalCache.currentUserKey(_cacheKey);
+  if (key != null) await LocalCache.remove(key);
+  await LocalCache.remove(_cacheKey);
+}

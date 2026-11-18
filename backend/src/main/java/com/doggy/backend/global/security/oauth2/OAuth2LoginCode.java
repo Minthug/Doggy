@@ -32,6 +32,9 @@ public class OAuth2LoginCode extends BaseEntity {
     @Column(name = "code_hash", nullable = false, unique = true, length = 64)
     private String codeHash;
 
+    @Column(name = "app_challenge", length = 43)
+    private String appChallenge;
+
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
@@ -39,9 +42,10 @@ public class OAuth2LoginCode extends BaseEntity {
     private LocalDateTime usedAt;
 
     @Builder
-    public OAuth2LoginCode(User user, String codeHash, LocalDateTime expiresAt) {
+    public OAuth2LoginCode(User user, String codeHash, String appChallenge, LocalDateTime expiresAt) {
         this.user = user;
         this.codeHash = codeHash;
+        this.appChallenge = appChallenge;
         this.expiresAt = expiresAt;
     }
 

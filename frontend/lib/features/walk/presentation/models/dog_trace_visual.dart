@@ -1,8 +1,7 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import '../../data/models/walk_model.dart';
+import 'route_segments.dart';
 
 const dogTracePalette = <Color>[
   Color(0xFFD8A07C),
@@ -27,6 +26,7 @@ class DogTraceVisual {
   final int markerIndex;
   final int colorIndex;
   final List<NLatLng> points;
+  final List<List<NLatLng>> segments;
 
   Color get color => dogTracePalette[colorIndex % dogTracePalette.length];
 
@@ -38,6 +38,7 @@ class DogTraceVisual {
     required this.markerIndex,
     required this.colorIndex,
     required this.points,
+    required this.segments,
   });
 }
 
@@ -45,7 +46,8 @@ List<DogTraceVisual> buildDogTraceMapItems(
   List<WalkTraceDiscovery> discoveries,
 ) {
   return discoveries.expand((discovery) {
-    final points = _parseRoute(discovery.routeGeoJson);
+    final segments = parseRouteSegments(discovery.routeGeoJson);
+    final points = segments.expand((segment) => segment).toList();
     if (points.length < 2) return const <DogTraceVisual>[];
     return discovery.dogs.map(
       (dog) => DogTraceVisual(
@@ -56,29 +58,8 @@ List<DogTraceVisual> buildDogTraceMapItems(
         markerIndex: points.length ~/ 2,
         colorIndex: dog.id,
         points: points,
+        segments: segments,
       ),
     );
   }).toList();
-}
-
-List<NLatLng> _parseRoute(String source) {
-  if (source.isEmpty) return const [];
-  try {
-    final decoded = jsonDecode(source);
-    if (decoded is! Map<String, dynamic>) return const [];
-    final coordinates = decoded['coordinates'];
-    if (coordinates is! List) return const [];
-    return coordinates
-        .whereType<List>()
-        .where((coordinate) => coordinate.length >= 2)
-        .map(
-          (coordinate) => NLatLng(
-            (coordinate[1] as num).toDouble(),
-            (coordinate[0] as num).toDouble(),
-          ),
-        )
-        .toList();
-  } catch (_) {
-    return const [];
-  }
 }

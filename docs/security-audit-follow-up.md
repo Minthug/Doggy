@@ -6,19 +6,21 @@
 | --- | --- | --- | --- | --- |
 | 1 | 8자리 가구 초대 코드의 추측 및 가입 시도 제한 부재 | `Household.java` · `HouseholdController.join` · `RateLimitService` | 20자리 난수 코드와 사용자별 시간당 5회 제한을 코드에 적용했다. 기존 코드 교체 마이그레이션과 더미 가구 가입 결과 확인 필요 | 코드 수정·검증 대기 |
 | 2 | 가구원이 다른 구성원의 산책 보관 상태를 변경할 가능성 | `WalkService.archive/unarchive` · `findAccessibleWalk` | 공동 보호자 정책상 현재 가구원이 가입 이후 생성된 공유 산책을 열람·보관·해제할 수 있도록 유지했다. 더미 가구원과 비가구원 권한 확인 필요 | 제품 정책 확인·검증 대기 |
-| 3 | 임의 위치 핑으로 활동 중인 사용자의 근접 여부·신원 노출 가능성 | `WalkPingService.updateLocationAndPing` · `WalkMeetService.getMeets` | 더미 산책 세션에서 조작 좌표의 만남 응답과 운영 요청 제한 확인 | 확인 대기 |
-| 4 | 리프레시 토큰 동시 교환의 단일 사용 보장 불명확 | `RefreshTokenService.rotate` · `RefreshTokenRepository` | 격리 DB에서 같은 토큰의 동시 교환 결과·커밋 후 토큰 상태 확인 | 확인 대기 |
-| 5 | 위치 갱신 시 사용자 ID와 정확한 GPS 좌표의 INFO 로그 기록 | `WalkPingService.updateLocationAndPing` | 운영 로그 수집·마스킹·접근권한·보관 기간 확인 | 확인 대기 |
-| 6 | 익명 날씨 요청의 좌표별 캐시 키 누적 가능성 | `WeatherController` · `WeatherService.getCached` | 격리 서버에서 만료 키 잔존·메모리 증가와 운영 요청 제한 확인 | 확인 대기 |
-| 7 | 전달 IP 헤더에 따른 인증 요청 제한 우회 가능성 | `RateLimitService.clientIp` | 운영 ingress의 `X-Forwarded-For`·`X-Real-IP` 정리 및 백엔드 직접 접근 여부 확인 | 확인 대기 |
-| 8 | 계정 전환 후 이전 계정의 가구·반려견 캐시 표시 가능성 | `AuthAction` · `LocalCache` · 가구/반려견 provider | 격리 기기에서 더미 A→B 전환 중 화면 표시 확인 | 확인 대기 |
-| 9 | OAuth 딥링크 코드와 앱의 현재 로그인 시도 미결합 | `main.dart`의 딥링크 처리 · Android/iOS URL 스킴 | 최종 패키지와 격리 기기에서 외부 링크의 계정 전환 결과 확인 | 확인 대기 |
-| 10 | 로그아웃 후 이전 계정의 FCM 토큰 연결 잔존 가능성 | `AuthRepository.logout` · `UserService.updateFcmToken` | 같은 격리 기기의 더미 A/B에서 토큰 연결과 알림 수신 확인 | 확인 대기 |
-| 11 | OAuth 요청 쿠키의 Java 역직렬화 | `HttpCookieOAuth2AuthorizationRequestRepository` | 격리 실행에서 객체 복원 도달 여부와 JVM 필터·클래스 경로 확인. 코드 실행 가능성은 단정하지 않음 | 확인 대기 |
-| 12 | 공개 경로 검색에서 마스킹 전 출발점을 위치 필터에 사용 | `WalkSessionRepository.findPublicRoutesNearby` | 더미 PostGIS에서 좌표별 `sessionId` 포함 여부와 추정 정밀도 확인 | 확인 대기 |
+| 3 | 임의 위치 핑으로 활동 중인 사용자의 근접 여부·신원 노출 가능성 | `WalkPingService.updateLocationAndPing` · `WalkMeetService.getMeets` | 사용자 요청 범위는 GPS 전송 중 가로채기와 로그 유출 방지다. API HTTPS 강제와 리다이렉트 차단, 정확한 좌표 로그 제거를 적용했다. 운영 TLS 종단·접근 로그 설정은 확인 필요 | 전송·로그 완화, 운영 확인 대기 |
+| 4 | 리프레시 토큰 동시 교환의 단일 사용 보장 불명확 | `RefreshTokenService.rotate` · `RefreshTokenRepository` | 토큰 조회에 DB 배타 잠금을 적용했다. 일회용 PostGIS에서 같은 토큰의 동시 교환은 1건만 성공했고, 재사용 감지 후 신규 토큰까지 폐기된 DB 상태를 확인했다 | 코드 수정·더미 DB 확인 완료 |
+| 5 | 위치 갱신 시 사용자 ID와 정확한 GPS 좌표의 INFO 로그 기록 | `WalkPingService.updateLocationAndPing` · `HttpAccessLogFilter` · `GlobalExceptionHandler` | 정확한 좌표·근접 세션 쌍 INFO 로그를 제거하고 위치 갱신 접근 로그를 제외했다. 위치 처리 예외의 로그·외부 경보는 좌표와 세션 ID를 숨기도록 테스트했다. 설정 예시에서 SQL 바인드 값 로그도 껐다. 운영 프록시 로그·수집기 설정과 기존 로그 보관분은 별도 확인 필요 | 코드 수정·운영 확인 대기 |
+| 6 | 익명 날씨 요청의 좌표별 캐시 키 누적 가능성 | `WeatherController` · `WeatherService.getCached` | 날씨 종류별 캐시를 최대 512개로 제한하고 만료 항목을 정리한다. 같은 키는 외부 조회를 공유하고 다른 키는 독립 처리하며 동시 외부 조회는 8건으로 제한한다. 더미 키 600개·동시 요청 테스트 통과. 운영 인스턴스 수와 외부 API 할당량은 별도 확인 필요 | 코드 수정·단위 검증 완료 |
+| 7 | 전달 IP 헤더에 따른 인증 요청 제한 우회 가능성 | `RateLimitService.clientIp` · `TrustedProxyConfig` | 제한 키는 `getRemoteAddr()`만 사용하고 Tomcat의 기본 사설 IP 신뢰를 비활성화했다. 위조된 전달 헤더를 바꿔도 로그인·가입 제한이 유지되는 테스트 통과. 운영 프록시 IP만 `TRUSTED_PROXY_IP_REGEX`에 지정하고 프록시에서 클라이언트 전달 헤더를 제거하는 설정은 배포 시 확인 필요 | 코드 수정·운영 설정 확인 대기 |
+| 8 | 계정 전환 후 이전 계정의 가구·반려견 캐시 표시 가능성 | `AuthAction` · `LocalCache` · 가구/반려견 provider | JWT의 사용자 ID로 로컬 캐시 키를 분리하고, 로그아웃 시 현재 계정 캐시를 삭제하며, 일반·OAuth 로그인 시 관련 provider를 무효화했다. 더미 A/B 캐시 격리 테스트 통과. 실제 기기의 계정 전환 화면은 확인 필요 | 코드 수정·단위 검증 완료, 기기 확인 대기 |
+| 9 | OAuth 딥링크 코드와 앱의 현재 로그인 시도 미결합 | `OAuthLoginAttempt` · `SessionOAuth2AuthorizationRequestRepository` · `OAuth2LoginCodeService` | 앱이 일회용 검증값을 보관하고 서버는 그 해시를 로그인 코드에 묶는다. 앱의 현재 시도와 일치하는 딥링크만 처리하며, 코드 교환도 원본 검증값을 요구한다. 일치·불일치·재사용 테스트 통과. V26 DB 마이그레이션 및 실제 Android/iOS OAuth 왕복 확인 필요 | 코드 수정·단위 검증 완료, 기기 확인 대기 |
+| 10 | 로그아웃 후 이전 계정의 FCM 토큰 연결 잔존 가능성 | `AuthAction.logout` · `FcmService.unregisterToken` · `UserService.updateFcmToken` | 로그아웃 시 현재 기기 토큰의 서버 연결을 조건부 해제하고 기기 토큰을 삭제한다. 새 계정이 같은 토큰을 등록하면 이전 계정 연결을 제거하며 V27에서 중복 토큰 정리·고유 인덱스를 적용한다. 서비스 단위 테스트 통과. 실제 기기 A→B 전환과 오프라인 로그아웃 후 알림 수신은 확인 필요 | 코드 수정·단위 검증 완료, 기기 확인 대기 |
+| 11 | OAuth 요청 쿠키의 Java 역직렬화 | `SessionOAuth2AuthorizationRequestRepository` | 클라이언트 쿠키의 Java 객체 직렬화·역직렬화 경로를 제거하고 Spring Security의 서버 세션 저장소를 사용한다. 앱 검증값도 같은 세션에 보관하며 세션 비활성 만료 시간은 180초다. 회귀 테스트를 추가했다. 실제 OAuth 왕복과 다중 인스턴스 세션 공유 여부는 배포 시 확인 필요 | 코드 수정·실행 검증 대기 |
+| 12 | 공개 경로 검색에서 마스킹 전 출발점을 위치 필터에 사용 | `WalkSessionRepository.findPublicRoutesNearby` | 공개 시 앞뒤 200m를 제외한 경로의 반올림한 검색 좌표를 저장하고, 기존 공개 경로는 V25에서 채운다. 일회용 PostGIS에서 원본 출발·도착 좌표 검색 제외와 공개 좌표 검색 성공을 확인했다 | 코드 수정·더미 DB 확인 완료 |
 
 상세 소스 경로, 근거, 비파괴 검증 절차는 저장소 밖의 `/Users/minthug/security-audit-skill/Doggy/run-1/REPORT.md` 및 같은 디렉터리의 `NEEDS-VALIDATION.md`에 기록되어 있다. 이 문서는 후속 작업 목록이며 심각도 순위나 수정 완료 기록이 아니다.
 
 1번의 기존 8자리 초대 코드는 `V24` 마이그레이션 적용 시 모두 새 코드로 교체된다. 이미 공유한 초대 코드는 무효화되므로 가구 소유자가 새 코드를 다시 전달해야 한다.
 
 2번은 공동 보호자 모델에서 의도된 권한이다. 산책 기록은 시작한 계정에 귀속되지만, 같은 가구에 현재 속하고 해당 산책 시작 전에 가입한 구성원도 공유 기록을 열람하고 보관 상태를 관리한다. 경로 공개·비공개 전환은 기록한 계정에만 허용한다.
+
+3번의 원래 감사 후보는 임의 좌표로 다른 사용자의 근접 여부와 신원을 추론하는 문제다. 이번 수정은 사용자가 지정한 전송 가로채기와 로그 노출 범위를 다룬다. 클라이언트 좌표 위조에 따른 추론 가능성은 남아 있다.

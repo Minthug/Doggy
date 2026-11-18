@@ -15,7 +15,6 @@ import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.exception.BusinessException;
 import com.doggy.backend.global.fcm.FcmService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WalkPingService {
@@ -63,15 +61,10 @@ public class WalkPingService {
         location.update(lat, lng);
         walkLocationRepository.save(location);
 
-        log.info("[핑] 위치 저장 완료 — session={} user={} lat={} lng={}", sessionId, userId, lat, lng);
-
         // 근접 세션 탐색
         LocalDateTime staleThreshold = LocalDateTime.now().minusSeconds(STALE_SECONDS);
         List<WalkLocation> nearbyLocations = walkLocationRepository.findNearby(
                 sessionId, lat, lng, PING_RADIUS_METERS, staleThreshold);
-
-        log.info("[핑] 근접 세션 탐색 — session={} 반경={}m 유효기준={}s 이내 → {}개 발견",
-                sessionId, PING_RADIUS_METERS, STALE_SECONDS, nearbyLocations.size());
 
         if (nearbyLocations.isEmpty()) return;
 
@@ -86,10 +79,6 @@ public class WalkPingService {
         List<Dog> myDogs = dogRepository.findAllByUserId(userId);
         Set<DogWarning> myWarnings = collectWarnings(myDogs);
         String myFcmToken = session.getUser().getFcmToken();
-
-        if (myFcmToken == null || myFcmToken.isBlank()) {
-            log.warn("[핑] 내 FCM 토큰 없음 — session={} user={}", sessionId, userId);
-        }
 
         LocalDateTime cooldownThreshold = LocalDateTime.now().minusMinutes(COOLDOWN_MINUTES);
 
@@ -106,11 +95,7 @@ public class WalkPingService {
                     Long nearbySessionId = nearby.getWalkSession().getId();
                     Long a = Math.min(sessionId, nearbySessionId);
                     Long b = Math.max(sessionId, nearbySessionId);
-                    if (recentPingKeys.contains(a + "-" + b)) {
-                        log.info("[핑] 쿨다운 스킵 — session {} ↔ session {}", sessionId, nearbySessionId);
-                        return false;
-                    }
-                    return true;
+                    return !recentPingKeys.contains(a + "-" + b);
                 })
                 .toList();
 
@@ -126,7 +111,6 @@ public class WalkPingService {
 
         if (myFcmToken != null && !myFcmToken.isBlank()) {
             sendAggregatedPingNotification(myFcmToken, validNearby.size(), allNearbyWarnings);
-            log.info("[핑] 집계 알림 발송 — session={} 근처={}마리 경고={}", sessionId, validNearby.size(), allNearbyWarnings);
         }
 
         // 기존 PingLog 배치 조회 (upsert용)
@@ -167,8 +151,6 @@ public class WalkPingService {
                 } else {
                     sendPingNotification(nearbyFcmToken, myWarnings);
                 }
-            } else {
-                log.warn("[핑] 상대방 FCM 토큰 없음 — nearbySession={}", nearbySessionId);
             }
 
             Long a = Math.min(sessionId, nearbySessionId);
@@ -177,8 +159,6 @@ public class WalkPingService {
                     WalkPingLog.builder().sessionAId(a).sessionBId(b).build());
             pingLog.refresh();
             logsToSave.add(pingLog);
-
-            log.info("[핑] 발송 완료 — session {} ↔ session {}", sessionId, nearbySessionId);
         }
         walkPingLogRepository.saveAll(logsToSave);
     }
@@ -186,7 +166,6 @@ public class WalkPingService {
     @Transactional
     public void removeLocation(Long sessionId) {
         walkLocationRepository.deleteByWalkSession_Id(sessionId);
-        log.info("[핑] 위치 제거 — session={}", sessionId);
     }
 
     private void sendAggregatedPingNotification(String fcmToken, int count, Set<DogWarning> warnings) {

@@ -15,5 +15,15 @@ public record WalkPointRequest(
         @NotNull
         Double lng,
 
-        Float accuracy
-) {}
+        Float accuracy,
+
+        Boolean segmentStart
+) {
+    public WalkPointRequest(LocalDateTime recordedAt, Double lat, Double lng, Float accuracy) {
+        this(recordedAt, lat, lng, accuracy, false);
+    }
+
+    public boolean startsSegment() {
+        return Boolean.TRUE.equals(segmentStart);
+    }
+}

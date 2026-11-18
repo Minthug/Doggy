@@ -10,12 +10,7 @@ void main() {
       'routeGeoJson':
           '{"type":"LineString","coordinates":[[126.9,37.2],[127.0,37.3]]}',
       'dogs': [
-        {
-          'id': 4,
-          'name': '보리',
-          'breed': '웰시코기',
-          'profileImage': null,
-        },
+        {'id': 4, 'name': '보리', 'breed': '웰시코기', 'profileImage': null},
       ],
     });
 
@@ -29,5 +24,22 @@ void main() {
     expect(visual.points, hasLength(2));
     expect(visual.points.first.latitude, 37.2);
     expect(visual.points.first.longitude, 126.9);
+    expect(visual.segments, hasLength(1));
+  });
+
+  test('일시정지된 흔적은 지도에서 분리된 구간으로 유지한다', () {
+    final discovery = WalkTraceDiscovery.fromJson({
+      'sessionId': 21,
+      'recency': 'TODAY',
+      'routeGeoJson':
+          '{"type":"MultiLineString","coordinates":[[[126.9,37.2],[127.0,37.2]],[[128.0,37.2],[128.1,37.2]]]}',
+      'dogs': [
+        {'id': 4, 'name': '보리', 'breed': null, 'profileImage': null},
+      ],
+    });
+
+    final visual = buildDogTraceMapItems([discovery]).single;
+    expect(visual.segments, hasLength(2));
+    expect(visual.points, hasLength(4));
   });
 }

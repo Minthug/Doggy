@@ -36,8 +36,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleBusinessException(BusinessException e,
                                                                         HttpServletRequest request) {
         if (e.getStatus().is5xxServerError()) {
-            log.warn("business_exception status={} message={}", e.getStatus().value(), e.getMessage());
-            alertService.recordServerError(request.getRequestURI(), e, requestId());
+            if (isLocationUpdate(request)) {
+                recordPrivateLocationError(e);
+            } else {
+                log.warn("business_exception status={} message={}", e.getStatus().value(), e.getMessage());
+                alertService.recordServerError(request.getRequestURI(), e, requestId());
+            }
         }
         return ResponseEntity.status(e.getStatus())
                 .body(Map.of("message", e.getMessage()));
@@ -94,10 +98,25 @@ public class GlobalExceptionHandler {
     // 그 외 예상치 못한 예외
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleException(Exception e, HttpServletRequest request) {
-        log.error("Unhandled exception: {}", e.getMessage(), e);
-        alertService.recordServerError(request.getRequestURI(), e, requestId());
+        if (isLocationUpdate(request)) {
+            recordPrivateLocationError(e);
+        } else {
+            log.error("Unhandled exception: {}", e.getMessage(), e);
+            alertService.recordServerError(request.getRequestURI(), e, requestId());
+        }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(errorBody("서버 오류가 발생했습니다"));
+    }
+
+    private boolean isLocationUpdate(HttpServletRequest request) {
+        return request.getMethod().equals("PATCH")
+                && request.getRequestURI().matches("/api/walks/[^/]+/location");
+    }
+
+    private void recordPrivateLocationError(Exception error) {
+        log.error("walk_location_error type={}", error.getClass().getSimpleName());
+        alertService.recordServerError("/api/walks/{id}/location",
+                new IllegalStateException(error.getClass().getSimpleName()), requestId());
     }
 
     private Map<String, String> errorBody(String message) {

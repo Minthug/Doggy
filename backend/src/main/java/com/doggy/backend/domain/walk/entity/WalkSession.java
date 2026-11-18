@@ -62,6 +62,10 @@ public class WalkSession extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String routeGeoJson;
 
+    private Double publicSearchLat;
+
+    private Double publicSearchLng;
+
     @Column(length = 64)
     private String routeFingerprint;
 
@@ -105,6 +109,13 @@ public class WalkSession extends BaseEntity {
     public void makePrivate() {
         this.isPublic = false;
         this.title = null;
+        this.publicSearchLat = null;
+        this.publicSearchLng = null;
+    }
+
+    public void setPublicSearchPoint(Double lat, Double lng) {
+        this.publicSearchLat = lat;
+        this.publicSearchLng = lng;
     }
 
     public void complete(LocalDateTime endedAt, int distanceMeters, int durationSeconds) {

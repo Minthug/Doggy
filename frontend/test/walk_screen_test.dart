@@ -54,13 +54,19 @@ class _WalkNotifier extends WalkActiveNotifier {
 
 class _FeedbackWalkNotifier extends _WalkNotifier {
   Map<String, bool>? submittedAnswers;
+  final int candidateCount;
 
-  _FeedbackWalkNotifier(super.repository, super.ref, super.initial);
+  _FeedbackWalkNotifier(
+    super.repository,
+    super.ref,
+    super.initial, {
+    this.candidateCount = 2,
+  });
 
   @override
   Future<void> loadMarkingCandidates() async {
     state = state.copyWith(
-      markingSpotCandidates: const [
+      markingSpotCandidates: [
         MarkingSpotCandidate(
           candidateKey: 'a',
           lat: 37.218,
@@ -77,6 +83,15 @@ class _FeedbackWalkNotifier extends _WalkNotifier {
           dwellSeconds: 25,
           nearbyVisitCount: 1,
         ),
+        if (candidateCount == 3)
+          MarkingSpotCandidate(
+            candidateKey: 'c',
+            lat: 37.220,
+            lng: 126.946,
+            detectedAt: '2026-11-03T12:15:00',
+            dwellSeconds: 20,
+            nearbyVisitCount: 0,
+          ),
       ],
     );
   }
@@ -236,7 +251,11 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('산책 후 마킹한 곳과 아닌 곳을 모두 확인해 전송한다', (tester) async {
+  testWidgets('작은 화면에서 마킹 후보 3곳을 모두 답변해 저장한다', (tester) async {
+    tester.view.physicalSize = const Size(343, 610);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final initial = WalkState(
       status: WalkStatus.paused,
       session: WalkSession(
@@ -257,6 +276,7 @@ void main() {
             WalkRepository(Dio()),
             ref,
             initial,
+            candidateCount: 3,
           ),
         ),
       ],
@@ -266,7 +286,11 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: WalkScreen()),
+        child: MaterialApp(
+          home: WalkScreen(
+            markingCandidatesMap: const ColoredBox(color: Colors.green),
+          ),
+        ),
       ),
     );
     await tester.ensureVisible(find.text('산책 종료'));
@@ -281,12 +305,30 @@ void main() {
     expect(find.textContaining('12:05 무렵'), findsOneWidget);
     await tester.tap(find.widgetWithText(ChoiceChip, '했어요').first);
     await tester.pump();
-    await tester.tap(find.widgetWithText(ChoiceChip, '아니에요').last);
+    final candidateList = find.descendant(
+      of: find.byType(ListView),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.textContaining('12:10 무렵'),
+      120,
+      scrollable: candidateList,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '아니에요').first);
+    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.textContaining('12:15 무렵'),
+      120,
+      scrollable: candidateList,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '했어요').first);
     await tester.pump();
     await tester.tap(find.text('확인 저장'));
     await tester.pumpAndSettle();
 
-    expect(notifier.submittedAnswers, {'a': true, 'b': false});
+    expect(notifier.submittedAnswers, {'a': true, 'b': false, 'c': true});
     expect(tester.takeException(), isNull);
   });
 }

@@ -110,9 +110,21 @@ public class UserService {
     /* Firebase Cloud Messaging */
     @Transactional
     public void updateFcmToken(Long userId, String fcmToken) {
+        if (fcmToken == null || fcmToken.isBlank() || fcmToken.length() > 500) {
+            throw BusinessException.badRequest("유효하지 않은 알림 토큰입니다");
+        }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
+        userRepository.clearFcmTokenFromOtherUsers(fcmToken, userId);
         user.updateFcmToken(fcmToken);
+    }
+
+    @Transactional
+    public void clearFcmToken(Long userId, String fcmToken) {
+        if (fcmToken == null || fcmToken.isBlank() || fcmToken.length() > 500) {
+            throw BusinessException.badRequest("유효하지 않은 알림 토큰입니다");
+        }
+        userRepository.clearFcmTokenIfOwned(userId, fcmToken);
     }
 
     @Transactional

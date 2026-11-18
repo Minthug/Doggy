@@ -9,9 +9,12 @@ import '../../domain/providers/walk_active_provider.dart';
 import '../../domain/providers/walk_provider.dart';
 import 'walk_detail_screen.dart';
 import 'walk_history_screen.dart';
+import 'marking_feedback_sheet.dart';
 
 class WalkScreen extends ConsumerStatefulWidget {
-  const WalkScreen({super.key});
+  final Widget? markingCandidatesMap;
+
+  const WalkScreen({super.key, this.markingCandidatesMap});
 
   @override
   ConsumerState<WalkScreen> createState() => _WalkScreenState();
@@ -129,17 +132,26 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                 if (isActive) ...[
                   _StatsCard(walkState: walkState),
                   const SizedBox(height: 16),
-                  _LocationTrackingPanel(
-                    walkState: walkState,
-                    onRetry: () => ref
-                        .read(walkActiveProvider.notifier)
-                        .retryLocationTracking(),
-                    onOpenLocationSettings: () => ref
-                        .read(walkActiveProvider.notifier)
-                        .openLocationSettings(),
-                    onOpenAppSettings: () =>
-                        ref.read(walkActiveProvider.notifier).openAppSettings(),
-                  ),
+                  if (walkState.isRecovered)
+                    const Text('중단된 산책을 복구했어요. 마지막 GPS 위치까지 기록을 저장할 수 있어요.')
+                  else
+                    _LocationTrackingPanel(
+                      walkState: walkState,
+                      onRetry: () => ref
+                          .read(walkActiveProvider.notifier)
+                          .retryLocationTracking(),
+                      onOpenLocationSettings: () => ref
+                          .read(walkActiveProvider.notifier)
+                          .openLocationSettings(),
+                      onOpenAppSettings: () => ref
+                          .read(walkActiveProvider.notifier)
+                          .openAppSettings(),
+                    ),
+                  if (walkState.localSaveFailed)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Text('기기에 경로를 저장하지 못했어요. 인터넷에 연결해 산책을 완료해주세요.'),
+                    ),
                   const SizedBox(height: 32),
                 ],
                 if (_isStarting)
@@ -312,9 +324,17 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
           ),
         );
         if (!context.mounted) return;
-        if (showCandidates == true) await _showMarkingSpotCandidates(context);
+        if (showCandidates == true) {
+          await _showMarkingSpotCandidates(
+            context,
+            completedDetail?.routeGeoJson,
+          );
+        }
       } else if (candidateError == null) {
-        await _showMarkingSpotCandidates(context);
+        await _showMarkingSpotCandidates(
+          context,
+          completedDetail?.routeGeoJson,
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('산책은 저장됐지만 마킹 후보를 확인하지 못했어요.')),
@@ -384,137 +404,150 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       barrierDismissible: false,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                achieved ? '🎉' : '🐾',
-                style: const TextStyle(fontSize: 48),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                achieved ? '권장 산책 달성!' : '산책 완료!',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (dogs.isNotEmpty) ...[
-                const SizedBox(height: 4),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  '${dogs.map((d) => d.name).join(', ')} · ${guide.sizeLabel} 기준',
-                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  achieved ? '🎉' : '🐾',
+                  style: const TextStyle(fontSize: 48),
                 ),
-              ],
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _ResultItem(
-                    label: '거리',
-                    value: distanceStr,
-                    icon: Icons.route,
+                const SizedBox(height: 8),
+                Text(
+                  achieved ? '권장 산책 달성!' : '산책 완료!',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
                   ),
-                  _ResultItem(label: '시간', value: timeStr, icon: Icons.timer),
-                  _ResultItem(
-                    label: '칼로리',
-                    value: '${calories}kcal',
-                    icon: Icons.local_fire_department,
+                ),
+                if (dogs.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${dogs.map((d) => d.name).join(', ')} · ${guide.sizeLabel} 기준',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ],
-              ),
-              const SizedBox(height: 20),
-              // 권장 가이드 박스
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: achieved
-                      ? const Color(0xFF4CAF50).withValues(alpha: 0.1)
-                      : Colors.orange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${guide.sizeLabel} 일일 권장',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: achieved
-                            ? const Color(0xFF4CAF50)
-                            : Colors.orange,
+                const SizedBox(height: 24),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _ResultItem(
+                        label: '거리',
+                        value: distanceStr,
+                        icon: Icons.route,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '거리 ${guide.distanceRange}  ·  시간 ${guide.timeRange}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black87,
+                      const SizedBox(width: 16),
+                      _ResultItem(
+                        label: '시간',
+                        value: timeStr,
+                        icon: Icons.timer,
                       ),
-                    ),
-                    if (!achieved) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        achieved ? '' : '오늘은 조금 부족했어요. 내일 더 함께해요! 💪',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.orange,
-                        ),
+                      const SizedBox(width: 16),
+                      _ResultItem(
+                        label: '칼로리',
+                        value: '${calories}kcal',
+                        icon: Icons.local_fire_department,
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // 권장 가이드 박스
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: achieved
+                        ? const Color(0xFF4CAF50).withValues(alpha: 0.1)
+                        : Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${guide.sizeLabel} 일일 권장',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: achieved
+                              ? const Color(0xFF4CAF50)
+                              : Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '거리 ${guide.distanceRange}  ·  시간 ${guide.timeRange}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      if (!achieved) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          achieved ? '' : '오늘은 조금 부족했어요. 내일 더 함께해요! 💪',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        icon: const Icon(Icons.history),
+                        label: const Text('기록 보기'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF4CAF50),
+                          side: const BorderSide(color: Color(0xFF4CAF50)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4CAF50),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text(
+                          '확인',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      icon: const Icon(Icons.history),
-                      label: const Text('기록 보기'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF4CAF50),
-                        side: const BorderSide(color: Color(0xFF4CAF50)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text(
-                        '확인',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -522,193 +555,19 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     return openHistory ?? false;
   }
 
-  Future<void> _showMarkingSpotCandidates(BuildContext context) async {
+  Future<void> _showMarkingSpotCandidates(
+    BuildContext context,
+    String? routeGeoJson,
+  ) async {
     final state = ref.read(walkActiveProvider);
-    final candidates = state.markingSpotCandidates;
-    if (candidates.isEmpty || state.selectedDogs.isEmpty) return;
-    final answers = <String, bool>{};
-    var submitting = false;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) => SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.pets, color: Color(0xFF4CAF50)),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          '마킹한 곳이 있나요?',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '산책 경로에서 고른 최대 3곳이에요. 각 장소를 확인해주세요.',
-                    style: TextStyle(fontSize: 13, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 12),
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: candidates.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 8),
-                      itemBuilder: (itemContext, index) {
-                        final candidate = candidates[index];
-                        return _MarkingCandidateTile(
-                          index: index + 1,
-                          timeText: candidate.timeText,
-                          dwellText: candidate.dwellText,
-                          nearbyVisitCount: candidate.nearbyVisitCount,
-                          answer: answers[candidate.candidateKey],
-                          onAnswer: (marked) {
-                            setSheetState(
-                              () => answers[candidate.candidateKey] = marked,
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed:
-                          submitting || answers.length != candidates.length
-                          ? null
-                          : () async {
-                              setSheetState(() => submitting = true);
-                              try {
-                                await ref
-                                    .read(walkActiveProvider.notifier)
-                                    .submitMarkingFeedback(answers);
-                                if (ctx.mounted) Navigator.pop(ctx);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('마킹 확인을 저장했어요'),
-                                    ),
-                                  );
-                                }
-                              } catch (_) {
-                                if (ctx.mounted) {
-                                  setSheetState(() => submitting = false);
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('저장하지 못했어요. 다시 시도해주세요'),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                      child: const Text('확인 저장'),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: submitting ? null : () => Navigator.pop(ctx),
-                    child: const Text('이번에는 건너뛰기'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _MarkingCandidateTile extends StatelessWidget {
-  final int index;
-  final String timeText;
-  final String dwellText;
-  final int nearbyVisitCount;
-  final bool? answer;
-  final ValueChanged<bool> onAnswer;
-
-  const _MarkingCandidateTile({
-    required this.index,
-    required this.timeText,
-    required this.dwellText,
-    required this.nearbyVisitCount,
-    required this.answer,
-    required this.onAnswer,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.1),
-            foregroundColor: const Color(0xFF4CAF50),
-            child: Text('$index'),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$timeText 무렵 · $dwellText 머문 곳',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  nearbyVisitCount > 0
-                      ? '근처에 $nearbyVisitCount개의 발자국이 있어요'
-                      : '새로운 마킹 스팟이에요',
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            children: [
-              ChoiceChip(
-                label: const Text('했어요'),
-                selected: answer == true,
-                onSelected: (_) => onAnswer(true),
-              ),
-              ChoiceChip(
-                label: const Text('아니에요'),
-                selected: answer == false,
-                onSelected: (_) => onAnswer(false),
-              ),
-            ],
-          ),
-        ],
-      ),
+    if (state.selectedDogs.isEmpty) return;
+    await showMarkingFeedbackSheet(
+      context,
+      candidates: state.markingSpotCandidates,
+      routeGeoJson: routeGeoJson,
+      mapOverride: widget.markingCandidatesMap,
+      onSubmit: (answers) =>
+          ref.read(walkActiveProvider.notifier).submitMarkingFeedback(answers),
     );
   }
 }
@@ -908,6 +767,14 @@ class _ControlButtons extends StatelessWidget {
         );
 
       case WalkStatus.paused:
+        if (walkState.isRecovered) {
+          return _bigButton(
+            label: '복구한 기록 저장',
+            icon: Icons.save,
+            color: const Color(0xFF4CAF50),
+            onTap: onComplete,
+          );
+        }
         return Row(
           children: [
             Expanded(

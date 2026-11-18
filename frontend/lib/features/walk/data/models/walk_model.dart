@@ -96,6 +96,7 @@ class WalkDetail {
   final String? tracePathData;
   final String? detailsExpireAt;
   final bool detailsPurged;
+  final List<WalkSessionDog> dogs;
   final List<MarkingSpotCandidate> markingSpotCandidates;
   final List<MarkingSpot> markingSpots;
 
@@ -112,6 +113,7 @@ class WalkDetail {
     this.tracePathData,
     this.detailsExpireAt,
     this.detailsPurged = false,
+    this.dogs = const [],
     this.markingSpotCandidates = const [],
     this.markingSpots = const [],
   });
@@ -129,6 +131,11 @@ class WalkDetail {
     tracePathData: json['tracePathData'],
     detailsExpireAt: json['detailsExpireAt'],
     detailsPurged: json['detailsPurged'] ?? false,
+    dogs:
+        (json['dogs'] as List<dynamic>?)
+            ?.map((e) => WalkSessionDog.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [],
     markingSpotCandidates:
         (json['markingSpotCandidates'] as List<dynamic>?)
             ?.map(

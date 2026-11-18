@@ -19,7 +19,6 @@ class _MapTabState extends ConsumerState<MapTab> {
   Place? _selectedPlace;
   bool _locationLoading = true;
   bool _pinMode = false;       // 장소 등록 모드
-  NLatLng? _pinnedPosition;   // 핀 찍은 좌표
 
   static const _categories = [
     (label: '전체', value: null),
@@ -106,7 +105,6 @@ class _MapTabState extends ConsumerState<MapTab> {
                   child: OutlinedButton(
                     onPressed: () {
                       Navigator.pop(ctx);
-                      setState(() => _pinnedPosition = null);
                     },
                     child: const Text('취소'),
                   ),
@@ -229,7 +227,6 @@ class _MapTabState extends ConsumerState<MapTab> {
             },
             onMapTapped: (point, coord) {
               if (_pinMode) {
-                setState(() => _pinnedPosition = coord);
                 _showPinConfirmSheet(coord);
               } else {
                 setState(() => _selectedPlace = null);
@@ -247,10 +244,7 @@ class _MapTabState extends ConsumerState<MapTab> {
             right: 16,
             child: GestureDetector(
               onTap: () {
-                setState(() {
-                  _pinMode = !_pinMode;
-                  _pinnedPosition = null;
-                });
+                setState(() => _pinMode = !_pinMode);
                 if (_pinMode) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(

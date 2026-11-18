@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/api/api_config.dart';
+import '../../data/oauth_login_attempt.dart';
 import '../../domain/providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -47,11 +48,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _loginWithSocial(String provider) async {
     final baseUrl = validatedApiBaseUrl();
-    final url = Uri.parse('$baseUrl/oauth2/authorization/$provider');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      debugPrint('[OAuth] canLaunchUrl 실패: $url');
+    try {
+      final challenge = await OAuthLoginAttempt.begin();
+      final url = Uri.parse(
+        '$baseUrl/oauth2/authorization/$provider',
+      ).replace(queryParameters: {'app_challenge': challenge});
+      if (!await canLaunchUrl(url) ||
+          !await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        await OAuthLoginAttempt.clear();
+        debugPrint('[OAuth] 로그인 페이지 열기 실패');
+      }
+    } catch (e) {
+      await OAuthLoginAttempt.clear();
+      debugPrint('[OAuth] 로그인 페이지 열기 실패: $e');
     }
   }
 

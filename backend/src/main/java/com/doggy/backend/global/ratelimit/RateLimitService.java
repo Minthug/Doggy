@@ -82,16 +82,6 @@ public class RateLimitService {
     }
 
     private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return cleanIp(forwardedFor.split(",")[0]);
-        }
-
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return cleanIp(realIp);
-        }
-
         return cleanIp(request.getRemoteAddr());
     }
 

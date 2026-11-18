@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:doggy/core/api/api_client.dart';
+import 'package:doggy/core/api/api_config.dart';
 import 'package:doggy/core/storage/token_storage.dart';
 import 'package:doggy/main.dart' show navigatorKey;
 import 'package:flutter/material.dart';
@@ -26,6 +27,16 @@ void main() {
   test('인증 요청의 401은 토큰 재발급을 시도하지 않는다', () {
     expect(shouldRefreshToken(unauthorized('/api/auth/login')), isFalse);
     expect(shouldRefreshToken(unauthorized('/api/auth/signup')), isFalse);
+  });
+
+  test('API 주소는 HTTPS만 허용하고 리다이렉트를 따라가지 않는다', () {
+    expect(validatedApiBaseUrl('https://example.com'), 'https://example.com');
+    expect(() => validatedApiBaseUrl('ftp://example.com'), throwsStateError);
+    expect(() => validatedApiBaseUrl('http://example.com'), throwsStateError);
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    expect(container.read(dioProvider).options.followRedirects, isFalse);
   });
 
   test('일반 요청의 401은 한 번만 토큰 재발급을 시도한다', () {

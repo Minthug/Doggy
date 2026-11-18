@@ -48,4 +48,20 @@ class WalkTracePathServiceTest {
                 "{\"type\":\"LineString\",\"coordinates\":[[127.1,37.5]]}"))
                 .isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    void archivedTraceKeepsPausedSegmentsSeparate() {
+        String geoJson = """
+                {"type":"MultiLineString","coordinates":[
+                  [[127.0,37.0],[127.001,37.0]],
+                  [[128.0,37.0],[128.001,37.0]]
+                ]}
+                """;
+
+        String pathData = service.createPathData(geoJson);
+
+        assertThat(pathData).startsWith("v2|");
+        assertThat(pathData.substring(3).split("\\|")).hasSize(2);
+        assertThat(pathData).doesNotContain("127.0", "128.0");
+    }
 }

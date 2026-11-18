@@ -39,15 +39,32 @@ class RateLimitServiceTest {
     }
 
     @Test
-    void signupBlocksAfterLimitForForwardedIp() {
-        MockHttpServletRequest request = request("10.0.0.1");
-        request.addHeader("X-Forwarded-For", "198.51.100.5, 10.0.0.1");
-
+    void signupIgnoresForgedForwardedAddresses() {
         for (int i = 0; i < 5; i++) {
+            MockHttpServletRequest request = request("10.0.0.1");
+            request.addHeader("X-Forwarded-For", "198.51.100." + i);
+            request.addHeader("X-Real-IP", "203.0.113." + i);
             rateLimitService.checkSignup(request);
         }
 
+        MockHttpServletRequest request = request("10.0.0.1");
+        request.addHeader("X-Forwarded-For", "198.51.100.99");
+        request.addHeader("X-Real-IP", "203.0.113.99");
         assertThatThrownBy(() -> rateLimitService.checkSignup(request))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void loginIgnoresForgedForwardedAddresses() {
+        for (int i = 0; i < 10; i++) {
+            MockHttpServletRequest request = request("10.0.0.2");
+            request.addHeader("X-Forwarded-For", "198.51.100." + i);
+            rateLimitService.checkLogin(request, "user@example.com");
+        }
+
+        MockHttpServletRequest request = request("10.0.0.2");
+        request.addHeader("X-Forwarded-For", "198.51.100.99");
+        assertThatThrownBy(() -> rateLimitService.checkLogin(request, "user@example.com"))
                 .isInstanceOf(BusinessException.class);
     }
 

@@ -395,6 +395,70 @@ class WalkServiceTest {
     class Complete {
 
         @Test
+        void resumedSegmentDoesNotCountMovementDuringPause() {
+            WalkSession session = makeSession(10L, makeUser(1L), Status.IN_PROGRESS);
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+            LocalDateTime now = LocalDateTime.now();
+            var points = List.of(
+                    new WalkPointRequest(now, 37.0, 127.0, 5f),
+                    new WalkPointRequest(now.plusSeconds(10), 37.0, 127.0001, 5f),
+                    new WalkPointRequest(now.plusSeconds(20), 37.0, 128.0, 5f, true),
+                    new WalkPointRequest(now.plusSeconds(30), 37.0, 128.0001, 5f));
+
+            var result = walkService.complete(1L, 10L,
+                    new CompleteWalkRequest(now.plusSeconds(35), points));
+
+            assertThat(result.distanceMeters()).isBetween(10, 30);
+        }
+
+        @Test
+        void retryAfterCompletionReturnsSavedWalkWithoutWritingPointsAgain() {
+            WalkSession session = makeSession(10L, makeUser(1L), Status.IN_PROGRESS);
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+            LocalDateTime now = LocalDateTime.now();
+            var request = new CompleteWalkRequest(now, List.of());
+
+            walkService.complete(1L, 10L, request);
+            clearInvocations(jdbcTemplate, walkPingService);
+            var retry = walkService.complete(1L, 10L, request);
+
+            assertThat(retry.status()).isEqualTo(Status.COMPLETED);
+            assertThat(retry.id()).isEqualTo(10L);
+            verifyNoInteractions(jdbcTemplate, walkPingService);
+        }
+
+        @Test
+        void gpsTeleportDoesNotIncreaseSavedDistance() {
+            WalkSession session = makeSession(10L, makeUser(1L), Status.IN_PROGRESS);
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+            LocalDateTime now = LocalDateTime.now();
+            var points = List.of(
+                    new WalkPointRequest(now, 37.55, 126.98, 5f),
+                    new WalkPointRequest(now.plusSeconds(10), 35.10, 129.00, 5f),
+                    new WalkPointRequest(now.plusSeconds(20), 37.55, 126.98, 5f));
+
+            var result = walkService.complete(1L, 10L,
+                    new CompleteWalkRequest(now.plusSeconds(25), points));
+
+            assertThat(result.distanceMeters()).isZero();
+        }
+
+        @Test
+        void rejectsOutOfOrderAndAfterEndGpsTimes() {
+            LocalDateTime now = LocalDateTime.now();
+            var first = new WalkPointRequest(now, 37.55, 126.98, 5f);
+            var later = new WalkPointRequest(now.plusSeconds(20), 37.55, 126.99, 5f);
+
+            assertThatThrownBy(() -> walkService.complete(1L, 10L,
+                    new CompleteWalkRequest(now.plusSeconds(30), List.of(later, first))))
+                    .isInstanceOf(BusinessException.class);
+            assertThatThrownBy(() -> walkService.complete(1L, 10L,
+                    new CompleteWalkRequest(now.plusSeconds(10), List.of(first, later))))
+                    .isInstanceOf(BusinessException.class);
+            verifyNoInteractions(jdbcTemplate);
+        }
+
+        @Test
         void completionDoesNotWaitForMarkingAnalysis() {
             WalkSession session = makeSession(10L, makeUser(1L), Status.IN_PROGRESS);
             given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
@@ -418,7 +482,7 @@ class WalkServiceTest {
                     new WalkPointRequest(base.plusSeconds(10), 37.002, 127.0, null),
                     new WalkPointRequest(base.plusSeconds(15), 37.003, 127.0, null));
 
-            walkService.complete(1L, 10L, new CompleteWalkRequest(LocalDateTime.now(), points));
+            walkService.complete(1L, 10L, new CompleteWalkRequest(base.plusMinutes(3), points));
 
             assertThat(session.getStatus()).isEqualTo(Status.COMPLETED);
             assertThat(session.isMarkingEligible()).isFalse();
@@ -454,7 +518,7 @@ class WalkServiceTest {
                             37.0 + i * 0.00025, 127.0, null))
                     .toList();
 
-            walkService.complete(1L, 10L, new CompleteWalkRequest(LocalDateTime.now(), points));
+            walkService.complete(1L, 10L, new CompleteWalkRequest(base.plusMinutes(3), points));
 
             assertThat(session.getRouteFingerprint()).hasSize(64);
             assertThat(session.isMarkingEligible()).isFalse();
@@ -508,20 +572,6 @@ class WalkServiceTest {
             assertThatThrownBy(() -> walkService.getMarkingCandidates(2L, 10L))
                     .isInstanceOf(BusinessException.class);
             verifyNoInteractions(walkPointRepository, markingSpotService);
-        }
-
-        @Test
-        @DisplayName("이미 완료된 세션은 재완료 불가")
-        void fail_alreadyCompleted() {
-            User user = makeUser(1L);
-            WalkSession session = makeSession(10L, user, Status.COMPLETED);
-
-            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
-
-            CompleteWalkRequest request = new CompleteWalkRequest(LocalDateTime.now(), List.of());
-            assertThatThrownBy(() -> walkService.complete(1L, 10L, request))
-                    .isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("이미 완료된 산책입니다");
         }
 
         @Test
@@ -618,6 +668,29 @@ class WalkServiceTest {
 
             assertThat(session.isPublic()).isTrue();
             assertThat(session.getTitle()).isEqualTo("공개 코스");
+        }
+
+        @Test
+        void publishingStoresOnlyVisibleSearchPointAndUnpublishingClearsIt() {
+            User user = makeUser(1L);
+            WalkSession session = makeSession(10L, user, Status.COMPLETED);
+            String route = """
+                    {"type":"LineString","coordinates":[
+                    [0.000,0],[0.001,0],[0.002,0],[0.003,0],
+                    [0.004,0],[0.005,0],[0.006,0]]}
+                    """;
+            given(walkSessionRepository.findByIdAndUserId(10L, 1L)).willReturn(Optional.of(session));
+            given(walkPointRepository.findRouteGeoJsonBySessionId(10L)).willReturn(route);
+
+            walkService.publish(1L, 10L, new PublishRouteRequest("공개 코스", true));
+
+            assertThat(session.getPublicSearchLat()).isEqualTo(0.0);
+            assertThat(session.getPublicSearchLng()).isEqualTo(0.002);
+
+            walkService.unpublish(1L, 10L);
+
+            assertThat(session.getPublicSearchLat()).isNull();
+            assertThat(session.getPublicSearchLng()).isNull();
         }
     }
 

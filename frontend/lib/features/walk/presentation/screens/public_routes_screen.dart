@@ -1,12 +1,14 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
+import '../models/route_segments.dart';
 
-final _publicRoutesProvider = FutureProvider.autoDispose<List<PublicRoute>>((ref) async {
+final _publicRoutesProvider = FutureProvider.autoDispose<List<PublicRoute>>((
+  ref,
+) async {
   double? lat, lng;
   try {
     final permission = await Geolocator.checkPermission();
@@ -37,14 +39,16 @@ class PublicRoutesScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text('인기 산책 경로',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          '인기 산책 경로',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(_publicRoutesProvider.future),
         child: routesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => const Center(child: Text('불러오기 실패')),
+          error: (_, _) => const Center(child: Text('불러오기 실패')),
           data: (routes) => routes.isEmpty
               ? ListView(
                   children: const [
@@ -54,8 +58,10 @@ class PublicRoutesScreen extends ConsumerWidget {
                       children: [
                         Icon(Icons.route, size: 64, color: Colors.grey),
                         SizedBox(height: 12),
-                        Text('아직 공개된 경로가 없어요',
-                            style: TextStyle(color: Colors.grey)),
+                        Text(
+                          '아직 공개된 경로가 없어요',
+                          style: TextStyle(color: Colors.grey),
+                        ),
                       ],
                     ),
                   ],
@@ -104,7 +110,9 @@ class _RouteCardState extends State<_RouteCard> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06), blurRadius: 10),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(
@@ -113,8 +121,9 @@ class _RouteCardState extends State<_RouteCard> {
           // 지도 미리보기
           if (widget.route.routeGeoJson != null)
             ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
               child: SizedBox(
                 height: 160,
                 child: _RouteMapPreview(geoJson: widget.route.routeGeoJson!),
@@ -130,7 +139,9 @@ class _RouteCardState extends State<_RouteCard> {
                 Text(
                   widget.route.title,
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -142,11 +153,17 @@ class _RouteCardState extends State<_RouteCard> {
                 // 거리/시간
                 Row(
                   children: [
-                    _statChip(Icons.straighten, widget.route.distanceText,
-                        Colors.blue),
+                    _statChip(
+                      Icons.straighten,
+                      widget.route.distanceText,
+                      Colors.blue,
+                    ),
                     const SizedBox(width: 8),
-                    _statChip(Icons.timer, widget.route.durationText,
-                        Colors.orange),
+                    _statChip(
+                      Icons.timer,
+                      widget.route.durationText,
+                      Colors.orange,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -159,18 +176,17 @@ class _RouteCardState extends State<_RouteCard> {
                       child: Row(
                         children: [
                           Icon(
-                            _likedByMe
-                                ? Icons.favorite
-                                : Icons.favorite_border,
+                            _likedByMe ? Icons.favorite : Icons.favorite_border,
                             color: _likedByMe ? Colors.red : Colors.grey,
                             size: 20,
                           ),
                           const SizedBox(width: 4),
-                          Text('$_likeCount',
-                              style: TextStyle(
-                                  color: _likedByMe
-                                      ? Colors.red
-                                      : Colors.grey)),
+                          Text(
+                            '$_likeCount',
+                            style: TextStyle(
+                              color: _likedByMe ? Colors.red : Colors.grey,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -229,9 +245,14 @@ class _RouteCardState extends State<_RouteCard> {
         children: [
           Icon(icon, size: 13, color: color),
           const SizedBox(width: 4),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12, color: color, fontWeight: FontWeight.bold)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -269,28 +290,25 @@ class _RouteMapPreviewState extends State<_RouteMapPreview> {
   void _drawRoute() async {
     if (_controller == null) return;
     try {
-      final geoJson = jsonDecode(widget.geoJson);
-      final coordinates = geoJson['coordinates'] as List;
-      if (coordinates.isEmpty) return;
-
-      final coords = coordinates
-          .map((c) => NLatLng(c[1].toDouble(), c[0].toDouble()))
-          .toList();
-
-      final polyline = NPolylineOverlay(
-        id: 'route_preview',
-        coords: coords,
-        color: const Color(0xFF4CAF50),
-        width: 4,
-      );
-      await _controller!.addOverlay(polyline);
+      final segments = parseRouteSegments(widget.geoJson);
+      if (segments.isEmpty) return;
+      for (var i = 0; i < segments.length; i++) {
+        await _controller!.addOverlay(
+          NPolylineOverlay(
+            id: 'route_preview_$i',
+            coords: segments[i],
+            color: const Color(0xFF4CAF50),
+            width: 4,
+          ),
+        );
+      }
 
       // 경로 전체 보이도록 카메라 조정
+      final coords = segments.expand((segment) => segment).toList();
       if (coords.isNotEmpty) {
         final bounds = NLatLngBounds.from(coords);
         await _controller!.updateCamera(
-          NCameraUpdate.fitBounds(bounds,
-              padding: const EdgeInsets.all(20)),
+          NCameraUpdate.fitBounds(bounds, padding: const EdgeInsets.all(20)),
         );
       }
     } catch (_) {}

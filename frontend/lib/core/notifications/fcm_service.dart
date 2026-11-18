@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
@@ -19,19 +18,29 @@ final fcmServiceProvider = Provider<FcmService>((ref) {
 class FcmService {
   final _messaging = FirebaseMessaging.instance;
   final _localNotifications = FlutterLocalNotificationsPlugin();
-  final dynamic _dio;
+  final Dio _dio;
+  Future<void>? _initialization;
+  bool _active = false;
 
   FcmService(this._dio);
 
   Future<void> initialize() async {
+    _active = true;
+    _initialization ??= _initializeOnce();
+    try {
+      await _initialization;
+    } catch (_) {
+      _initialization = null;
+      rethrow;
+    }
+    await _registerToken();
+  }
+
+  Future<void> _initializeOnce() async {
     await _initLocalNotifications();
 
     // 알림 권한 요청
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await _messaging.requestPermission(alert: true, badge: true, sound: true);
 
     // iOS: 포그라운드에서 badge/sound만 허용, alert는 InAppBanner가 처리
     await _messaging.setForegroundNotificationPresentationOptions(
@@ -45,12 +54,29 @@ class FcmService {
     // 포그라운드 메시지 처리 (Android는 로컬 알림, iOS는 위 옵션으로 자동 표시)
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    await _registerToken();
     _messaging.onTokenRefresh.listen(_sendTokenToServer);
   }
 
+  Future<void> unregisterToken() async {
+    _active = false;
+    try {
+      final token = await _messaging.getToken();
+      if (token != null) {
+        await _dio.post(
+          '/api/users/me/fcm-token/unregister',
+          data: token,
+          options: Options(contentType: 'text/plain'),
+        );
+      }
+    } finally {
+      await _messaging.deleteToken();
+    }
+  }
+
   Future<void> _initLocalNotifications() async {
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
@@ -66,7 +92,7 @@ class FcmService {
         'ping',
         '근처 강아지 알림',
         description: '주변 50m 내 산책 중인 강아지 알림',
-        importance: Importance.max,        // heads-up (카카오톡 스타일)
+        importance: Importance.max, // heads-up (카카오톡 스타일)
         playSound: true,
         enableVibration: true,
       ),
@@ -94,7 +120,9 @@ class FcmService {
     ];
 
     final androidPlugin = _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     for (final channel in channels) {
       await androidPlugin?.createNotificationChannel(channel);
     }
@@ -117,7 +145,6 @@ class FcmService {
 
     final token = await _messaging.getToken();
     if (token != null) {
-      debugPrint('[FCM] FCM 토큰 발급: ${token.substring(0, 20)}...');
       await _sendTokenToServer(token);
     } else {
       debugPrint('[FCM] FCM 토큰 발급 실패');
@@ -125,6 +152,7 @@ class FcmService {
   }
 
   Future<void> _sendTokenToServer(String token) async {
+    if (!_active) return;
     try {
       // @RequestBody String은 text/plain 필요 — application/json으로 보내면 Spring이 거부
       await _dio.patch(
@@ -132,13 +160,14 @@ class FcmService {
         data: token,
         options: Options(contentType: 'text/plain'),
       );
-      debugPrint('[FCM] 토큰 서버 등록 성공: ${token.substring(0, 20)}...');
+      debugPrint('[FCM] 토큰 서버 등록 성공');
     } catch (e) {
       debugPrint('[FCM] 토큰 서버 등록 실패: $e');
     }
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    if (!_active) return;
     debugPrint('[FCM] 포그라운드 메시지 수신: ${message.notification?.title}');
     final notification = message.notification;
     if (notification == null) {
@@ -176,20 +205,20 @@ class FcmService {
 
   BannerType _toBannerType(String channelId) {
     return switch (channelId) {
-      'ping'        => BannerType.ping,
-      'weather'     => BannerType.weather,
+      'ping' => BannerType.ping,
+      'weather' => BannerType.weather,
       'achievement' => BannerType.achievement,
       'walk_reminder' => BannerType.reminder,
-      _             => BannerType.general,
+      _ => BannerType.general,
     };
   }
 
   String _channelName(String channelId) {
     return switch (channelId) {
-      'ping'         => '근처 강아지 알림',
-      'weather'      => '날씨 알림',
-      'achievement'  => '달성 알림',
-      _              => '산책 리마인더',
+      'ping' => '근처 강아지 알림',
+      'weather' => '날씨 알림',
+      'achievement' => '달성 알림',
+      _ => '산책 리마인더',
     };
   }
 }

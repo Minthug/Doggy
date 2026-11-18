@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
@@ -9,6 +8,9 @@ import '../../domain/providers/walk_provider.dart';
 import '../../../dog/data/repositories/dog_repository.dart';
 import '../../../home/domain/providers/home_provider.dart';
 import '../models/dog_trace_visual.dart';
+import '../models/route_segments.dart';
+import 'marking_feedback_sheet.dart';
+import 'manual_marking_sheet.dart';
 
 final _walkDetailProvider = FutureProvider.family<WalkDetail, int>((
   ref,
@@ -24,10 +26,20 @@ final _walkMeetsProvider = FutureProvider.family<List<WalkMeet>, int>((
   return ref.watch(walkRepositoryProvider).getMeets(sessionId);
 });
 
+final _pendingMarkingCandidatesProvider =
+    FutureProvider.family<List<MarkingSpotCandidate>, int>((ref, sessionId) {
+      return ref.watch(walkRepositoryProvider).getMarkingCandidates(sessionId);
+    });
+
 class WalkDetailScreen extends ConsumerWidget {
   final int sessionId;
+  final Widget? markingCandidatesMap;
 
-  const WalkDetailScreen({super.key, required this.sessionId});
+  const WalkDetailScreen({
+    super.key,
+    required this.sessionId,
+    this.markingCandidatesMap,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,7 +68,10 @@ class WalkDetailScreen extends ConsumerWidget {
                 color: const Color(0xFF7A9B76),
               ),
             ),
-          if (detail != null && ownerId != null && detail.ownerId == ownerId && !detail.detailsPurged)
+          if (detail != null &&
+              ownerId != null &&
+              detail.ownerId == ownerId &&
+              !detail.detailsPurged)
             TextButton.icon(
               onPressed: () => _showPublishDialog(context, ref),
               icon: const Icon(Icons.share_outlined, size: 18),
@@ -68,7 +83,11 @@ class WalkDetailScreen extends ConsumerWidget {
         ],
       ),
       body: detailAsync.when(
-        data: (detail) => _DetailBody(detail: detail, sessionId: sessionId),
+        data: (detail) => _DetailBody(
+          detail: detail,
+          sessionId: sessionId,
+          markingCandidatesMap: markingCandidatesMap,
+        ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => const Center(child: Text('불러오기 실패')),
       ),
@@ -193,13 +212,28 @@ class WalkDetailScreen extends ConsumerWidget {
 class _DetailBody extends ConsumerWidget {
   final WalkDetail detail;
   final int sessionId;
+  final Widget? markingCandidatesMap;
 
-  const _DetailBody({required this.detail, required this.sessionId});
+  const _DetailBody({
+    required this.detail,
+    required this.sessionId,
+    this.markingCandidatesMap,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final meetsAsync = ref.watch(_walkMeetsProvider(sessionId));
     final tracesAsync = ref.watch(walkTraceDiscoveriesProvider(sessionId));
+    final ownerId = ref.watch(userProfileProvider).valueOrNull?.id;
+    final canConfirmMarking =
+        detail.status == 'COMPLETED' &&
+        !detail.detailsPurged &&
+        ownerId != null &&
+        detail.ownerId == ownerId &&
+        detail.dogs.isNotEmpty;
+    final pendingCandidates = canConfirmMarking
+        ? ref.watch(_pendingMarkingCandidatesProvider(sessionId))
+        : null;
     final date = detail.startedAt != null
         ? DateTime.parse(detail.startedAt!)
         : null;
@@ -279,6 +313,96 @@ class _DetailBody extends ConsumerWidget {
 
                 const SizedBox(height: 24),
 
+                if (pendingCandidates != null)
+                  pendingCandidates.when(
+                    data: (candidates) => candidates.isEmpty
+                        ? const SizedBox.shrink()
+                        : Padding(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.pets),
+                                label: Text('마킹 후보 ${candidates.length}곳 확인하기'),
+                                onPressed: () async {
+                                  final saved = await showMarkingFeedbackSheet(
+                                    context,
+                                    candidates: candidates,
+                                    routeGeoJson: detail.routeGeoJson,
+                                    mapOverride: markingCandidatesMap,
+                                    onSubmit: (answers) => ref
+                                        .read(walkRepositoryProvider)
+                                        .submitMarkingFeedback(
+                                          sessionId: sessionId,
+                                          answers: answers,
+                                          dogIds: detail.dogs
+                                              .map((dog) => dog.id)
+                                              .toList(),
+                                        ),
+                                  );
+                                  if (saved && context.mounted) {
+                                    ref.invalidate(
+                                      _pendingMarkingCandidatesProvider(
+                                        sessionId,
+                                      ),
+                                    );
+                                    ref.invalidate(
+                                      _walkDetailProvider(sessionId),
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, _) => Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: TextButton(
+                        onPressed: () => ref.invalidate(
+                          _pendingMarkingCandidatesProvider(sessionId),
+                        ),
+                        child: const Text('마킹 후보 다시 불러오기'),
+                      ),
+                    ),
+                  ),
+
+                if (canConfirmMarking &&
+                    detail.routeGeoJson != null &&
+                    pendingCandidates?.valueOrNull?.isEmpty == true &&
+                    detail.markingSpots.length < 3)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.add_location_alt_outlined),
+                        label: const Text('빠진 마킹 위치 추가'),
+                        onPressed: () async {
+                          final saved = await showManualMarkingSheet(
+                            context,
+                            routeGeoJson: detail.routeGeoJson!,
+                            onSubmit: (lat, lng) => ref
+                                .read(walkRepositoryProvider)
+                                .submitManualMarkingFeedback(
+                                  sessionId: sessionId,
+                                  lat: lat,
+                                  lng: lng,
+                                  dogIds: detail.dogs
+                                      .map((dog) => dog.id)
+                                      .toList(),
+                                ),
+                          );
+                          if (saved && context.mounted) {
+                            ref.invalidate(_walkDetailProvider(sessionId));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('마킹 위치를 저장했어요')),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+
                 if (detail.markingSpots.isNotEmpty) ...[
                   Text(
                     '마킹 스팟 ${detail.markingSpots.length}곳',
@@ -355,9 +479,8 @@ class _DetailBody extends ConsumerWidget {
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
                   error: (_, _) => _TraceLoadError(
-                    onRetry: () => ref.invalidate(
-                      walkTraceDiscoveriesProvider(sessionId),
-                    ),
+                    onRetry: () =>
+                        ref.invalidate(walkTraceDiscoveriesProvider(sessionId)),
                   ),
                 ),
               ],
@@ -385,7 +508,7 @@ class _ArchivedTrace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final points = _decodeTracePath(pathData);
+    final segments = decodeTracePathSegments(pathData);
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -398,13 +521,16 @@ class _ArchivedTrace extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
-          child: points.length < 2
+          child: segments.isEmpty
               ? const _TraceUnavailable()
               : Semantics(
                   label: '보관한 산책 흔적길',
                   image: true,
                   child: CustomPaint(
-                    painter: _TracePainter(points: points, source: pathData),
+                    painter: _TracePainter(
+                      segments: segments,
+                      source: pathData,
+                    ),
                     child: const SizedBox.expand(),
                   ),
                 ),
@@ -414,40 +540,47 @@ class _ArchivedTrace extends StatelessWidget {
   }
 }
 
-List<Offset> _decodeTracePath(String source) {
-  if (!source.startsWith('v1|')) return const [];
+List<List<Offset>> decodeTracePathSegments(String source) {
+  if (!source.startsWith('v1|') && !source.startsWith('v2|')) return const [];
   try {
-    final chunks = source.substring(3).split(';');
-    if (chunks.length < 2 || chunks.length > 72) return const [];
-    final result = <Offset>[];
-    var x = 0;
-    var y = 0;
-    for (int i = 0; i < chunks.length; i++) {
-      final pair = chunks[i].split(',');
-      if (pair.length != 2) return const [];
-      final first = int.parse(pair[0]);
-      final second = int.parse(pair[1]);
-      if (i == 0) {
-        x = first;
-        y = second;
-      } else {
-        x += first;
-        y += second;
+    final encodedSegments = source.startsWith('v2|')
+        ? source.substring(3).split('|')
+        : [source.substring(3)];
+    final segments = <List<Offset>>[];
+    for (final encoded in encodedSegments) {
+      final chunks = encoded.split(';');
+      if (chunks.length < 2 || chunks.length > 72) return const [];
+      final points = <Offset>[];
+      var x = 0;
+      var y = 0;
+      for (int i = 0; i < chunks.length; i++) {
+        final pair = chunks[i].split(',');
+        if (pair.length != 2) return const [];
+        final first = int.parse(pair[0]);
+        final second = int.parse(pair[1]);
+        if (i == 0) {
+          x = first;
+          y = second;
+        } else {
+          x += first;
+          y += second;
+        }
+        if (x < 0 || x > 1000 || y < 0 || y > 600) return const [];
+        points.add(Offset(x.toDouble(), y.toDouble()));
       }
-      if (x < 0 || x > 1000 || y < 0 || y > 600) return const [];
-      result.add(Offset(x.toDouble(), y.toDouble()));
+      segments.add(points);
     }
-    return result;
+    return segments;
   } catch (_) {
     return const [];
   }
 }
 
 class _TracePainter extends CustomPainter {
-  final List<Offset> points;
+  final List<List<Offset>> segments;
   final String source;
 
-  const _TracePainter({required this.points, required this.source});
+  const _TracePainter({required this.segments, required this.source});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -496,23 +629,31 @@ class _TracePainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
 
-    final transformed = points.map(transform).toList(growable: false);
-    final route = Path()..moveTo(transformed.first.dx, transformed.first.dy);
-    for (int i = 1; i < transformed.length; i++) {
-      final previous = transformed[i - 1];
-      final current = transformed[i];
-      final midpoint = Offset(
-        (previous.dx + current.dx) / 2,
-        (previous.dy + current.dy) / 2,
-      );
-      route.quadraticBezierTo(
-        previous.dx,
-        previous.dy,
-        midpoint.dx,
-        midpoint.dy,
-      );
+    final transformedSegments = segments
+        .map((segment) => segment.map(transform).toList(growable: false))
+        .toList(growable: false);
+    final transformed = transformedSegments
+        .expand((segment) => segment)
+        .toList();
+    final route = Path();
+    for (final segment in transformedSegments) {
+      route.moveTo(segment.first.dx, segment.first.dy);
+      for (int i = 1; i < segment.length; i++) {
+        final previous = segment[i - 1];
+        final current = segment[i];
+        final midpoint = Offset(
+          (previous.dx + current.dx) / 2,
+          (previous.dy + current.dy) / 2,
+        );
+        route.quadraticBezierTo(
+          previous.dx,
+          previous.dy,
+          midpoint.dx,
+          midpoint.dy,
+        );
+      }
+      route.lineTo(segment.last.dx, segment.last.dy);
     }
-    route.lineTo(transformed.last.dx, transformed.last.dy);
 
     canvas.drawPath(
       route.shift(Offset(0, 4 * scale)),
@@ -728,38 +869,26 @@ class _RouteMapState extends State<_RouteMap> {
 
     try {
       final boundsCoords = <NLatLng>[];
-      final coords = <NLatLng>[];
+      final segments = parseRouteSegments(widget.geoJson);
+      boundsCoords.addAll(segments.expand((segment) => segment));
 
-      if (widget.geoJson != null) {
-        final geoJson = jsonDecode(widget.geoJson!);
-        final coordinates = geoJson['coordinates'] as List<dynamic>?;
-        if (coordinates != null && coordinates.isNotEmpty) {
-          coords.addAll(
-            coordinates.map(
-              (c) =>
-                  NLatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
+      if (boundsCoords.isNotEmpty) {
+        for (var i = 0; i < segments.length; i++) {
+          _controller!.addOverlay(
+            NPolylineOverlay(
+              id: 'route-$i',
+              coords: segments[i],
+              color: const Color(0xFF4CAF50),
+              width: 5,
             ),
           );
-          boundsCoords.addAll(coords);
         }
-      }
-
-      if (coords.isNotEmpty) {
-        // 경로 폴리라인
-        _controller!.addOverlay(
-          NPolylineOverlay(
-            id: 'route',
-            coords: coords,
-            color: const Color(0xFF4CAF50),
-            width: 5,
-          ),
-        );
 
         // 시작 마커
         _controller!.addOverlay(
           NMarker(
             id: 'start',
-            position: coords.first,
+            position: boundsCoords.first,
             caption: const NOverlayCaption(text: '시작'),
           ),
         );
@@ -768,7 +897,7 @@ class _RouteMapState extends State<_RouteMap> {
         _controller!.addOverlay(
           NMarker(
             id: 'end',
-            position: coords.last,
+            position: boundsCoords.last,
             caption: const NOverlayCaption(text: '종료'),
           ),
         );
@@ -1313,10 +1442,7 @@ class _TraceLoadError extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Text(
-            '흔적을 불러오지 못했어요',
-            style: TextStyle(color: Colors.grey),
-          ),
+          const Text('흔적을 불러오지 못했어요', style: TextStyle(color: Colors.grey)),
           TextButton(onPressed: onRetry, child: const Text('다시 시도')),
         ],
       ),

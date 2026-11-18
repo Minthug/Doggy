@@ -50,6 +50,10 @@ dependencies:
   # 위치
   geolocator: ^13.0.4
 
+  # 산책 중 좌표 복구용 로컬 데이터베이스
+  drift: ^2.35.4
+  path_provider: ^2.1.6
+
   # 카카오/구글/네이버 소셜 로그인
   kakao_flutter_sdk_user: ^1.9.5
 
@@ -68,10 +72,13 @@ dependencies:
   firebase_messaging: ^15.2.5
   flutter_local_notifications: ^18.0.1
   shared_preferences: ^2.5.5
+  crypto: ^3.0.7
   rive: ^0.14.11
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
@@ -80,6 +87,11 @@ dev_dependencies:
   retrofit_generator: ^9.1.5
   json_serializable: ^6.9.4
   json_annotation: ^4.9.0
+
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

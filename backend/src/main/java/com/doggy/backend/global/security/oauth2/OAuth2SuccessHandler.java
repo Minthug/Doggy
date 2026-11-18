@@ -15,6 +15,7 @@ import java.io.IOException;
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final OAuth2LoginCodeService loginCodeService;
+    private final SessionOAuth2AuthorizationRequestRepository authorizationRequestRepository;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -22,9 +23,15 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                                         Authentication authentication) throws IOException {
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
 
-        String code = loginCodeService.createCode(principal.getId());
+        String challenge = authorizationRequestRepository.consumeAppChallenge(request);
+        if (challenge == null) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "OAuth2 앱 로그인 요청이 없습니다");
+            return;
+        }
 
-        String redirectUrl = "doggy://auth/callback?code=" + code;
+        String code = loginCodeService.createCode(principal.getId(), challenge);
+
+        String redirectUrl = "doggy://auth/callback?code=" + code + "&challenge=" + challenge;
 
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }

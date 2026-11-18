@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="doggy_walks.sqlite" />
+    <exclude domain="file" path="doggy_walks.sqlite-wal" />
+    <exclude domain="file" path="doggy_walks.sqlite-shm" />
+</full-backup-content>

@@ -33,7 +33,7 @@ class HouseholdScreen extends ConsumerWidget {
             ? _NoHouseholdView(onRefresh: refresh)
             : _HouseholdView(household: household, onRefresh: refresh),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => _NoHouseholdView(onRefresh: refresh),
+        error: (_, _) => _NoHouseholdView(onRefresh: refresh),
       ),
     );
   }

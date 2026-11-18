@@ -3,6 +3,9 @@ spring.application.name=doggy
 # or an ignored application-local.properties file.
 server.port=${PORT:8080}
 server.forward-headers-strategy=native
+# Default: do not trust forwarded client IPs. Set only to exact ingress proxy IPs
+# after the ingress strips client-supplied X-Forwarded-For and X-Real-IP.
+doggy.trusted-proxy-ip-regex=${TRUSTED_PROXY_IP_REGEX:(?!)}
 
 # Public data batch
 batch.public-data.enabled=false
@@ -93,6 +96,9 @@ logging.file.name=${LOG_FILE:logs/doggy-api.log}
 logging.logback.rollingpolicy.max-file-size=20MB
 logging.logback.rollingpolicy.max-history=14
 logging.pattern.level=%5p [${spring.application.name:doggy},%X{requestId:-}]
+# SQL bind values may contain precise walk coordinates.
+logging.level.org.hibernate.orm.jdbc.bind=OFF
+logging.level.org.springframework.jdbc.core.StatementCreatorUtils=OFF
 app.error.include-request-id=${ERROR_INCLUDE_REQUEST_ID:true}
 app.access-log.success-enabled=${ACCESS_LOG_SUCCESS_ENABLED:false}
 app.access-log.slow-threshold-ms=${ACCESS_LOG_SLOW_THRESHOLD_MS:500}

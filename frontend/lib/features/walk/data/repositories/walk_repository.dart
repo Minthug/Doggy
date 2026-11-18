@@ -4,12 +4,13 @@ import '../../../../core/api/api_client.dart';
 import '../models/walk_model.dart';
 
 String _formatDateTime(DateTime dt) {
-  return '${dt.year.toString().padLeft(4, '0')}'
-      '-${dt.month.toString().padLeft(2, '0')}'
-      '-${dt.day.toString().padLeft(2, '0')}'
-      'T${dt.hour.toString().padLeft(2, '0')}'
-      ':${dt.minute.toString().padLeft(2, '0')}'
-      ':${dt.second.toString().padLeft(2, '0')}';
+  final local = dt.toLocal();
+  return '${local.year.toString().padLeft(4, '0')}'
+      '-${local.month.toString().padLeft(2, '0')}'
+      '-${local.day.toString().padLeft(2, '0')}'
+      'T${local.hour.toString().padLeft(2, '0')}'
+      ':${local.minute.toString().padLeft(2, '0')}'
+      ':${local.second.toString().padLeft(2, '0')}';
 }
 
 final walkRepositoryProvider = Provider<WalkRepository>((ref) {
@@ -74,6 +75,18 @@ class WalkRepository {
             .toList(),
         'dogIds': dogIds,
       },
+    );
+  }
+
+  Future<void> submitManualMarkingFeedback({
+    required int sessionId,
+    required double lat,
+    required double lng,
+    required List<int> dogIds,
+  }) async {
+    await _dio.post(
+      '/api/walks/$sessionId/marking-feedback/manual',
+      data: {'lat': lat, 'lng': lng, 'dogIds': dogIds},
     );
   }
 

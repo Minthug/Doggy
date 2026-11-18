@@ -56,7 +56,7 @@ public class UserController {
             HttpServletRequest servletRequest,
             @Valid @RequestBody OAuth2CodeExchangeRequest request) {
         rateLimitService.checkOAuth2Exchange(servletRequest);
-        return ResponseEntity.ok(oAuth2LoginCodeService.exchange(request.code(), deviceId(servletRequest)));
+        return ResponseEntity.ok(oAuth2LoginCodeService.exchange(request.code(), request.verifier(), deviceId(servletRequest)));
     }
 
     @GetMapping("/api/users/me")
@@ -76,6 +76,14 @@ public class UserController {
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody String fcmToken) {
         userService.updateFcmToken(principal.getId(), fcmToken);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/api/users/me/fcm-token/unregister")
+    public ResponseEntity<Void> clearFcmToken(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody String fcmToken) {
+        userService.clearFcmToken(principal.getId(), fcmToken);
         return ResponseEntity.noContent().build();
     }
 

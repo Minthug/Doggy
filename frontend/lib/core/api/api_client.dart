@@ -15,6 +15,7 @@ final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,
+      followRedirects: false,
       connectTimeout: const Duration(seconds: 20),
       receiveTimeout: const Duration(seconds: 20),
       headers: {'Content-Type': 'application/json'},
@@ -161,6 +162,7 @@ Future<String> _performTokenRefresh(String baseUrl) async {
   final response =
       await Dio(
         BaseOptions(
+          followRedirects: false,
           connectTimeout: const Duration(seconds: 20),
           receiveTimeout: const Duration(seconds: 20),
         ),

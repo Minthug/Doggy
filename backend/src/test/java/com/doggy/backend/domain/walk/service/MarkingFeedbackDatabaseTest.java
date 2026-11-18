@@ -3,6 +3,8 @@ package com.doggy.backend.domain.walk.service;
 import com.doggy.backend.domain.dog.entity.Dog;
 import com.doggy.backend.domain.dog.repository.DogRepository;
 import com.doggy.backend.domain.household.dto.HouseholdIdCache;
+import com.doggy.backend.domain.household.entity.Household;
+import com.doggy.backend.domain.household.repository.HouseholdRepository;
 import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.domain.user.entity.User;
 import com.doggy.backend.domain.user.repository.UserRepository;
@@ -13,7 +15,6 @@ import com.doggy.backend.domain.walk.entity.MarkingCandidateFeedback;
 import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.repository.MarkingCandidateFeedbackRepository;
 import com.doggy.backend.domain.walk.repository.MarkingCandidateFeedbackRepository.CandidateVoteCount;
-import com.doggy.backend.domain.walk.repository.MarkingSpotRepository;
 import com.doggy.backend.domain.walk.repository.MarkingSpotVisitRepository;
 import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
@@ -57,9 +58,9 @@ class MarkingFeedbackDatabaseTest {
 
     @Autowired UserRepository userRepository;
     @Autowired DogRepository dogRepository;
+    @Autowired HouseholdRepository householdRepository;
     @Autowired WalkSessionRepository walkSessionRepository;
     @Autowired MarkingCandidateFeedbackRepository feedbackRepository;
-    @Autowired MarkingSpotRepository spotRepository;
     @Autowired MarkingSpotVisitRepository visitRepository;
     @Autowired MarkingSpotService service;
     @MockitoBean HouseholdService householdService;
@@ -74,6 +75,8 @@ class MarkingFeedbackDatabaseTest {
         session.complete(time.plusMinutes(20), 1000, 1200);
         session.setMarkingRouteQuality("a".repeat(64), true);
         walkSessionRepository.save(session);
+        double lat = 37.0 + (user.getId() % 1000) * 0.001;
+        double lng = 126.0 + (user.getId() / 1000 % 1000) * 0.001;
         assertThat(walkSessionRepository.existsByUserIdAndRouteFingerprintAndStatusAndIdNot(
                 user.getId(), "a".repeat(64), WalkSession.Status.COMPLETED, -1L)).isTrue();
         assertThat(walkSessionRepository.existsByUserIdAndRouteFingerprintAndStatusAndIdNot(
@@ -81,20 +84,20 @@ class MarkingFeedbackDatabaseTest {
         given(householdService.findHouseholdIdByUserId(user.getId()))
                 .willReturn(new HouseholdIdCache(null, null));
 
-        var yes = new MarkingSpotCandidateResponse("a", 37.218, 126.944, time.plusMinutes(5), 15, 0, 6, "STAY");
-        var no = new MarkingSpotCandidateResponse("b", 37.219, 126.944, time.plusMinutes(10), 30, 0, 4, "GAP");
+        var yes = new MarkingSpotCandidateResponse("a", lat, lng, time.plusMinutes(5), 15, 0, 6, "STAY");
+        var no = new MarkingSpotCandidateResponse("b", lat + 0.01, lng, time.plusMinutes(10), 30, 0, 4, "GAP");
         var request = new MarkingCandidateFeedbackRequest(
                 List.of(new MarkingCandidateAnswer("a", true), new MarkingCandidateAnswer("b", false)),
                 List.of(dog.getId()));
         service.submitFeedback(user.getId(), session.getId(), request, List.of(yes, no));
         service.submitFeedback(user.getId(), session.getId(), request, List.of());
 
-        List<MarkingCandidateFeedback> feedback = feedbackRepository.findAll();
+        List<MarkingCandidateFeedback> feedback = feedbackRepository.findAllBySessionId(session.getId());
         assertThat(feedback).hasSize(2);
         assertThat(feedback).extracting(MarkingCandidateFeedback::isMarked).containsExactlyInAnyOrder(true, false);
-        assertThat(spotRepository.findAll()).hasSize(1);
-        assertThat(visitRepository.findAll()).hasSize(1);
-        assertThat(spotRepository.findAll().getFirst().getVisitCount()).isEqualTo(1);
+        var visits = visitRepository.findAllBySessionIdOrderByCreatedAtDesc(session.getId());
+        assertThat(visits).hasSize(1);
+        assertThat(visits.getFirst().getSpot().getVisitCount()).isEqualTo(1);
     }
 
     @Test
@@ -115,6 +118,24 @@ class MarkingFeedbackDatabaseTest {
         assertThat(counts).hasSize(1);
         assertThat(counts.getFirst().getPositiveCount()).isEqualTo(2);
         assertThat(counts.getFirst().getTotalCount()).isEqualTo(3);
+    }
+
+    @Test
+    void walkAccessQueryHandlesMissingHouseholdAndJoinTime() {
+        User owner = userRepository.save(User.builder().nickname("walk-query-owner").build());
+        User member = userRepository.save(User.builder().nickname("walk-query-member").build());
+        Household household = householdRepository.save(Household.builder().name("walk-query-household").build());
+        LocalDateTime startedAt = LocalDateTime.now();
+        WalkSession session = WalkSession.builder().user(owner).householdId(household.getId()).startedAt(startedAt).build();
+        session.complete(startedAt.plusMinutes(5), 300, 300);
+        walkSessionRepository.save(session);
+
+        assertThat(walkSessionRepository.findAccessibleById(session.getId(), owner.getId(),
+                null, null, startedAt.minusDays(1), WalkSession.Status.COMPLETED)).isPresent();
+        assertThat(walkSessionRepository.findAccessibleById(session.getId(), member.getId(),
+                household.getId(), startedAt.minusMinutes(1), startedAt.minusDays(1), WalkSession.Status.COMPLETED)).isPresent();
+        assertThat(walkSessionRepository.findAccessibleById(session.getId(), member.getId(),
+                household.getId(), startedAt.plusMinutes(1), startedAt.minusDays(1), WalkSession.Status.COMPLETED)).isEmpty();
     }
 
     private void saveVote(User user, String key, boolean marked, boolean eligible) {

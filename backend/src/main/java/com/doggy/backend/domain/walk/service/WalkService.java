@@ -118,28 +118,30 @@ public class WalkService {
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
 
         if (session.getStatus() == Status.COMPLETED) {
-            throw BusinessException.badRequest("이미 완료된 산책입니다");
+            return WalkDetailResponse.of(session, session.getRouteGeoJson());
         }
 
-        String fingerprint = routeFingerprint(request.points());
+        List<WalkPointRequest> acceptedPoints = filterImplausiblePoints(request.points());
+        String fingerprint = routeFingerprint(acceptedPoints);
         boolean repeatedRoute = fingerprint != null
                 && walkSessionRepository.existsByUserIdAndRouteFingerprintAndStatusAndIdNot(
                         userId, fingerprint, Status.COMPLETED, sessionId);
         session.setMarkingRouteQuality(fingerprint, !repeatedRoute && !hasSustainedFastTravel(request.points()));
 
-        if (!request.points().isEmpty()) {
-            String sql = "INSERT INTO walk_points (session_id, recorded_at, lat, lng, accuracy) VALUES (?, ?, ?, ?, ?)";
-            jdbcTemplate.batchUpdate(sql, request.points(), request.points().size(), (ps, p) -> {
+        if (!acceptedPoints.isEmpty()) {
+            String sql = "INSERT INTO walk_points (session_id, recorded_at, lat, lng, accuracy, segment_start) VALUES (?, ?, ?, ?, ?, ?)";
+            jdbcTemplate.batchUpdate(sql, acceptedPoints, acceptedPoints.size(), (ps, p) -> {
                 ps.setLong(1, sessionId);
                 ps.setTimestamp(2, Timestamp.valueOf(p.recordedAt()));
                 ps.setDouble(3, p.lat());
                 ps.setDouble(4, p.lng());
                 if (p.accuracy() != null) ps.setFloat(5, p.accuracy());
                 else ps.setNull(5, java.sql.Types.FLOAT);
+                ps.setBoolean(6, p.startsSegment());
             });
         }
 
-        int distanceMeters = calculateDistance(request.points());
+        int distanceMeters = calculateDistance(acceptedPoints);
         LocalDateTime endedAt = request.endedAt().isBefore(session.getStartedAt())
                 ? session.getStartedAt()
                 : request.endedAt();
@@ -177,9 +179,13 @@ public class WalkService {
         }
         List<WalkPointRequest> points = walkPointRepository.findAllBySessionIdOrderByRecordedAt(sessionId)
                 .stream()
-                .map(point -> new WalkPointRequest(point.getRecordedAt(), point.getLat(), point.getLng(), point.getAccuracy()))
+                .map(point -> new WalkPointRequest(point.getRecordedAt(), point.getLat(), point.getLng(),
+                        point.getAccuracy(), point.isSegmentStart()))
                 .toList();
-        return markingSpotService.detectCandidates(points);
+        var manualKeys = markingSpotService.manualFeedbackKeys(sessionId);
+        return markingSpotService.detectCandidates(points).stream()
+                .filter(candidate -> !manualKeys.contains(candidate.candidateKey()))
+                .toList();
     }
 
     private void sendGoalAchievedNotificationIfNeeded(Long userId, List<Dog> sessionDogs, int prevMeters, int newMeters) {
@@ -449,6 +455,9 @@ public class WalkService {
                 log.warn("경로 GeoJSON 생성 실패 (publish): {}", e.getMessage());
             }
         }
+        var publicSearchPoint = PublicRoutePrivacy.searchPoint(routeGeoJson);
+        session.setPublicSearchPoint(publicSearchPoint == null ? null : publicSearchPoint.lat(),
+                publicSearchPoint == null ? null : publicSearchPoint.lng());
         return WalkDetailResponse.of(session, routeGeoJson);
     }
 
@@ -557,6 +566,7 @@ public class WalkService {
 
         double totalMeters = 0;
         for (int i = 1; i < points.size(); i++) {
+            if (points.get(i).startsSegment()) continue;
             totalMeters += haversine(
                     points.get(i - 1).lat(), points.get(i - 1).lng(),
                     points.get(i).lat(), points.get(i).lng()
@@ -565,11 +575,39 @@ public class WalkService {
         return (int) totalMeters;
     }
 
+    private List<WalkPointRequest> filterImplausiblePoints(List<WalkPointRequest> points) {
+        if (points.isEmpty()) return points;
+        List<WalkPointRequest> accepted = new java.util.ArrayList<>();
+        for (WalkPointRequest current : points) {
+            Float accuracy = current.accuracy();
+            if (accuracy != null && (!Float.isFinite(accuracy) || accuracy < 0 || accuracy > 40)) continue;
+            if (accepted.isEmpty()) {
+                accepted.add(current);
+                continue;
+            }
+            if (current.startsSegment()) {
+                accepted.add(current);
+                continue;
+            }
+            WalkPointRequest previous = accepted.getLast();
+            double seconds = Duration.between(previous.recordedAt(), current.recordedAt()).toMillis() / 1000.0;
+            double meters = haversine(previous.lat(), previous.lng(), current.lat(), current.lng());
+            if (seconds > 0 && meters / seconds <= MAX_PLAUSIBLE_WALK_SPEED_METERS_PER_SECOND) {
+                accepted.add(current);
+            }
+        }
+        return accepted;
+    }
+
     private boolean hasSustainedFastTravel(List<WalkPointRequest> points) {
         int consecutiveFastSegments = 0;
         for (int i = 1; i < points.size(); i++) {
             WalkPointRequest previous = points.get(i - 1);
             WalkPointRequest current = points.get(i);
+            if (current.startsSegment()) {
+                consecutiveFastSegments = 0;
+                continue;
+            }
             long seconds = Duration.between(previous.recordedAt(), current.recordedAt()).getSeconds();
             double meters = haversine(previous.lat(), previous.lng(), current.lat(), current.lng());
             if (seconds > 0 && seconds <= 60 && meters >= 30
@@ -589,7 +627,8 @@ public class WalkService {
         for (int i = 0; i < points.size(); i++) {
             WalkPointRequest point = points.get(i);
             coordinates.append(Double.doubleToLongBits(point.lat())).append(':')
-                    .append(Double.doubleToLongBits(point.lng())).append(':');
+                    .append(Double.doubleToLongBits(point.lng())).append(':')
+                    .append(point.startsSegment()).append(':');
             if (i > 0) {
                 coordinates.append(Duration.between(points.get(i - 1).recordedAt(), point.recordedAt()).toMillis());
             }
@@ -617,8 +656,14 @@ public class WalkService {
         if (request.points().size() > RequestLimits.MAX_WALK_POINTS) {
             throw BusinessException.badRequest("산책 경로 포인트는 최대 " + RequestLimits.MAX_WALK_POINTS + "개까지 저장할 수 있습니다");
         }
+        LocalDateTime previousTime = null;
         for (WalkPointRequest point : request.points()) {
             RequestLimits.validateLatLng(point.lat(), point.lng());
+            if (point.recordedAt() == null || point.recordedAt().isAfter(request.endedAt())
+                    || (previousTime != null && point.recordedAt().isBefore(previousTime))) {
+                throw BusinessException.badRequest("산책 경로의 기록 시각이 올바르지 않습니다");
+            }
+            previousTime = point.recordedAt();
         }
     }
 }

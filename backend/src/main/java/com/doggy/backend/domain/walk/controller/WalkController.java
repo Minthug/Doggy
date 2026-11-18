@@ -168,6 +168,15 @@ public class WalkController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{sessionId}/marking-feedback/manual")
+    public ResponseEntity<Void> submitManualMarkingFeedback(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long sessionId,
+            @Valid @RequestBody ManualMarkingFeedbackRequest request) {
+        markingSpotService.submitManualFeedback(principal.getId(), sessionId, request);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{sessionId}/marking-candidates")
     public ResponseEntity<List<MarkingSpotCandidateResponse>> getMarkingCandidates(
             @AuthenticationPrincipal UserPrincipal principal,

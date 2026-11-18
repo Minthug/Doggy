@@ -16,6 +16,7 @@ import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository;
 import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository.TrafficCoordinate;
 import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository.TrafficContext;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
+import com.doggy.backend.domain.walk.repository.WalkPointRepository;
 import com.doggy.backend.global.common.RequestLimits;
 import com.doggy.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,7 @@ public class MarkingSpotService {
     private final MarkingCandidateFeedbackRepository feedbackRepository;
     private final MarkingSpotVisitRepository visitRepository;
     private final WalkSessionRepository walkSessionRepository;
+    private final WalkPointRepository walkPointRepository;
     private final DogRepository dogRepository;
     private final HouseholdService householdService;
     private final TrafficMapFeatureRepository trafficMapFeatureRepository;
@@ -72,6 +74,7 @@ public class MarkingSpotService {
             WalkPointRequest anchor = points.get(start);
             int end = start + 1;
             while (end < points.size()
+                    && !points.get(end).startsSegment()
                     && distanceMeters(anchor.lat(), anchor.lng(), points.get(end).lat(), points.get(end).lng()) <= 12) {
                 end++;
             }
@@ -127,8 +130,8 @@ public class MarkingSpotService {
                     MarkingSpot spot = existingByGridKey.get(snapped.gridKey());
                     return new MarkingSpotCandidateResponse(
                             snapped.gridKey(),
-                            snapped.lat(),
-                            snapped.lng(),
+                            candidate.lat(),
+                            candidate.lng(),
                             candidate.detectedAt(),
                             candidate.dwellSeconds(),
                             spot != null ? spot.getVisitCount() : 0,
@@ -187,6 +190,7 @@ public class MarkingSpotService {
             WalkPointRequest previous = points.get(i - 1);
             WalkPointRequest current = points.get(i);
             WalkPointRequest next = points.get(i + 1);
+            if (current.startsSegment() || next.startsSegment()) continue;
 
             int gapSeconds = Math.max(0, (int) java.time.Duration.between(current.recordedAt(), next.recordedAt()).getSeconds());
             if (!isMarkingDuration(gapSeconds)) {
@@ -213,7 +217,13 @@ public class MarkingSpotService {
     }
 
     public boolean hasFeedback(Long sessionId) {
-        return feedbackRepository.existsBySessionId(sessionId);
+        return feedbackRepository.existsBySessionIdAndSourceNot(sessionId, "MANUAL");
+    }
+
+    public Set<String> manualFeedbackKeys(Long sessionId) {
+        return feedbackRepository.findAllBySessionIdAndSource(sessionId, "MANUAL").stream()
+                .map(MarkingCandidateFeedback::getCandidateKey)
+                .collect(Collectors.toSet());
     }
 
     @Transactional(readOnly = false)
@@ -221,7 +231,7 @@ public class MarkingSpotService {
                                List<MarkingSpotCandidateResponse> candidates) {
         WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
-        List<MarkingCandidateFeedback> existing = feedbackRepository.findAllBySessionId(sessionId);
+        List<MarkingCandidateFeedback> existing = feedbackRepository.findAllBySessionIdAndSourceNot(sessionId, "MANUAL");
         if (!existing.isEmpty()) {
             Set<String> repeatedKeys = new HashSet<>();
             boolean sameAnswers = request.answers() != null && existing.size() == request.answers().size()
@@ -260,6 +270,34 @@ public class MarkingSpotService {
                         candidate.detectedAt(), request.dogIds()));
             }
         }
+    }
+
+    @Transactional(readOnly = false)
+    public void submitManualFeedback(Long userId, Long sessionId, ManualMarkingFeedbackRequest request) {
+        validateCoordinate(request.lat(), request.lng());
+        WalkSession session = walkSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> BusinessException.notFound("산책 기록을 찾을 수 없습니다"));
+        if (session.getStatus() != WalkSession.Status.COMPLETED || session.getDetailsPurgedAt() != null
+                || !session.isMarkingEligible()) {
+            throw BusinessException.badRequest("마킹 위치를 추가할 수 없는 산책입니다");
+        }
+
+        var nearest = walkPointRepository.findAllBySessionIdOrderByRecordedAt(sessionId).stream()
+                .filter(point -> point.getAccuracy() == null || point.getAccuracy() <= MAX_ACCURACY_METERS)
+                .min(Comparator.comparingDouble(point ->
+                        distanceMeters(point.getLat(), point.getLng(), request.lat(), request.lng())))
+                .filter(point -> distanceMeters(point.getLat(), point.getLng(), request.lat(), request.lng()) <= 30)
+                .orElseThrow(() -> BusinessException.badRequest("산책 경로에서 30m 이내의 위치를 선택해주세요"));
+        SnappedCoordinate snapped = snap(nearest.getLat(), nearest.getLng());
+        var existing = feedbackRepository.findBySessionIdAndCandidateKey(sessionId, snapped.gridKey());
+        if (existing.isPresent()) {
+            if ("MANUAL".equals(existing.get().getSource())) return;
+            throw BusinessException.badRequest("이미 확인한 마킹 위치입니다");
+        }
+        createVisit(userId, sessionId, new CreateMarkingSpotVisitRequest(
+                nearest.getLat(), nearest.getLng(), nearest.getRecordedAt(), request.dogIds()));
+        feedbackRepository.save(new MarkingCandidateFeedback(session, snapped.gridKey(),
+                nearest.getRecordedAt(), 0, 0, "MANUAL", true));
     }
 
     @Transactional(readOnly = false)
@@ -403,6 +441,7 @@ public class MarkingSpotService {
         }
         WalkPointRequest previous = points.get(index - 1);
         WalkPointRequest current = points.get(index);
+        if (current.startsSegment()) return false;
         return distanceMeters(previous.lat(), previous.lng(), current.lat(), current.lng()) >= MIN_MOVE_BEFORE_METERS;
     }
 
@@ -412,6 +451,7 @@ public class MarkingSpotService {
         }
         WalkPointRequest current = points.get(index);
         WalkPointRequest next = points.get(index + 1);
+        if (next.startsSegment()) return false;
         return distanceMeters(current.lat(), current.lng(), next.lat(), next.lng()) >= MIN_MOVE_AFTER_METERS;
     }
 

@@ -32,7 +32,10 @@ public class OAuth2LoginCodeService {
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Transactional
-    public String createCode(Long userId) {
+    public String createCode(Long userId, String appChallenge) {
+        if (appChallenge == null || !appChallenge.matches("[A-Za-z0-9_-]{43}")) {
+            throw BusinessException.unauthorized("유효하지 않은 OAuth2 앱 검증값입니다");
+        }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
 
@@ -40,19 +43,27 @@ public class OAuth2LoginCodeService {
         codeRepository.save(OAuth2LoginCode.builder()
                 .user(user)
                 .codeHash(hash(code))
+                .appChallenge(appChallenge)
                 .expiresAt(LocalDateTime.now().plusMinutes(CODE_TTL_MINUTES))
                 .build());
         return code;
     }
 
     @Transactional
-    public TokenResponse exchange(String code, String deviceId) {
+    public TokenResponse exchange(String code, String verifier, String deviceId) {
         OAuth2LoginCode loginCode = codeRepository.findByCodeHash(hash(code))
                 .orElseThrow(() -> BusinessException.unauthorized("유효하지 않은 OAuth2 로그인 코드입니다"));
 
         LocalDateTime now = LocalDateTime.now();
         if (!loginCode.isUsable(now)) {
             throw BusinessException.unauthorized("만료되었거나 이미 사용된 OAuth2 로그인 코드입니다");
+        }
+
+        if (verifier == null || !verifier.matches("[A-Za-z0-9_-]{43}") ||
+                !MessageDigest.isEqual(loginCode.getAppChallenge() == null ? new byte[0] :
+                        loginCode.getAppChallenge().getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+                        challengeFor(verifier).getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+            throw BusinessException.unauthorized("OAuth2 앱 로그인 요청이 일치하지 않습니다");
         }
 
         loginCode.markUsed(now);
@@ -78,6 +89,16 @@ public class OAuth2LoginCodeService {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(digest.digest(code.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw BusinessException.internalError("OAuth2 로그인 코드 처리에 실패했습니다");
+        }
+    }
+
+    private String challengeFor(String verifier) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(
+                    digest.digest(verifier.getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
         } catch (NoSuchAlgorithmException e) {
             throw BusinessException.internalError("OAuth2 로그인 코드 처리에 실패했습니다");
         }
