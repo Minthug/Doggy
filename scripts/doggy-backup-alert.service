@@ -1,0 +1,6 @@
+[Unit]
+Description=Notify on Doggy backup failure
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/doggy-backup-alert

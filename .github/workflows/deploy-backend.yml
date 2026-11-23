@@ -5,11 +5,50 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: doggy_app_ci
+          POSTGRES_USER: doggy
+          POSTGRES_PASSWORD: doggy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U doggy -d doggy_app_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/doggy_app_ci
+      DB_USERNAME: doggy
+      DB_PASSWORD: doggy
+      DOGGY_TEST_DB_URL: jdbc:postgresql://localhost:5432/doggy_walk_repo_test
+      DOGGY_MARKING_TEST_DB_URL: jdbc:postgresql://localhost:5432/doggy_marking_feedback_test
+      DOGGY_AUTH_TEST_DB_URL: jdbc:postgresql://localhost:5432/doggy_auth_tx_test
+      JWT_SECRET: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      KAKAO_CLIENT_ID: ci-kakao
+      KAKAO_CLIENT_SECRET: ci-kakao
+      GOOGLE_CLIENT_ID: ci-google
+      GOOGLE_CLIENT_SECRET: ci-google
+      NAVER_CLIENT_ID: ci-naver
+      NAVER_CLIENT_SECRET: ci-naver
+      SERVER_BASE_URL: http://localhost:8080
+      WEATHER_API_KEY: ci-weather
+      IMAGE_UPLOAD_DIR: /tmp/doggy-ci-images
+      LOG_FILE: /tmp/doggy-ci.log
 
     steps:
       - uses: actions/checkout@v4
@@ -20,13 +59,22 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Build jar
+      - name: Prepare test databases
+        run: |
+          docker exec "${{ job.services.db.id }}" createdb -U doggy doggy_walk_repo_test
+          docker exec "${{ job.services.db.id }}" createdb -U doggy doggy_marking_feedback_test
+          docker exec "${{ job.services.db.id }}" createdb -U doggy doggy_auth_tx_test
+          docker exec "${{ job.services.db.id }}" psql -U doggy -d doggy_walk_repo_test -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS postgis'
+
+      - name: Test and build jar
         run: |
           cd backend
+          cp src/main/resources/application.properties.example src/test/resources/application.properties
           chmod +x gradlew
-          ./gradlew bootJar -x test
+          ./gradlew test bootJar
 
       - name: Upload jar to server
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -37,13 +85,49 @@ jobs:
           strip_components: 3
 
       - name: Restart service
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_KEY }}
+          command_timeout: 10m
           script: |
-            mv /app/backend-*.jar /app/doggy.jar
-            systemctl restart doggy
-            sleep 5
-            systemctl is-active doggy && echo "배포 성공" || (journalctl -u doggy -n 30 && exit 1)
+            set -eu
+            cd /app
+            set -- backend-*.jar
+            if [ "$#" -ne 1 ] || [ ! -s "$1" ]; then
+              echo "배포할 JAR가 정확히 하나여야 합니다" >&2
+              exit 1
+            fi
+            test -s doggy.jar
+            unzip -tqq "$1" > /dev/null
+            ln -f doggy.jar doggy.jar.previous
+            chmod 0644 "$1"
+            mv -f "$1" doggy.jar
+
+            ready() {
+              systemctl is-active --quiet doggy &&
+                curl -fs --max-time 3 -o /dev/null http://127.0.0.1:8080/actuator/health 2>/dev/null
+            }
+            wait_until_ready() {
+              for attempt in $(seq 1 36); do
+                if ready; then return 0; fi
+                sleep 5
+              done
+              return 1
+            }
+            rollback() {
+              echo "새 버전 기동 실패. 이전 JAR로 복원합니다" >&2
+              mv -f doggy.jar.previous doggy.jar
+              systemctl restart doggy
+              if ! wait_until_ready; then
+                echo "이전 버전도 준비 상태가 아닙니다" >&2
+              fi
+            }
+
+            if ! systemctl restart doggy || ! wait_until_ready; then
+              rollback
+              exit 1
+            fi
+            echo "배포 성공: HTTP 준비 상태 확인"
