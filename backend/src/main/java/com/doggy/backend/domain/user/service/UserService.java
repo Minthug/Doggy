@@ -12,6 +12,7 @@ import com.doggy.backend.global.exception.BusinessException;
 import com.doggy.backend.global.image.ImageStorageService;
 import com.doggy.backend.global.security.jwt.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional(readOnly = true)
 public class UserService {
 
@@ -35,9 +37,11 @@ public class UserService {
 
     @Transactional
     public TokenResponse signUp(SignUpRequest request, String deviceId) {
+        long started = System.nanoTime();
         if (userAuthRepository.existsByAuthTypeAndEmail(AuthType.LOCAL, request.email())) {
             throw BusinessException.badRequest("이미 사용 중인 이메일입니다");
         }
+        long checked = System.nanoTime();
 
         User user = userRepository.save(
                 User.builder()
@@ -47,17 +51,31 @@ public class UserService {
                         .birthDate(request.birthDate())
                         .build()
         );
+        long userSaved = System.nanoTime();
+
+        String passwordHash = passwordEncoder.encode(request.password());
+        long passwordEncoded = System.nanoTime();
 
         userAuthRepository.save(
                 UserAuth.builder()
                         .user(user)
                         .authType(AuthType.LOCAL)
                         .email(request.email())
-                        .passwordHash(passwordEncoder.encode(request.password()))
+                        .passwordHash(passwordHash)
                         .build()
         );
+        long authSaved = System.nanoTime();
 
-        return refreshTokenService.issueTokens(user, deviceId);
+        TokenResponse tokens = refreshTokenService.issueTokens(user, deviceId);
+        long tokensIssued = System.nanoTime();
+        log.info("signup_stage_timing lookupMs={} userSaveMs={} passwordHashMs={} authSaveMs={} tokenMs={} serviceMs={}",
+                (checked - started) / 1_000_000,
+                (userSaved - checked) / 1_000_000,
+                (passwordEncoded - userSaved) / 1_000_000,
+                (authSaved - passwordEncoded) / 1_000_000,
+                (tokensIssued - authSaved) / 1_000_000,
+                (tokensIssued - started) / 1_000_000);
+        return tokens;
     }
 
     @Transactional
