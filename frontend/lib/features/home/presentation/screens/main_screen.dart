@@ -6,6 +6,8 @@ import '../../../community/presentation/screens/community_tab.dart';
 import '../../../profile/presentation/screens/profile_tab.dart';
 import '../../../walk/domain/providers/walk_provider.dart';
 import 'home_tab.dart';
+import '../../domain/providers/home_provider.dart';
+import 'neighborhood_setup_screen.dart';
 import 'walk_place_tab.dart';
 
 final _currentTabIndexProvider = StateProvider<int>((ref) => 0);
@@ -37,6 +39,23 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profile = ref.watch(userProfileProvider);
+    if (profile.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (profile.hasError) {
+      return Scaffold(
+        body: Center(
+          child: TextButton(
+            onPressed: () => ref.invalidate(userProfileProvider),
+            child: const Text('프로필 다시 불러오기'),
+          ),
+        ),
+      );
+    }
+    if (!profile.value!.hasNeighborhood) {
+      return NeighborhoodSetupScreen(profile: profile.value!);
+    }
     final currentIndex = ref.watch(_currentTabIndexProvider);
     return Scaffold(
       body: Stack(

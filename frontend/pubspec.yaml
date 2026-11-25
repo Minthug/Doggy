@@ -107,7 +107,14 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/markers/marking_spot_paw.png
-    - assets/rive/dog_mascot.riv
+    - assets/dog_faces/poodle.png
+    - assets/dog_faces/husky.png
+    - assets/dog_faces/golden_retriever.png
+    - assets/dog_faces/jindo.png
+    - assets/dog_faces/dachshund.png
+    - assets/dog_faces/maltipoo.png
+    - assets/dog_faces/bichon.png
+    - assets/dog_faces/pomeranian.png
 
   fonts:
     - family: NanumSquareRound

@@ -287,24 +287,30 @@ class _DetailBody extends ConsumerWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _StatItem(
-                        icon: Icons.straighten,
-                        label: '거리',
-                        value: detail.distanceText,
+                      Expanded(
+                        child: _StatItem(
+                          icon: Icons.straighten,
+                          label: '거리',
+                          value: detail.distanceText,
+                        ),
                       ),
                       _divider(),
-                      _StatItem(
-                        icon: Icons.timer,
-                        label: '시간',
-                        value: detail.durationText,
+                      Expanded(
+                        child: _StatItem(
+                          icon: Icons.timer,
+                          label: '시간',
+                          value: detail.durationText,
+                        ),
                       ),
                       _divider(),
-                      _StatItem(
-                        icon: Icons.speed,
-                        label: '평균속도',
-                        value: _avgSpeed(
-                          detail.distanceMeters,
-                          detail.durationSeconds,
+                      Expanded(
+                        child: _StatItem(
+                          icon: Icons.speed,
+                          label: '평균속도',
+                          value: _avgSpeed(
+                            detail.distanceMeters,
+                            detail.durationSeconds,
+                          ),
                         ),
                       ),
                     ],
@@ -1006,6 +1012,13 @@ class _ZoomButton extends StatelessWidget {
   }
 }
 
+String? _markingVisitDate(String? value) {
+  if (value == null || value.length < 10) return null;
+  final date = DateTime.tryParse(value.substring(0, 10));
+  if (date == null) return null;
+  return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+}
+
 class _MarkingSpotCard extends ConsumerWidget {
   final MarkingSpot spot;
   final int index;
@@ -1014,6 +1027,7 @@ class _MarkingSpotCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final lastVisitedDate = _markingVisitDate(spot.lastVisitedAt);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -1056,12 +1070,20 @@ class _MarkingSpotCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '이곳을 지난 강아지 ${spot.visitCount}마리 보기',
+                        '마킹 기록 ${spot.visitCount}건',
                         style: const TextStyle(
                           color: Colors.grey,
                           fontSize: 12,
                         ),
                       ),
+                      if (lastVisitedDate != null)
+                        Text(
+                          '마지막 마킹 확인 $lastVisitedDate',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -1090,6 +1112,9 @@ class _MarkingSpotCard extends ConsumerWidget {
                 .getMarkingSpotDetail(spot.id),
             builder: (context, snapshot) {
               final detail = snapshot.data;
+              final lastVisitedDate = _markingVisitDate(
+                detail?.lastVisitedAt ?? spot.lastVisitedAt,
+              );
               return Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                 child: Column(
@@ -1138,17 +1163,30 @@ class _MarkingSpotCard extends ConsumerWidget {
                               const SizedBox(height: 2),
                               Text(
                                 detail == null
-                                    ? '방문한 강아지 정보를 불러오는 중'
-                                    : '총 ${detail.visitCount}마리의 발자국',
+                                    ? '마킹 기록 ${spot.visitCount}건'
+                                    : '마킹 기록 ${detail.visitCount}건',
                                 style: const TextStyle(
                                   color: Colors.black54,
                                   fontSize: 13,
                                 ),
                               ),
+                              if (lastVisitedDate != null)
+                                Text(
+                                  '마지막 마킹 확인 $lastVisitedDate',
+                                  style: const TextStyle(
+                                    color: Colors.black54,
+                                    fontSize: 12,
+                                  ),
+                                ),
                             ],
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '마킹한 기록이에요. 비가 온 뒤에는 냄새가 약해질 수 있고, 현재 냄새가 남아 있는지는 알 수 없어요.',
+                      style: TextStyle(color: Colors.black54, fontSize: 12),
                     ),
                     const SizedBox(height: 18),
                     if (snapshot.connectionState != ConnectionState.done)
@@ -1166,11 +1204,11 @@ class _MarkingSpotCard extends ConsumerWidget {
                     else if (detail == null || detail.visits.isEmpty)
                       const _MarkingSpotDetailMessage(
                         icon: Icons.pets,
-                        text: '아직 이곳을 지난 강아지 정보가 없어요',
+                        text: '표시할 마킹 기록이 없어요',
                       )
                     else ...[
                       const Text(
-                        '이곳을 지난 강아지',
+                        '이곳의 마킹 기록',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
@@ -1630,6 +1668,9 @@ class _StatItem extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,

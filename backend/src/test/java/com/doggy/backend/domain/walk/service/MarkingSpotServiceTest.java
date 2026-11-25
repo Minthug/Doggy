@@ -63,6 +63,14 @@ class MarkingSpotServiceTest {
     @Mock TrafficMapFeatureRepository trafficMapFeatureRepository;
 
     @Test
+    void rejectsInvalidPopularSpotCenter() {
+        assertThatThrownBy(() -> service().getMostMarkedNear(91, 126.945))
+                .hasMessageContaining("올바른 지도 좌표");
+        assertThatThrownBy(() -> service().getMostMarkedNear(Double.NaN, 126.945))
+                .hasMessageContaining("올바른 지도 좌표");
+    }
+
+    @Test
     void detectsCandidateWhenRouteStopsAndMovesAgain() {
         MarkingSpotService service = service();
         given(spotRepository.findAllByGridKeyIn(anyCollection())).willReturn(List.of());

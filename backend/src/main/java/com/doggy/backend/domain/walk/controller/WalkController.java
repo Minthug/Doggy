@@ -190,6 +190,15 @@ public class WalkController {
         return ResponseEntity.ok(markingSpotService.getDetail(spotId));
     }
 
+    @GetMapping("/marking-spots/popular")
+    public ResponseEntity<PopularMarkingSpotResponse> getPopularMarkingSpot(
+            @RequestParam double lat,
+            @RequestParam double lng) {
+        return markingSpotService.getMostMarkedNear(lat, lng)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
     @PostMapping("/{sessionId}/like")
     public ResponseEntity<Void> toggleLike(
             @AuthenticationPrincipal UserPrincipal principal,

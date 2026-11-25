@@ -12,10 +12,13 @@ import com.doggy.backend.domain.walk.dto.MarkingCandidateAnswer;
 import com.doggy.backend.domain.walk.dto.MarkingCandidateFeedbackRequest;
 import com.doggy.backend.domain.walk.dto.MarkingSpotCandidateResponse;
 import com.doggy.backend.domain.walk.entity.MarkingCandidateFeedback;
+import com.doggy.backend.domain.walk.entity.MarkingSpot;
+import com.doggy.backend.domain.walk.entity.MarkingSpotVisit;
 import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.repository.MarkingCandidateFeedbackRepository;
 import com.doggy.backend.domain.walk.repository.MarkingCandidateFeedbackRepository.CandidateVoteCount;
 import com.doggy.backend.domain.walk.repository.MarkingSpotVisitRepository;
+import com.doggy.backend.domain.walk.repository.MarkingSpotRepository;
 import com.doggy.backend.domain.walk.repository.TrafficMapFeatureRepository;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
 import com.doggy.backend.global.config.QueryDslConfig;
@@ -62,9 +65,48 @@ class MarkingFeedbackDatabaseTest {
     @Autowired WalkSessionRepository walkSessionRepository;
     @Autowired MarkingCandidateFeedbackRepository feedbackRepository;
     @Autowired MarkingSpotVisitRepository visitRepository;
+    @Autowired MarkingSpotRepository spotRepository;
     @Autowired MarkingSpotService service;
     @MockitoBean HouseholdService householdService;
     @MockitoBean TrafficMapFeatureRepository trafficMapFeatureRepository;
+
+    @Test
+    void popularSpotCountsDistinctDogsWithinTwoKilometers() {
+        User user = userRepository.save(User.builder().nickname("popular-spot-test").build());
+        double lat = 35 + (user.getId() % 100) * 0.1;
+        Dog firstDog = dogRepository.save(Dog.builder().user(user).name("보리").build());
+        Dog secondDog = dogRepository.save(Dog.builder().user(user).name("두부").build());
+        Dog thirdDog = dogRepository.save(Dog.builder().user(user).name("콩이").build());
+        Dog fourthDog = dogRepository.save(Dog.builder().user(user).name("호두").build());
+        LocalDateTime time = LocalDateTime.of(2026, 11, 3, 12, 0);
+        WalkSession firstWalk = walkSessionRepository.save(WalkSession.builder().user(user).startedAt(time).build());
+        WalkSession secondWalk = walkSessionRepository.save(WalkSession.builder().user(user).startedAt(time.plusDays(1)).build());
+        MarkingSpot twoDogs = spotRepository.save(MarkingSpot.builder()
+                .lat(lat).lng(126.945).gridKey(UUID.randomUUID().toString()).build());
+        MarkingSpot repeatDog = spotRepository.save(MarkingSpot.builder()
+                .lat(lat + 0.001).lng(126.945).gridKey(UUID.randomUUID().toString()).build());
+        MarkingSpot farAway = spotRepository.save(MarkingSpot.builder()
+                .lat(lat + 0.032).lng(126.945).gridKey(UUID.randomUUID().toString()).build());
+
+        visitRepository.save(MarkingSpotVisit.builder().spot(twoDogs).session(firstWalk)
+                .dog(firstDog).user(user).visitedAt(time).build());
+        visitRepository.save(MarkingSpotVisit.builder().spot(twoDogs).session(firstWalk)
+                .dog(secondDog).user(user).visitedAt(time).build());
+        visitRepository.save(MarkingSpotVisit.builder().spot(repeatDog).session(firstWalk)
+                .dog(firstDog).user(user).visitedAt(time).build());
+        visitRepository.save(MarkingSpotVisit.builder().spot(repeatDog).session(secondWalk)
+                .dog(firstDog).user(user).visitedAt(time.plusDays(1)).build());
+        visitRepository.save(MarkingSpotVisit.builder().spot(farAway).session(firstWalk)
+                .dog(firstDog).user(user).visitedAt(time).build());
+        visitRepository.save(MarkingSpotVisit.builder().spot(farAway).session(firstWalk)
+                .dog(thirdDog).user(user).visitedAt(time).build());
+        visitRepository.save(MarkingSpotVisit.builder().spot(farAway).session(firstWalk)
+                .dog(fourthDog).user(user).visitedAt(time).build());
+
+        var popular = service.getMostMarkedNear(lat, 126.945).orElseThrow();
+        assertThat(popular.id()).isEqualTo(twoDogs.getId());
+        assertThat(popular.dogCount()).isEqualTo(2);
+    }
 
     @Test
     void positiveAndNegativeAnswersCommitButOnlyPositiveCreatesSpot() {

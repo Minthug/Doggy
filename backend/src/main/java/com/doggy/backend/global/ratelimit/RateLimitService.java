@@ -57,6 +57,10 @@ public class RateLimitService {
         check("image-upload", "image-upload:" + subject, IMAGE_UPLOAD_LIMIT, IMAGE_UPLOAD_WINDOW, request);
     }
 
+    public void checkAddressSearch(Long userId, HttpServletRequest request) {
+        check("address-search", "address-search:user:" + userId, 30, Duration.ofMinutes(1), request);
+    }
+
     public void checkHouseholdJoin(Long userId, HttpServletRequest request) {
         check("household-join", "household-join:user:" + userId,
                 HOUSEHOLD_JOIN_LIMIT, HOUSEHOLD_JOIN_WINDOW, request);

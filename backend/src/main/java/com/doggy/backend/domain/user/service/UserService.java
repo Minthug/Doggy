@@ -125,6 +125,17 @@ public class UserService {
         return UserProfileResponse.from(user);
     }
 
+    @Transactional
+    public UserProfileResponse updateNeighborhood(Long userId, UpdateNeighborhoodRequest request) {
+        if (!Double.isFinite(request.lat()) || !Double.isFinite(request.lng())) {
+            throw BusinessException.badRequest("올바른 집 위치를 선택해주세요");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("유저를 찾을 수 없습니다"));
+        user.updateNeighborhood(request.address().trim(), request.lat(), request.lng());
+        return UserProfileResponse.from(user);
+    }
+
     /* Firebase Cloud Messaging */
     @Transactional
     public void updateFcmToken(Long userId, String fcmToken) {

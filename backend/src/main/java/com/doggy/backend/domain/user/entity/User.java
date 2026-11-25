@@ -31,6 +31,9 @@ public class User extends BaseEntity {
     @Column(length = 100)
     private String address;
 
+    private Double homeLat;
+    private Double homeLng;
+
     private LocalDate birthDate;
 
     @Column(nullable = false)
@@ -51,6 +54,12 @@ public class User extends BaseEntity {
         }
         this.nickname = nickname;
         this.profileImage = profileImage;
+    }
+
+    public void updateNeighborhood(String address, double lat, double lng) {
+        this.address = address;
+        this.homeLat = lat;
+        this.homeLng = lng;
     }
 
     public void updateFcmToken(String fcmToken) {

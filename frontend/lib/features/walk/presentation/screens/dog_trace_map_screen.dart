@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:rive/rive.dart' as rive;
+import '../../data/models/walk_model.dart';
+import '../../../home/domain/providers/home_provider.dart';
+import '../../data/repositories/walk_repository.dart';
 import '../../domain/providers/walk_provider.dart';
 import '../models/dog_trace_visual.dart';
 import '../models/route_segments.dart';
+import '../widgets/marking_dog_chart.dart';
+import '../widgets/dog_face_icon.dart';
 
 class DogTraceMapScreen extends ConsumerStatefulWidget {
   const DogTraceMapScreen({super.key});
@@ -20,6 +25,9 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
 
   NaverMapController? _controller;
   DogTraceVisual? _selectedTrace;
+  PopularMarkingSpot? _popularSpot;
+  Timer? _popularSpotTimer;
+  int _popularSpotRequest = 0;
   bool _todayOnly = true;
 
   List<DogTraceVisual> _visibleTraces(List<DogTraceVisual> traces) =>
@@ -27,6 +35,7 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
 
   @override
   void dispose() {
+    _popularSpotTimer?.cancel();
     _controller = null;
     super.dispose();
   }
@@ -83,6 +92,16 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
             onMapReady: (controller) {
               _controller = controller;
               _drawTraces(traces);
+              final profile = ref.read(userProfileProvider).valueOrNull;
+              if (profile?.hasNeighborhood == true) {
+                controller.updateCamera(
+                  NCameraUpdate.scrollAndZoomTo(
+                    target: NLatLng(profile!.homeLat!, profile.homeLng!),
+                    zoom: 15,
+                  ),
+                );
+              }
+              _schedulePopularSpot();
             },
             onMapTapped: (_, _) => setState(() => _selectedTrace = null),
           ),
@@ -150,6 +169,7 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
                     traces: traces,
                     distanceText: distanceText,
                     durationText: durationText,
+                    popularSpot: _popularSpot,
                   )
                 : _TraceDetailCard(
                     trace: _selectedTrace!,
@@ -157,6 +177,41 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _schedulePopularSpot() {
+    _popularSpotTimer?.cancel();
+    ++_popularSpotRequest;
+    _popularSpotTimer = Timer(
+      const Duration(milliseconds: 400),
+      _loadPopularSpot,
+    );
+  }
+
+  Future<void> _loadPopularSpot() async {
+    final controller = _controller;
+    if (controller == null) return;
+    final request = ++_popularSpotRequest;
+    PopularMarkingSpot? spot;
+    try {
+      final profile = ref.read(userProfileProvider).valueOrNull;
+      if (profile?.hasNeighborhood != true) return;
+      spot = await ref
+          .read(walkRepositoryProvider)
+          .getPopularMarkingSpot(profile!.homeLat!, profile.homeLng!);
+    } catch (_) {
+      spot = null;
+    }
+    if (!mounted || request != _popularSpotRequest) return;
+    setState(() => _popularSpot = spot);
+    _drawTraces(
+      _visibleTraces(
+        buildDogTraceMapItems(
+          ref.read(latestTodayWalkTraceDiscoveriesProvider).valueOrNull ??
+              const [],
+        ),
       ),
     );
   }
@@ -226,17 +281,21 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
       await controller.addOverlay(marker);
     }
 
-    final markingSpot = NMarker(
-      id: 'shared-marking-spot',
-      position: const NLatLng(37.21855, 126.94535),
-      icon: _markingSpotIcon,
-      size: const Size(42, 48),
-      anchor: const NPoint(0.5, 1),
-      caption: NOverlayCaption(text: '${traces.length}마리의 흔적'),
-      isForceShowIcon: true,
-      isHideCollidedMarkers: false,
-    );
-    await controller.addOverlay(markingSpot);
+    final popularSpot = _popularSpot;
+    if (popularSpot != null) {
+      await controller.addOverlay(
+        NMarker(
+          id: 'popular-marking-spot',
+          position: NLatLng(popularSpot.lat, popularSpot.lng),
+          icon: _markingSpotIcon,
+          size: const Size(42, 48),
+          anchor: const NPoint(0.5, 1),
+          caption: NOverlayCaption(text: '주변 1위 · ${popularSpot.dogCount}마리'),
+          isForceShowIcon: true,
+          isHideCollidedMarkers: false,
+        ),
+      );
+    }
 
     final ownSegments = parseRouteSegments(
       ref.read(latestTodayWalkDetailProvider).valueOrNull?.routeGeoJson,
@@ -321,11 +380,13 @@ class _TraceSummaryCard extends StatelessWidget {
   final List<DogTraceVisual> traces;
   final String distanceText;
   final String durationText;
+  final PopularMarkingSpot? popularSpot;
 
   const _TraceSummaryCard({
     required this.traces,
     required this.distanceText,
     required this.durationText,
+    required this.popularSpot,
   });
 
   @override
@@ -338,7 +399,7 @@ class _TraceSummaryCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              _AnimatedDogMascot(count: traces.length),
+              _DogMascot(count: traces.length),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -352,19 +413,31 @@ class _TraceSummaryCard extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      traces.map((trace) => trace.name).join(' · '),
-                      style: const TextStyle(
-                        color: Colors.black54,
-                        fontSize: 13,
+                    if (popularSpot != null) ...[
+                      const SizedBox(height: 2),
+                      MarkingDogChart(dogCount: popularSpot!.dogCount),
+                    ],
+                    if (traces.isNotEmpty) const SizedBox(height: 4),
+                    if (traces.isNotEmpty)
+                      Text(
+                        traces.map((trace) => trace.name).join(' · '),
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
             ],
           ),
+          if (popularSpot != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '내 동네 2km · 마킹 스팟 1위 · ${popularSpot!.dogCount}마리',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
@@ -431,110 +504,43 @@ class _TodayWalkValue extends StatelessWidget {
   }
 }
 
-class _AnimatedDogMascot extends StatefulWidget {
+class _DogMascot extends StatelessWidget {
   final int count;
-
-  const _AnimatedDogMascot({required this.count});
+  const _DogMascot({required this.count});
 
   @override
-  State<_AnimatedDogMascot> createState() => _AnimatedDogMascotState();
-}
-
-class _AnimatedDogMascotState extends State<_AnimatedDogMascot>
-    with SingleTickerProviderStateMixin {
-  late final rive.FileLoader _loader = rive.FileLoader.fromAsset(
-    'assets/rive/dog_mascot.riv',
-    riveFactory: rive.Factory.flutter,
+  Widget build(BuildContext context) => SizedBox(
+    width: 84,
+    height: 68,
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const Center(child: DogFaceIcon(size: 64)),
+        Positioned(
+          right: -5,
+          top: -5,
+          child: Container(
+            width: 25,
+            height: 25,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFF4CAF50),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
   );
-  late final AnimationController _idleController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _idleController.dispose();
-    _loader.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 84,
-      height: 68,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: ColoredBox(
-                color: const Color(0xFFEAF7E9),
-                child: AnimatedBuilder(
-                  animation: _idleController,
-                  builder: (context, child) {
-                    final progress = _idleController.value;
-                    return Transform.translate(
-                      offset: Offset(0, -2.5 * progress),
-                      child: Transform.rotate(
-                        angle: (progress - 0.5) * 0.035,
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: rive.RiveWidgetBuilder(
-                    fileLoader: _loader,
-                    builder: (context, state) => switch (state) {
-                      rive.RiveLoading() => const _MascotFallback(),
-                      rive.RiveFailed() => const _MascotFallback(),
-                      rive.RiveLoaded() => rive.RiveWidget(
-                        controller: state.controller,
-                        fit: rive.Fit.contain,
-                      ),
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: -5,
-            top: -5,
-            child: Container(
-              width: 25,
-              height: 25,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: const Color(0xFF4CAF50),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: Text(
-                '${widget.count}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MascotFallback extends StatelessWidget {
-  const _MascotFallback();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Icon(Icons.pets, color: Color(0xFF4CAF50), size: 30),
-    );
-  }
 }
 
 class _TraceDetailCard extends StatelessWidget {
@@ -553,7 +559,7 @@ class _TraceDetailCard extends StatelessWidget {
           CircleAvatar(
             radius: 26,
             backgroundColor: trace.color,
-            child: const Icon(Icons.pets, color: Colors.white),
+            child: DogFaceIcon(variant: trace.colorIndex, size: 40),
           ),
           const SizedBox(width: 14),
           Expanded(

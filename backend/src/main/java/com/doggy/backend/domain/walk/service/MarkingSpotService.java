@@ -55,6 +55,15 @@ public class MarkingSpotService {
     private final HouseholdService householdService;
     private final TrafficMapFeatureRepository trafficMapFeatureRepository;
 
+    public Optional<PopularMarkingSpotResponse> getMostMarkedNear(double lat, double lng) {
+        if (!Double.isFinite(lat) || !Double.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            throw BusinessException.badRequest("올바른 지도 좌표를 입력해 주세요");
+        }
+        return spotRepository.findMostMarkedNear(lat, lng)
+                .map(spot -> new PopularMarkingSpotResponse(
+                        spot.getId(), spot.getLat(), spot.getLng(), spot.getDogCount()));
+    }
+
     public List<MarkingSpotCandidateResponse> detectCandidates(List<WalkPointRequest> points) {
         if (points == null || points.size() < 4) {
             return List.of();

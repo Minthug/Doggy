@@ -8,6 +8,8 @@ public record UserProfileResponse(
         String profileImage,
         String phone,
         String address,
+        Double homeLat,
+        Double homeLng,
         java.time.LocalDate birthDate,
         boolean nicknameChanged
 ) {
@@ -18,6 +20,8 @@ public record UserProfileResponse(
                 user.getProfileImage(),
                 user.getPhone(),
                 user.getAddress(),
+                user.getHomeLat(),
+                user.getHomeLng(),
                 user.getBirthDate(),
                 user.isNicknameChanged()
         );

@@ -1,0 +1,3 @@
+ALTER TABLE users ADD COLUMN home_lat DOUBLE PRECISION;
+ALTER TABLE users ADD COLUMN home_lng DOUBLE PRECISION;
+ALTER TABLE users ADD CONSTRAINT chk_user_home_location CHECK ((home_lat IS NULL AND home_lng IS NULL) OR (home_lat IS NOT NULL AND home_lng IS NOT NULL AND home_lat BETWEEN -90 AND 90 AND home_lng BETWEEN -180 AND 180));

@@ -232,6 +232,28 @@ class MarkingSpot {
   }
 }
 
+class PopularMarkingSpot {
+  final int id;
+  final double lat;
+  final double lng;
+  final int dogCount;
+
+  const PopularMarkingSpot({
+    required this.id,
+    required this.lat,
+    required this.lng,
+    required this.dogCount,
+  });
+
+  factory PopularMarkingSpot.fromJson(Map<String, dynamic> json) =>
+      PopularMarkingSpot(
+        id: json['id'] as int,
+        lat: (json['lat'] as num).toDouble(),
+        lng: (json['lng'] as num).toDouble(),
+        dogCount: (json['dogCount'] as num).toInt(),
+      );
+}
+
 class MarkingSpotDetail {
   final int id;
   final double lat;

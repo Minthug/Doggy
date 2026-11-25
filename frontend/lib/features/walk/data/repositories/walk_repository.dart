@@ -107,6 +107,18 @@ class WalkRepository {
     return MarkingSpot.fromJson(response.data);
   }
 
+  Future<PopularMarkingSpot?> getPopularMarkingSpot(
+    double lat,
+    double lng,
+  ) async {
+    final response = await _dio.get(
+      '/api/walks/marking-spots/popular',
+      queryParameters: {'lat': lat, 'lng': lng},
+    );
+    if (response.statusCode == 204 || response.data == null) return null;
+    return PopularMarkingSpot.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<List<WalkSession>> getHistory({int page = 0, int size = 20}) async {
     final response = await _dio.get(
       '/api/walks',

@@ -58,14 +58,19 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     if (!isValid) return;
     if (!_agreedToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이용약관에 동의해주세요'), duration: Duration(seconds: 3)),
+        const SnackBar(
+          content: Text('이용약관에 동의해주세요'),
+          duration: Duration(seconds: 3),
+        ),
       );
       return;
     }
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(authActionProvider).signUp(
+      await ref
+          .read(authActionProvider)
+          .signUp(
             _emailController.text.trim(),
             _passwordController.text,
             _nicknameController.text.trim(),
@@ -85,7 +90,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           msg = '이미 사용 중인 이메일입니다';
         } else if (body.contains('400')) {
           msg = '입력값을 확인해주세요';
-        } else if (body.contains('SocketException') || body.contains('Connection')) {
+        } else if (body.contains('SocketException') ||
+            body.contains('Connection')) {
           msg = '서버에 연결할 수 없습니다. 네트워크를 확인해주세요';
         }
         ScaffoldMessenger.of(context).showSnackBar(
@@ -104,8 +110,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text('회원가입',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          '회원가입',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       body: Form(
         key: _formKey,
@@ -146,15 +154,18 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             TextFormField(
               controller: _passwordController,
               obscureText: _obscurePassword,
-              decoration: _inputDeco('비밀번호 (8자 이상)', Icons.lock_outline).copyWith(
-                suffixIcon: IconButton(
-                  icon: Icon(_obscurePassword
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined),
-                  onPressed: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
-                ),
-              ),
+              decoration: _inputDeco('비밀번호 (8자 이상)', Icons.lock_outline)
+                  .copyWith(
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+                  ),
               validator: (v) {
                 if (v == null || v.isEmpty) return '비밀번호를 입력해주세요';
                 if (v.length < 8) return '비밀번호는 8자 이상이어야 합니다';
@@ -167,12 +178,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             TextFormField(
               controller: _passwordConfirmController,
               obscureText: _obscureConfirm,
-              decoration:
-                  _inputDeco('비밀번호 확인', Icons.lock_outline).copyWith(
+              decoration: _inputDeco('비밀번호 확인', Icons.lock_outline).copyWith(
                 suffixIcon: IconButton(
-                  icon: Icon(_obscureConfirm
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined),
+                  icon: Icon(
+                    _obscureConfirm
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                  ),
                   onPressed: () =>
                       setState(() => _obscureConfirm = !_obscureConfirm),
                 ),
@@ -192,11 +204,16 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             TextFormField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
-              decoration: _inputDeco('전화번호 (예: 01012345678)', Icons.phone_outlined),
+              decoration: _inputDeco(
+                '전화번호 (예: 01012345678)',
+                Icons.phone_outlined,
+              ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return null; // 선택
                 final phoneRegex = RegExp(r'^01[0-9]{8,9}$');
-                if (!phoneRegex.hasMatch(v.trim())) return '올바른 전화번호 형식이 아닙니다 (숫자만 입력)';
+                if (!phoneRegex.hasMatch(v.trim())) {
+                  return '올바른 전화번호 형식이 아닙니다 (숫자만 입력)';
+                }
                 return null;
               },
             ),
@@ -205,7 +222,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             // 지역
             TextFormField(
               controller: _addressController,
-              decoration: _inputDeco('거주 지역 (예: 서울 강남구)', Icons.location_on_outlined),
+              maxLength: 100,
+              decoration: _inputDeco(
+                '집주소 (도로명 또는 지번)',
+                Icons.location_on_outlined,
+              ),
+              validator: (value) =>
+                  value == null || value.trim().isEmpty ? '집주소를 입력해주세요' : null,
             ),
             const SizedBox(height: 14),
 
@@ -272,13 +295,18 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   backgroundColor: const Color(0xFF4CAF50),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('가입하기',
+                    : const Text(
+                        '가입하기',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
             const SizedBox(height: 24),
@@ -292,9 +320,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     return Text(
       title,
       style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF4CAF50)),
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFF4CAF50),
+      ),
     );
   }
 
@@ -311,8 +340,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 1.5),
       ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 }

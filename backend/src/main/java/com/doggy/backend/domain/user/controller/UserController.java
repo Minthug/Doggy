@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
+    private final com.doggy.backend.domain.user.service.AddressSearchService addressSearchService;
     private final OAuth2LoginCodeService oAuth2LoginCodeService;
     private final RateLimitService rateLimitService;
 
@@ -74,6 +75,22 @@ public class UserController {
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody UpdateProfileRequest request) {
         return ResponseEntity.ok(userService.updateProfile(principal.getId(), request));
+    }
+
+    @GetMapping("/api/users/me/address-search")
+    public java.util.List<com.doggy.backend.domain.user.service.AddressSearchService.AddressResult> searchAddress(
+            @AuthenticationPrincipal UserPrincipal principal,
+            HttpServletRequest request,
+            @RequestParam String query) {
+        rateLimitService.checkAddressSearch(principal.getId(), request);
+        return addressSearchService.search(query);
+    }
+
+    @PutMapping("/api/users/me/neighborhood")
+    public ResponseEntity<UserProfileResponse> updateNeighborhood(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody UpdateNeighborhoodRequest request) {
+        return ResponseEntity.ok(userService.updateNeighborhood(principal.getId(), request));
     }
 
     @PatchMapping("/api/users/me/fcm-token")

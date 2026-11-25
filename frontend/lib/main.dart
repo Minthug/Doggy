@@ -18,6 +18,7 @@ import 'features/home/presentation/screens/main_screen.dart';
 import 'features/dog/domain/providers/dog_provider.dart';
 import 'features/household/domain/providers/household_provider.dart';
 import 'features/auth/data/oauth_login_attempt.dart';
+import 'features/home/domain/providers/home_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -87,6 +88,7 @@ class _DoggyAppState extends State<DoggyApp> {
           );
           if (!mounted) return;
           final container = ProviderScope.containerOf(context);
+          container.invalidate(userProfileProvider);
           container.invalidate(myDogsProvider);
           container.invalidate(myHouseholdProvider);
           navigatorKey.currentState?.pushNamedAndRemoveUntil(

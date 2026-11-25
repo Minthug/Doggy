@@ -10,12 +10,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _FakeWalkRepository extends WalkRepository {
   final int ownerId;
+  final bool includeMarkingSpot;
   bool answered = false;
   int candidateLoads = 0;
   Map<String, bool>? savedAnswers;
   List<int>? savedDogIds;
 
-  _FakeWalkRepository({required this.ownerId}) : super(Dio());
+  _FakeWalkRepository({required this.ownerId, this.includeMarkingSpot = false})
+    : super(Dio());
 
   @override
   Future<WalkDetail> getDetail(int sessionId) async => WalkDetail.fromJson({
@@ -24,12 +26,45 @@ class _FakeWalkRepository extends WalkRepository {
     'distanceMeters': 1000,
     'durationSeconds': 300,
     'status': 'COMPLETED',
-    'routeGeoJson': '{"type":"LineString","coordinates":[[126.944,37.218],[126.945,37.219]]}',
+    'routeGeoJson':
+        '{"type":"LineString","coordinates":[[126.944,37.218],[126.945,37.219]]}',
     'tracePathData': 'v1|0,0;100,100',
     'dogs': [
       {'id': 3, 'name': '보리'},
     ],
+    if (includeMarkingSpot)
+      'markingSpots': [
+        {
+          'id': 10,
+          'lat': 37.218,
+          'lng': 126.944,
+          'visitCount': 2,
+          'lastVisitedAt': '2026-11-24T12:00:00',
+        },
+      ],
   });
+
+  @override
+  Future<MarkingSpotDetail> getMarkingSpotDetail(int spotId) async =>
+      MarkingSpotDetail.fromJson({
+        'id': spotId,
+        'lat': 37.218,
+        'lng': 126.944,
+        'visitCount': 2,
+        'lastVisitedAt': '2026-11-24T12:00:00',
+        'visits': [
+          {
+            'id': 1,
+            'visitedAt': '2026-11-24T12:00:00',
+            'dog': {'id': 3, 'name': '보리'},
+          },
+          {
+            'id': 2,
+            'visitedAt': '2026-11-23T12:00:00',
+            'dog': {'id': 3, 'name': '보리'},
+          },
+        ],
+      });
 
   @override
   Future<List<MarkingSpotCandidate>> getMarkingCandidates(int sessionId) async {
@@ -145,5 +180,29 @@ void main() {
     expect(find.textContaining('마킹 후보'), findsNothing);
     expect(repository.candidateLoads, 0);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('작은 화면에서도 마킹 기록 수와 마지막 확인 날짜를 보여준다', (tester) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeWalkRepository(
+      ownerId: 7,
+      includeMarkingSpot: true,
+    );
+    await tester.pumpWidget(_screen(repository));
+    await tester.pumpAndSettle();
+
+    final card = find.text('1번째 마킹 스팟');
+    await tester.ensureVisible(card);
+    expect(find.text('마킹 기록 2건'), findsOneWidget);
+    expect(find.text('마지막 마킹 확인 2026.11.24'), findsOneWidget);
+
+    await tester.tap(card);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('현재 냄새가 남아 있는지는 알 수 없어요'), findsOneWidget);
+    expect(find.text('마킹 기록 2건'), findsNWidgets(2));
   });
 }
