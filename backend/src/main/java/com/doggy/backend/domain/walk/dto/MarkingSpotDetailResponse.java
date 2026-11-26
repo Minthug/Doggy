@@ -9,6 +9,7 @@ public record MarkingSpotDetailResponse(
         double lng,
         int visitCount,
         LocalDateTime lastVisitedAt,
+        LocalDateTime lastRainAt,
         List<MarkingSpotVisitResponse> visits
 ) {
 }

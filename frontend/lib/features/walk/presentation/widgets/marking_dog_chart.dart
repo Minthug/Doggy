@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'dog_face_icon.dart';
+import 'marking_scent_notice.dart';
 
 class MarkingDogChart extends StatelessWidget {
   final int dogCount;
-  const MarkingDogChart({super.key, required this.dogCount});
+  final String? lastVisitedAt;
+  final String? lastRainAt;
+  const MarkingDogChart({
+    super.key,
+    required this.dogCount,
+    this.lastVisitedAt,
+    this.lastRainAt,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +25,14 @@ class MarkingDogChart extends StatelessWidget {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            for (var i = 0; i < visible; i++) DogFaceIcon(variant: i),
+            for (var i = 0; i < visible; i++)
+              Opacity(
+                opacity: markingScentOpacity(
+                  lastVisitedAt: lastVisitedAt,
+                  lastRainAt: lastRainAt,
+                ),
+                child: DogFaceIcon(variant: i),
+              ),
             if (count > visible)
               Text(
                 '+${count - visible}마리',

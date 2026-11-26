@@ -9,6 +9,7 @@ import 'home_tab.dart';
 import '../../domain/providers/home_provider.dart';
 import 'neighborhood_setup_screen.dart';
 import 'walk_place_tab.dart';
+import '../widgets/app_intro_gate.dart';
 
 final _currentTabIndexProvider = StateProvider<int>((ref) => 0);
 
@@ -26,15 +27,6 @@ class MainScreen extends ConsumerStatefulWidget {
 }
 
 class _MainScreenState extends ConsumerState<MainScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref.read(fcmServiceProvider).initialize();
-    });
-  }
-
   final _tabs = const [HomeTab(), WalkPlaceTab(), CommunityTab(), ProfileTab()];
 
   @override
@@ -57,36 +49,44 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       return NeighborhoodSetupScreen(profile: profile.value!);
     }
     final currentIndex = ref.watch(_currentTabIndexProvider);
-    return Scaffold(
-      body: Stack(
-        children: [
-          IndexedStack(index: currentIndex, children: _tabs),
-          const BannerLayer(),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: currentIndex,
-        onTap: (index) {
-          if (index == 0) {
-            ref.invalidate(walkHistoryProvider);
-            ref.invalidate(todayWalkStatsProvider);
-            ref.invalidate(todayDogCaloriesProvider);
-            ref.invalidate(todayMeetsProvider);
-          }
-          ref.read(_currentTabIndexProvider.notifier).state = index;
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF4CAF50),
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: '지도'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: '커뮤니티',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
-        ],
+    return AppIntroGate(
+      key: ValueKey(profile.value!.id),
+      userId: profile.value!.id,
+      onReady: () => ref.read(fcmServiceProvider).initialize(),
+      child: Scaffold(
+        body: Stack(
+          children: [
+            IndexedStack(index: currentIndex, children: _tabs),
+            const BannerLayer(),
+          ],
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: currentIndex,
+          onTap: (index) {
+            if (index == 0) {
+              ref.invalidate(walkHistoryProvider);
+              ref.invalidate(todayWalkStatsProvider);
+              ref.invalidate(todayDogCaloriesProvider);
+              ref.invalidate(todayMeetsProvider);
+            }
+            ref.read(_currentTabIndexProvider.notifier).state = index;
+          },
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: const Color(0xFF4CAF50),
+          unselectedItemColor: Colors.grey,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.map_outlined),
+              label: '지도',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people_outline),
+              label: '커뮤니티',
+            ),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
+          ],
+        ),
       ),
     );
   }

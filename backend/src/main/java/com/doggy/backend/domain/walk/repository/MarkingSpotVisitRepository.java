@@ -11,6 +11,11 @@ import java.util.List;
 
 public interface MarkingSpotVisitRepository extends JpaRepository<MarkingSpotVisit, Long> {
 
+    @Query("SELECT DISTINCT d.id FROM MarkingSpotVisit v JOIN v.dog d LEFT JOIN d.household h "
+            + "WHERE v.spot.id = :spotId AND (d.user.id = :userId OR h.id IN "
+            + "(SELECT m.household.id FROM HouseholdMember m WHERE m.user.id = :userId))")
+    java.util.Set<Long> findFamilyDogIdsBySpotId(@Param("spotId") Long spotId, @Param("userId") Long userId);
+
     boolean existsBySpotIdAndSessionIdAndDogId(Long spotId, Long sessionId, Long dogId);
 
     @Query("SELECT COUNT(DISTINCT v.spot.id) FROM MarkingSpotVisit v WHERE v.session.id = :sessionId")

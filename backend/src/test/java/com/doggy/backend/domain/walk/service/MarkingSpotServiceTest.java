@@ -53,6 +53,7 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class MarkingSpotServiceTest {
 
+    @Mock com.doggy.backend.global.weather.RainObservationService rainObservationService;
     @Mock MarkingSpotRepository spotRepository;
     @Mock MarkingCandidateFeedbackRepository feedbackRepository;
     @Mock MarkingSpotVisitRepository visitRepository;
@@ -64,9 +65,9 @@ class MarkingSpotServiceTest {
 
     @Test
     void rejectsInvalidPopularSpotCenter() {
-        assertThatThrownBy(() -> service().getMostMarkedNear(91, 126.945))
+        assertThatThrownBy(() -> service().getMostMarkedNear(1L, 91, 126.945))
                 .hasMessageContaining("올바른 지도 좌표");
-        assertThatThrownBy(() -> service().getMostMarkedNear(Double.NaN, 126.945))
+        assertThatThrownBy(() -> service().getMostMarkedNear(1L, Double.NaN, 126.945))
                 .hasMessageContaining("올바른 지도 좌표");
     }
 
@@ -453,6 +454,7 @@ class MarkingSpotServiceTest {
 
     private MarkingSpotService service() {
         return new MarkingSpotService(
+                rainObservationService,
                 spotRepository,
                 feedbackRepository,
                 visitRepository,

@@ -6,7 +6,12 @@ import '../../domain/providers/home_provider.dart';
 
 class NeighborhoodSetupScreen extends ConsumerStatefulWidget {
   final UserProfile profile;
-  const NeighborhoodSetupScreen({super.key, required this.profile});
+  final bool returnAfterSave;
+  const NeighborhoodSetupScreen({
+    super.key,
+    required this.profile,
+    this.returnAfterSave = false,
+  });
 
   @override
   ConsumerState<NeighborhoodSetupScreen> createState() =>
@@ -83,6 +88,7 @@ class _NeighborhoodSetupScreenState
             },
           );
       ref.invalidate(userProfileProvider);
+      if (mounted && widget.returnAfterSave) Navigator.of(context).pop(true);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

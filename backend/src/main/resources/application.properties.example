@@ -11,6 +11,9 @@ doggy.trusted-proxy-ip-regex=${TRUSTED_PROXY_IP_REGEX:(?!)}
 batch.public-data.enabled=false
 batch.kakao.enabled=false
 
+# Poll recent marking regions independently of app requests (KST :15 and :45).
+weather.marking-rain.enabled=${MARKING_RAIN_ENABLED:true}
+
 # DB
 spring.datasource.url=${DB_URL}
 spring.datasource.username=${DB_USERNAME}

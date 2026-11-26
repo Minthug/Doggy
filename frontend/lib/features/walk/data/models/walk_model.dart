@@ -237,12 +237,18 @@ class PopularMarkingSpot {
   final double lat;
   final double lng;
   final int dogCount;
+  final bool familyVisited;
+  final String? lastVisitedAt;
+  final String? lastRainAt;
 
   const PopularMarkingSpot({
     required this.id,
     required this.lat,
     required this.lng,
     required this.dogCount,
+    this.familyVisited = false,
+    this.lastVisitedAt,
+    this.lastRainAt,
   });
 
   factory PopularMarkingSpot.fromJson(Map<String, dynamic> json) =>
@@ -251,6 +257,9 @@ class PopularMarkingSpot {
         lat: (json['lat'] as num).toDouble(),
         lng: (json['lng'] as num).toDouble(),
         dogCount: (json['dogCount'] as num).toInt(),
+        familyVisited: json['familyVisited'] == true,
+        lastVisitedAt: json['lastVisitedAt'],
+        lastRainAt: json['lastRainAt'],
       );
 }
 
@@ -260,6 +269,7 @@ class MarkingSpotDetail {
   final double lng;
   final int visitCount;
   final String? lastVisitedAt;
+  final String? lastRainAt;
   final List<MarkingSpotVisit> visits;
 
   const MarkingSpotDetail({
@@ -268,6 +278,7 @@ class MarkingSpotDetail {
     required this.lng,
     required this.visitCount,
     this.lastVisitedAt,
+    this.lastRainAt,
     this.visits = const [],
   });
 
@@ -278,6 +289,7 @@ class MarkingSpotDetail {
       lng: (json['lng'] as num).toDouble(),
       visitCount: json['visitCount'] ?? 0,
       lastVisitedAt: json['lastVisitedAt'],
+      lastRainAt: json['lastRainAt'],
       visits:
           (json['visits'] as List<dynamic>?)
               ?.map((e) => MarkingSpotVisit.fromJson(e as Map<String, dynamic>))
@@ -289,14 +301,21 @@ class MarkingSpotDetail {
 
 class MarkingSpotVisit {
   final int id;
+  final bool familyDog;
   final String? visitedAt;
   final MarkingSpotVisitDog dog;
 
-  const MarkingSpotVisit({required this.id, this.visitedAt, required this.dog});
+  const MarkingSpotVisit({
+    required this.id,
+    this.familyDog = false,
+    this.visitedAt,
+    required this.dog,
+  });
 
   factory MarkingSpotVisit.fromJson(Map<String, dynamic> json) {
     return MarkingSpotVisit(
       id: json['id'],
+      familyDog: json['familyDog'] == true,
       visitedAt: json['visitedAt'],
       dog: MarkingSpotVisitDog.fromJson(json['dog'] as Map<String, dynamic>),
     );

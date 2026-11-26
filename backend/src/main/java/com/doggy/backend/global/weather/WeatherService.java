@@ -29,6 +29,12 @@ import java.util.stream.Collectors;
 @Service
 public class WeatherService {
 
+    private final RainObservationService rainObservationService;
+
+    public WeatherService(RainObservationService rainObservationService) {
+        this.rainObservationService = rainObservationService;
+    }
+
     private static final String OBSERVATION_URL =
             "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst";
     private static final String FORECAST_URL =
@@ -191,11 +197,19 @@ public class WeatherService {
         return fetchObservation(grid);
     }
 
-    @SuppressWarnings("unchecked")
     private WeatherData fetchObservation(int[] grid) {
+        return fetchObservation(grid, ZonedDateTime.now(KST).minusMinutes(40).toLocalDateTime());
+    }
+
+    public boolean observeRain(int nx, int ny, java.time.LocalDateTime observationTime) {
+        return fetchObservation(new int[]{nx, ny}, observationTime) != null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private WeatherData fetchObservation(int[] grid, java.time.LocalDateTime observationBase) {
         try {
-            String baseDate = getBaseDate();
-            String baseTime = getObsBaseTime();
+            String baseDate = observationBase.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String baseTime = observationBase.format(DateTimeFormatter.ofPattern("HH'00'"));
 
             String url = OBSERVATION_URL
                     + "?serviceKey=" + apiKey
@@ -212,15 +226,31 @@ public class WeatherService {
                     ((Map<String, Object>) body.get("items")).get("item");
 
             int tmp = 20, pty = 0;
+            double rainAmount = 0;
+            boolean precipitationPresent = false;
             for (Map<String, Object> item : items) {
                 String category = (String) item.get("category");
                 try {
                     double val = Double.parseDouble(item.get("obsrValue").toString());
                     if ("T1H".equals(category)) tmp = (int) Math.round(val);
-                    else if ("PTY".equals(category)) pty = (int) val;
+                    else if ("PTY".equals(category)) { pty = (int) val; precipitationPresent = true; }
+                    else if ("RN1".equals(category)) rainAmount = val;
                 } catch (NumberFormatException ignored) {}
             }
+            if (!precipitationPresent) return null;
             log.info("초단기실황 ({}{}) - 기온:{}도 강수형태:{}", baseDate, baseTime, tmp, pty);
+            if (pty == 1 || pty == 2 || pty == 4 || pty == 5 || pty == 6
+                    || (pty == 0 && rainAmount > 0)) {
+                try {
+                    var rainTime = observationBase.truncatedTo(java.time.temporal.ChronoUnit.HOURS);
+                    // Hourly accumulation may precede a new marking within that hour.
+                    if (pty == 0) rainTime = rainTime.minusHours(1);
+                    rainObservationService.record(grid[0], grid[1], rainTime);
+                } catch (Exception ignored) {
+                    log.warn("강수 관측 이력 저장 실패");
+                    return null;
+                }
+            }
             return new WeatherData(tmp, 0, pty);
 
         } catch (Exception e) {
@@ -536,13 +566,6 @@ public class WeatherService {
             return now.minusDays(1).toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         }
         return now.toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-    }
-
-    private String getObsBaseTime() {
-        ZonedDateTime now = ZonedDateTime.now(KST);
-        int hour = now.getHour();
-        if (now.getMinute() < 10) hour = (hour - 1 + 24) % 24;
-        return String.format("%02d00", hour);
     }
 
     private String getBaseTime() {

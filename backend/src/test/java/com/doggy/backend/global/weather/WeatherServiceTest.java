@@ -24,7 +24,47 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 class WeatherServiceTest {
 
-    private final WeatherService weatherService = new WeatherService();
+    private final WeatherService weatherService = new WeatherService(org.mockito.Mockito.mock(RainObservationService.class));
+
+    @Test
+    void hourlyRainAmountIsRecordedEvenAfterRainStops() {
+        var rain = org.mockito.Mockito.mock(RainObservationService.class);
+        var service = new WeatherService(rain);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        RestTemplate rest = (RestTemplate) ReflectionTestUtils.getField(service, "restTemplate");
+        var server = MockRestServiceServer.bindTo(rest).build();
+        server.expect(requestTo(org.hamcrest.Matchers.containsString("getUltraSrtNcst")))
+                .andRespond(withSuccess("""
+                        {"response":{"body":{"items":{"item":[
+                        {"category":"PTY","obsrValue":"0"},{"category":"RN1","obsrValue":"2.5"}]}}}}
+                        """, MediaType.APPLICATION_JSON));
+        var observed = java.time.LocalDateTime.of(2026, 11, 26, 12, 0);
+        assertThat(service.observeRain(57, 120, observed)).isTrue();
+        org.mockito.Mockito.verify(rain).record(57, 120, observed.minusHours(1));
+        server.verify();
+    }
+
+    @Test
+    void recordsRainButNotDryOrSnowObservations() {
+        for (int precipitation : new int[]{0, 1, 2, 3, 4, 5, 6, 7}) {
+            var rain = org.mockito.Mockito.mock(RainObservationService.class);
+            var service = new WeatherService(rain);
+            ReflectionTestUtils.setField(service, "apiKey", "test-key");
+            RestTemplate rest = (RestTemplate) ReflectionTestUtils.getField(service, "restTemplate");
+            var server = MockRestServiceServer.bindTo(rest).build();
+            server.expect(requestTo(org.hamcrest.Matchers.containsString("getUltraSrtNcst")))
+                    .andRespond(withSuccess("{\"response\":{\"body\":{\"items\":{\"item\":[{\"category\":\"PTY\",\"obsrValue\":\""
+                            + precipitation + "\"}]}}}}", MediaType.APPLICATION_JSON));
+            ReflectionTestUtils.invokeMethod(service, "fetchObservation", new int[]{57, 120});
+            if (precipitation == 0 || precipitation == 3 || precipitation == 7) {
+                org.mockito.Mockito.verifyNoInteractions(rain);
+            } else {
+                org.mockito.Mockito.verify(rain).record(org.mockito.ArgumentMatchers.eq(57),
+                        org.mockito.ArgumentMatchers.eq(120), org.mockito.ArgumentMatchers.any());
+            }
+            server.verify();
+        }
+    }
 
     @Test
     @DisplayName("미세먼지 정보가 없으면 좋은 날씨도 산책 주의로 제한한다")

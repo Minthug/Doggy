@@ -2,21 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import '../../data/models/walk_model.dart';
 import 'route_segments.dart';
-
-const dogTracePalette = <Color>[
-  Color(0xFFD8A07C),
-  Color(0xFF87A9C4),
-  Color(0xFFA897C0),
-  Color(0xFF8FB097),
-  Color(0xFFD39AA3),
-  Color(0xFFD4BA78),
-  Color(0xFF82B5B0),
-  Color(0xFF929FC4),
-  Color(0xFFCB8D7D),
-  Color(0xFF93BCA5),
-  Color(0xFFB38FA8),
-  Color(0xFF789EA2),
-];
+import '../widgets/trace_affiliation.dart';
 
 class DogTraceVisual {
   final String id;
@@ -28,7 +14,7 @@ class DogTraceVisual {
   final List<NLatLng> points;
   final List<List<NLatLng>> segments;
 
-  Color get color => dogTracePalette[colorIndex % dogTracePalette.length];
+  Color get color => otherTraceColor;
 
   const DogTraceVisual({
     required this.id,

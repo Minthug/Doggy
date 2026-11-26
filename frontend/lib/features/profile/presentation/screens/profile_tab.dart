@@ -12,6 +12,9 @@ import '../../../home/domain/providers/home_provider.dart';
 import '../../../walk/data/models/walk_model.dart';
 import '../../../walk/domain/providers/walk_provider.dart';
 import 'profile_settings_screen.dart';
+import '../../../home/presentation/screens/neighborhood_setup_screen.dart';
+import '../../../home/data/models/user_profile_model.dart';
+import '../../../walk/presentation/widgets/dog_face_icon.dart';
 
 // base64 또는 URL 이미지를 ImageProvider로 변환
 ImageProvider? _dogImageProvider(String? profileImage) {
@@ -50,19 +53,20 @@ class ProfileTab extends ConsumerWidget {
               ),
               loading: () =>
                   const _ProfileHeader(nickname: '...', profileImage: null),
-              error: (_, __) =>
+              error: (_, _) =>
                   const _ProfileHeader(nickname: '사용자', profileImage: null),
             ),
 
             const SizedBox(height: 12),
 
-            // 이번 달 산책 통계
-            statsAsync.when(
-              data: (stats) => _MonthlyStatsCard(stats: stats),
-              loading: () => const _LoadingCard(height: 130),
-              error: (_, __) => const SizedBox.shrink(),
+            profileAsync.when(
+              data: (profile) => _HomeAddressCard(profile: profile),
+              loading: () => const _LoadingCard(height: 100),
+              error: (_, _) => TextButton(
+                onPressed: () => ref.invalidate(userProfileProvider),
+                child: const Text('내 정보 다시 불러오기'),
+              ),
             ),
-
             const SizedBox(height: 12),
 
             // 내 반려견
@@ -83,7 +87,7 @@ class ProfileTab extends ConsumerWidget {
                       ),
                     ),
                     icon: const Icon(Icons.add, size: 16),
-                    label: const Text('추가'),
+                    label: const Text('반려견 등록'),
                     style: TextButton.styleFrom(
                       foregroundColor: const Color(0xFF4CAF50),
                     ),
@@ -111,7 +115,19 @@ class ProfileTab extends ConsumerWidget {
                           _DogCard(dog: dogs[index]),
                     ),
               loading: () => const _LoadingCard(height: 100),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (_, _) => TextButton(
+                onPressed: () => ref.invalidate(myDogsProvider),
+                child: const Text('반려견 목록 다시 불러오기'),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // 이번 달 산책 통계
+            statsAsync.when(
+              data: (stats) => _MonthlyStatsCard(stats: stats),
+              loading: () => const _LoadingCard(height: 130),
+              error: (_, _) => const SizedBox.shrink(),
             ),
 
             const SizedBox(height: 12),
@@ -248,6 +264,50 @@ class ProfileTab extends ConsumerWidget {
   }
 }
 
+class _HomeAddressCard extends StatelessWidget {
+  final UserProfile profile;
+  const _HomeAddressCard({required this.profile});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Card(
+      margin: EdgeInsets.zero,
+      color: Colors.white,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: const Icon(Icons.home_outlined, color: Color(0xFF4CAF50)),
+        title: const Text(
+          '집주소 · 내 동네',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            profile.hasNeighborhood
+                ? '${profile.address}\n집 주변 2km를 내 동네로 사용해요'
+                : '집주소를 등록하고 내 동네의 마킹 스팟을 찾아보세요',
+          ),
+        ),
+        trailing: Text(
+          profile.hasNeighborhood ? '변경' : '등록',
+          style: const TextStyle(color: Color(0xFF4CAF50)),
+        ),
+        isThreeLine: true,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => NeighborhoodSetupScreen(
+              profile: profile,
+              returnAfterSave: true,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _ProfileHeader extends StatelessWidget {
   final String nickname;
   final String? profileImage;
@@ -317,6 +377,20 @@ class _ProfileHeader extends StatelessWidget {
           Text(
             nickname,
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('프로필 수정'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProfileSettingsScreen(
+                  initialNickname: nickname,
+                  initialProfileImage: profileImage,
+                  nicknameChanged: nicknameChanged,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -453,7 +527,7 @@ class _DogCard extends StatelessWidget {
               backgroundColor: const Color(0xFFE8F5E9),
               backgroundImage: _dogImageProvider(dog.profileImage),
               child: dog.profileImage == null
-                  ? const Text('🐶', style: TextStyle(fontSize: 22))
+                  ? const DogFaceIcon(size: 40)
                   : null,
             ),
             const SizedBox(width: 14),
@@ -465,11 +539,15 @@ class _DogCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        dog.name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                      Flexible(
+                        child: Text(
+                          dog.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       if (dog.genderLabel.isNotEmpty) ...[

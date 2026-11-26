@@ -44,7 +44,7 @@ import static org.mockito.BDDMockito.given;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({MarkingSpotService.class, QueryDslConfig.class})
+@Import({MarkingSpotService.class, QueryDslConfig.class, com.doggy.backend.global.weather.RainObservationService.class})
 @TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @EnabledIfEnvironmentVariable(
@@ -62,13 +62,71 @@ class MarkingFeedbackDatabaseTest {
     @Autowired UserRepository userRepository;
     @Autowired DogRepository dogRepository;
     @Autowired HouseholdRepository householdRepository;
+    @Autowired com.doggy.backend.domain.household.repository.HouseholdMemberRepository memberRepository;
     @Autowired WalkSessionRepository walkSessionRepository;
     @Autowired MarkingCandidateFeedbackRepository feedbackRepository;
     @Autowired MarkingSpotVisitRepository visitRepository;
     @Autowired MarkingSpotRepository spotRepository;
     @Autowired MarkingSpotService service;
+    @Autowired com.doggy.backend.global.weather.RainObservationService rainService;
     @MockitoBean HouseholdService householdService;
     @MockitoBean TrafficMapFeatureRepository trafficMapFeatureRepository;
+
+    @Test
+    void familyCanReadSharedMarkingSpotsWithoutCountingSameDogTwice() {
+        var a = userRepository.save(User.builder().nickname("family-marking-a").build());
+        var b = userRepository.save(User.builder().nickname("family-marking-b").build());
+        var outsider = userRepository.save(User.builder().nickname("family-marking-outsider").build());
+        double familyLat = -60 + (a.getId() % 1000) * 0.1;
+        var family = householdRepository.save(Household.builder().name("shared-marking-family").build());
+        memberRepository.save(com.doggy.backend.domain.household.entity.HouseholdMember.builder()
+                .household(family).user(b).role(com.doggy.backend.domain.household.entity.HouseholdMember.Role.MEMBER).build());
+        var dog = Dog.builder().user(a).name("shared-dog").build();
+        dog.assignHousehold(family);
+        dogRepository.save(dog);
+        var time = LocalDateTime.now().minusMinutes(30);
+        var first = WalkSession.builder().user(a).householdId(family.getId()).startedAt(time).build();
+        first.setDogs(List.of(dog));
+        first.complete(time.plusMinutes(10), 600, 600);
+        walkSessionRepository.save(first);
+        var second = WalkSession.builder().user(b).householdId(family.getId()).startedAt(time.plusMinutes(11)).build();
+        second.setDogs(List.of(dog));
+        second.complete(time.plusMinutes(21), 600, 600);
+        walkSessionRepository.save(second);
+        var spot = spotRepository.save(MarkingSpot.builder().lat(familyLat).lng(125.1)
+                .gridKey("family-" + UUID.randomUUID()).build());
+        visitRepository.save(MarkingSpotVisit.builder().spot(spot).session(first).dog(dog).user(a).visitedAt(time.plusMinutes(5)).build());
+        visitRepository.save(MarkingSpotVisit.builder().spot(spot).session(second).dog(dog).user(b).visitedAt(time.plusMinutes(16)).build());
+
+        assertThat(walkSessionRepository.findAccessibleById(first.getId(), b.getId(), family.getId(),
+                time.minusDays(1), time.minusDays(7), WalkSession.Status.COMPLETED)).isPresent();
+        assertThat(service.getSessionSpots(first.getId())).extracting(value -> value.id()).containsExactly(spot.getId());
+        assertThat(service.getSessionSpots(second.getId())).extracting(value -> value.id()).containsExactly(spot.getId());
+        assertThat(service.getMostMarkedNear(b.getId(), familyLat, 125.1).orElseThrow().dogCount()).isEqualTo(1);
+        assertThat(service.getMostMarkedNear(b.getId(), familyLat, 125.1).orElseThrow().familyVisited()).isTrue();
+        assertThat(service.getMostMarkedNear(outsider.getId(), familyLat, 125.1).orElseThrow().familyVisited()).isFalse();
+        assertThat(service.getDetail(b.getId(), spot.getId()).visits()).allMatch(v -> v.familyDog());
+        assertThat(service.getDetail(outsider.getId(), spot.getId()).visits()).noneMatch(v -> v.familyDog());
+        assertThat(service.getDetail(a.getId(), spot.getId()).visits()).allMatch(v -> v.familyDog());
+        var otherDog = dogRepository.save(Dog.builder().user(outsider).name("other-dog").build());
+        visitRepository.save(MarkingSpotVisit.builder().spot(spot).session(second).dog(otherDog)
+                .user(outsider).visitedAt(time.plusMinutes(17)).build());
+        var mixed = service.getDetail(b.getId(), spot.getId()).visits();
+        assertThat(mixed).anyMatch(v -> v.familyDog()).anyMatch(v -> !v.familyDog());
+        assertThat(service.getMostMarkedNear(b.getId(), familyLat, 125.1).orElseThrow().familyVisited()).isTrue();
+
+        assertThat(walkSessionRepository.findAccessibleById(first.getId(), outsider.getId(), null,
+                null, time.minusDays(7), WalkSession.Status.COMPLETED)).isEmpty();
+    }
+
+    @Test
+    void rainHistoryKeepsNewestObservation() {
+        var time = LocalDateTime.of(2026, 11, 26, 10, 0);
+        int[] grid = com.doggy.backend.global.weather.KmaGridConverter.toGrid(37.2214, 126.9456);
+        rainService.record(grid[0], grid[1], time);
+        rainService.record(grid[0], grid[1], time.minusHours(1));
+        assertThat(rainService.lastRain(37.2214, 126.9456)).isEqualTo(time);
+    }
 
     @Test
     void popularSpotCountsDistinctDogsWithinTwoKilometers() {
@@ -103,7 +161,7 @@ class MarkingFeedbackDatabaseTest {
         visitRepository.save(MarkingSpotVisit.builder().spot(farAway).session(firstWalk)
                 .dog(fourthDog).user(user).visitedAt(time).build());
 
-        var popular = service.getMostMarkedNear(lat, 126.945).orElseThrow();
+        var popular = service.getMostMarkedNear(user.getId(), lat, 126.945).orElseThrow();
         assertThat(popular.id()).isEqualTo(twoDogs.getId());
         assertThat(popular.dogCount()).isEqualTo(2);
     }

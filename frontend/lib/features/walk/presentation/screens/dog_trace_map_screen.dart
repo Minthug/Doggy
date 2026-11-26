@@ -9,7 +9,11 @@ import '../../domain/providers/walk_provider.dart';
 import '../models/dog_trace_visual.dart';
 import '../models/route_segments.dart';
 import '../widgets/marking_dog_chart.dart';
+import '../widgets/marking_spot_detail_sheet.dart';
+import '../widgets/trace_affiliation.dart';
 import '../widgets/dog_face_icon.dart';
+import '../widgets/marking_scent_notice.dart';
+import '../../../home/presentation/widgets/app_intro_gate.dart';
 
 class DogTraceMapScreen extends ConsumerStatefulWidget {
   const DogTraceMapScreen({super.key});
@@ -19,9 +23,26 @@ class DogTraceMapScreen extends ConsumerStatefulWidget {
 }
 
 class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
-  static const _markingSpotIcon = NOverlayImage.fromAssetImage(
-    'assets/markers/marking_spot_paw.png',
-  );
+  final _spotIcons = <bool, NOverlayImage>{};
+
+  Future<NOverlayImage> _spotIcon(bool family) async {
+    return _spotIcons[family] ??= await NOverlayImage.fromWidget(
+      context: context,
+      size: const Size(42, 48),
+      widget: Center(
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: family ? familyTraceColor : otherTraceColor,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
+          ),
+          child: const Icon(Icons.pets, color: Colors.white, size: 24),
+        ),
+      ),
+    );
+  }
 
   NaverMapController? _controller;
   DogTraceVisual? _selectedTrace;
@@ -106,6 +127,18 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
             onMapTapped: (_, _) => setState(() => _selectedTrace = null),
           ),
           Positioned(
+            top: topPadding + 12,
+            right: 16,
+            child: IconButton.filledTonal(
+              tooltip: '앱 사용 안내',
+              icon: const Icon(Icons.info_outline),
+              onPressed: () => showDialog<bool>(
+                context: context,
+                builder: (_) => const AppIntroDialog(),
+              ),
+            ),
+          ),
+          Positioned(
             top: topPadding + 68,
             left: 16,
             right: 16,
@@ -143,16 +176,16 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _RouteLegend(
-                        color: Color(0xFF719B7B),
+                        color: familyTraceColor,
                         width: 5,
-                        label: '내 산책길',
+                        label: '우리 가족 산책길 · 초록색',
                         isStrong: true,
                       ),
                       SizedBox(height: 7),
                       _RouteLegend(
-                        color: Color(0x9987A9C4),
+                        color: otherTraceColor,
                         width: 3,
-                        label: '다른 강아지의 최근 흔적',
+                        label: '다른 강아지의 흔적 · 파란색',
                       ),
                     ],
                   ),
@@ -179,6 +212,24 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
         ],
       ),
     );
+  }
+
+  bool _spotDetailOpen = false;
+
+  Future<void> _openPopularSpot(PopularMarkingSpot spot) async {
+    if (!mounted || _spotDetailOpen) return;
+    _spotDetailOpen = true;
+    try {
+      await showMarkingSpotDetail(
+        context,
+        spotId: spot.id,
+        title: '내 동네 마킹 스팟 1위',
+        lastVisitedAt: spot.lastVisitedAt,
+        color: spot.familyVisited ? familyTraceColor : otherTraceColor,
+      );
+    } finally {
+      _spotDetailOpen = false;
+    }
   }
 
   void _schedulePopularSpot() {
@@ -283,18 +334,25 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
 
     final popularSpot = _popularSpot;
     if (popularSpot != null) {
-      await controller.addOverlay(
-        NMarker(
-          id: 'popular-marking-spot',
-          position: NLatLng(popularSpot.lat, popularSpot.lng),
-          icon: _markingSpotIcon,
-          size: const Size(42, 48),
-          anchor: const NPoint(0.5, 1),
-          caption: NOverlayCaption(text: '주변 1위 · ${popularSpot.dogCount}마리'),
-          isForceShowIcon: true,
-          isHideCollidedMarkers: false,
+      final marker = NMarker(
+        id: 'popular-marking-spot',
+        alpha: markingScentOpacity(
+          lastVisitedAt: popularSpot.lastVisitedAt,
+          lastRainAt: popularSpot.lastRainAt,
         ),
+        position: NLatLng(popularSpot.lat, popularSpot.lng),
+        icon: await _spotIcon(popularSpot.familyVisited),
+        size: const Size(42, 48),
+        anchor: const NPoint(0.5, 1),
+        caption: NOverlayCaption(
+          text:
+              '주변 1위 · ${popularSpot.dogCount}마리 · ${popularSpot.familyVisited ? '가족도 방문' : '다른 강아지'}',
+        ),
+        isForceShowIcon: true,
+        isHideCollidedMarkers: false,
       );
+      marker.setOnTapListener((_) => _openPopularSpot(popularSpot));
+      await controller.addOverlay(marker);
     }
 
     final ownSegments = parseRouteSegments(
@@ -315,7 +373,7 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
         NPolylineOverlay(
           id: 'my-route-$i',
           coords: ownSegments[i],
-          color: const Color(0xFF719B7B),
+          color: familyTraceColor,
           width: 6,
           lineCap: NLineCap.round,
           lineJoin: NLineJoin.round,
@@ -415,7 +473,11 @@ class _TraceSummaryCard extends StatelessWidget {
                     ),
                     if (popularSpot != null) ...[
                       const SizedBox(height: 2),
-                      MarkingDogChart(dogCount: popularSpot!.dogCount),
+                      MarkingDogChart(
+                        dogCount: popularSpot!.dogCount,
+                        lastVisitedAt: popularSpot!.lastVisitedAt,
+                        lastRainAt: popularSpot!.lastRainAt,
+                      ),
                     ],
                     if (traces.isNotEmpty) const SizedBox(height: 4),
                     if (traces.isNotEmpty)
@@ -432,6 +494,10 @@ class _TraceSummaryCard extends StatelessWidget {
             ],
           ),
           if (popularSpot != null) ...[
+            TraceAffiliationBadge(
+              isFamily: popularSpot!.familyVisited,
+              isSpot: true,
+            ),
             const SizedBox(height: 4),
             Text(
               '내 동네 2km · 마킹 스팟 1위 · ${popularSpot!.dogCount}마리',

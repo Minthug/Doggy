@@ -7,11 +7,12 @@ import java.time.LocalDateTime;
 public record MarkingSpotVisitResponse(
         Long id,
         LocalDateTime visitedAt,
-        DogInfo dog
+        DogInfo dog,
+        boolean familyDog
 ) {
     public record DogInfo(Long id, String name, String breed, String profileImage) {}
 
-    public static MarkingSpotVisitResponse from(MarkingSpotVisit visit) {
+    public static MarkingSpotVisitResponse from(MarkingSpotVisit visit, boolean familyDog) {
         return new MarkingSpotVisitResponse(
                 visit.getId(),
                 visit.getVisitedAt(),
@@ -20,7 +21,8 @@ public record MarkingSpotVisitResponse(
                         visit.getDog().getName(),
                         visit.getDog().getBreed(),
                         visit.getDog().getProfileImage()
-                )
+                ),
+                familyDog
         );
     }
 }

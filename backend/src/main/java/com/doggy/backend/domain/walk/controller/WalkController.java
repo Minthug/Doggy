@@ -186,15 +186,17 @@ public class WalkController {
 
     @GetMapping("/marking-spots/{spotId}")
     public ResponseEntity<MarkingSpotDetailResponse> getMarkingSpot(
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long spotId) {
-        return ResponseEntity.ok(markingSpotService.getDetail(spotId));
+        return ResponseEntity.ok(markingSpotService.getDetail(principal.getId(), spotId));
     }
 
     @GetMapping("/marking-spots/popular")
     public ResponseEntity<PopularMarkingSpotResponse> getPopularMarkingSpot(
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestParam double lat,
             @RequestParam double lng) {
-        return markingSpotService.getMostMarkedNear(lat, lng)
+        return markingSpotService.getMostMarkedNear(principal.getId(), lat, lng)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }

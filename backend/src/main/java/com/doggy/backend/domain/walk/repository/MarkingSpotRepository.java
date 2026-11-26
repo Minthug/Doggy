@@ -11,16 +11,25 @@ import java.util.Optional;
 
 public interface MarkingSpotRepository extends JpaRepository<MarkingSpot, Long> {
 
+    interface RainTarget {
+        double getLat();
+        double getLng();
+    }
+
+    @Query("SELECT DISTINCT s.lat AS lat, s.lng AS lng FROM MarkingSpot s WHERE s.lastVisitedAt >= :since")
+    List<RainTarget> findRainTargets(@Param("since") java.time.LocalDateTime since);
+
     interface PopularSpot {
         Long getId();
         Double getLat();
         Double getLng();
         Long getDogCount();
+        java.time.LocalDateTime getLastVisitedAt();
     }
 
     @Query(value = """
             SELECT s.id AS id, s.lat AS lat, s.lng AS lng,
-                   COUNT(DISTINCT v.dog_id) AS "dogCount"
+                   COUNT(DISTINCT v.dog_id) AS "dogCount", MAX(v.visited_at) AS "lastVisitedAt"
             FROM marking_spots s
             JOIN marking_spot_visits v ON v.spot_id = s.id
             WHERE ST_DWithin(

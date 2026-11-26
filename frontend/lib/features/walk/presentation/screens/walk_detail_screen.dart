@@ -1,3 +1,5 @@
+import '../widgets/marking_spot_detail_sheet.dart';
+import '../widgets/trace_affiliation.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
@@ -7,7 +9,6 @@ import '../../data/repositories/walk_repository.dart';
 import '../../domain/providers/walk_provider.dart';
 import '../../../dog/data/repositories/dog_repository.dart';
 import '../../../home/domain/providers/home_provider.dart';
-import '../models/dog_trace_visual.dart';
 import '../models/route_segments.dart';
 import 'marking_feedback_sheet.dart';
 import 'manual_marking_sheet.dart';
@@ -1035,7 +1036,13 @@ class _MarkingSpotCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => _showMarkingSpotDetail(context, ref),
+          onTap: () => showMarkingSpotDetail(
+            context,
+            spotId: spot.id,
+            title: '$index번째 마킹 스팟',
+            lastVisitedAt: spot.lastVisitedAt,
+            visitCount: spot.visitCount,
+          ),
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -1094,233 +1101,6 @@ class _MarkingSpotCard extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  void _showMarkingSpotDetail(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: FutureBuilder<MarkingSpotDetail>(
-            future: ref
-                .read(walkRepositoryProvider)
-                .getMarkingSpotDetail(spot.id),
-            builder: (context, snapshot) {
-              final detail = snapshot.data;
-              final lastVisitedDate = _markingVisitDate(
-                detail?.lastVisitedAt ?? spot.lastVisitedAt,
-              );
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE0E0E0),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF4CAF50,
-                            ).withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.pets,
-                            color: Color(0xFF4CAF50),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '$index번째 마킹 스팟',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                detail == null
-                                    ? '마킹 기록 ${spot.visitCount}건'
-                                    : '마킹 기록 ${detail.visitCount}건',
-                                style: const TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              if (lastVisitedDate != null)
-                                Text(
-                                  '마지막 마킹 확인 $lastVisitedDate',
-                                  style: const TextStyle(
-                                    color: Colors.black54,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      '마킹한 기록이에요. 비가 온 뒤에는 냄새가 약해질 수 있고, 현재 냄새가 남아 있는지는 알 수 없어요.',
-                      style: TextStyle(color: Colors.black54, fontSize: 12),
-                    ),
-                    const SizedBox(height: 18),
-                    if (snapshot.connectionState != ConnectionState.done)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 28),
-                          child: CircularProgressIndicator(),
-                        ),
-                      )
-                    else if (snapshot.hasError)
-                      const _MarkingSpotDetailMessage(
-                        icon: Icons.error_outline,
-                        text: '마킹 스팟 정보를 불러오지 못했습니다',
-                      )
-                    else if (detail == null || detail.visits.isEmpty)
-                      const _MarkingSpotDetailMessage(
-                        icon: Icons.pets,
-                        text: '표시할 마킹 기록이 없어요',
-                      )
-                    else ...[
-                      const Text(
-                        '이곳의 마킹 기록',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Flexible(
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: detail.visits.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 8),
-                          itemBuilder: (context, i) {
-                            return _MarkingSpotVisitTile(
-                              visit: detail.visits[i],
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _MarkingSpotDetailMessage extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _MarkingSpotDetailMessage({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 28),
-        child: Column(
-          children: [
-            Icon(icon, color: const Color(0xFF4CAF50), size: 28),
-            const SizedBox(height: 8),
-            Text(text, style: const TextStyle(color: Colors.black54)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MarkingSpotVisitTile extends StatelessWidget {
-  final MarkingSpotVisit visit;
-
-  const _MarkingSpotVisitTile({required this.visit});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F7F7),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: const Color(0xFFE8F5E9),
-            backgroundImage: visit.dog.profileImage != null
-                ? NetworkImage(visit.dog.profileImage!)
-                : null,
-            child: visit.dog.profileImage == null
-                ? const Icon(Icons.pets, color: Color(0xFF4CAF50), size: 20)
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  visit.dog.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  [
-                    if (visit.dog.breed != null && visit.dog.breed!.isNotEmpty)
-                      visit.dog.breed!,
-                    if (visit.visitedAt != null)
-                      _formatVisitTime(visit.visitedAt!),
-                  ].join(' · '),
-                  style: const TextStyle(color: Colors.black54, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _formatVisitTime(String value) {
-  try {
-    final dt = DateTime.parse(value);
-    return '${dt.month}.${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} 방문';
-  } catch (_) {
-    return '최근 방문';
   }
 }
 
@@ -1406,17 +1186,12 @@ class _DiscoveredTraceCard extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: dogTracePalette[dog.id % dogTracePalette.length]
-                .withValues(alpha: 0.25),
+            backgroundColor: otherTraceColor.withValues(alpha: 0.25),
             backgroundImage: hasProfileImage
                 ? NetworkImage(dog.profileImage!)
                 : null,
             child: !hasProfileImage
-                ? Icon(
-                    Icons.pets,
-                    color: dogTracePalette[dog.id % dogTracePalette.length],
-                    size: 24,
-                  )
+                ? Icon(Icons.pets, color: otherTraceColor, size: 24)
                 : null,
           ),
           const SizedBox(width: 12),
@@ -1445,14 +1220,13 @@ class _DiscoveredTraceCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
             decoration: BoxDecoration(
-              color: dogTracePalette[dog.id % dogTracePalette.length]
-                  .withValues(alpha: 0.14),
+              color: otherTraceColor.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               discovery.isToday ? '오늘' : '3일 내',
               style: TextStyle(
-                color: dogTracePalette[dog.id % dogTracePalette.length],
+                color: otherTraceColor,
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
               ),

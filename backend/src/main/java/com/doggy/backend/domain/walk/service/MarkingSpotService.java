@@ -46,6 +46,7 @@ public class MarkingSpotService {
     private static final int MAX_VISIT_DOGS = 5;
     private static final double MAX_GAP_SPEED_METERS_PER_SECOND = 0.8;
 
+    private final com.doggy.backend.global.weather.RainObservationService rainObservationService;
     private final MarkingSpotRepository spotRepository;
     private final MarkingCandidateFeedbackRepository feedbackRepository;
     private final MarkingSpotVisitRepository visitRepository;
@@ -55,13 +56,15 @@ public class MarkingSpotService {
     private final HouseholdService householdService;
     private final TrafficMapFeatureRepository trafficMapFeatureRepository;
 
-    public Optional<PopularMarkingSpotResponse> getMostMarkedNear(double lat, double lng) {
+    public Optional<PopularMarkingSpotResponse> getMostMarkedNear(Long userId, double lat, double lng) {
         if (!Double.isFinite(lat) || !Double.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
             throw BusinessException.badRequest("올바른 지도 좌표를 입력해 주세요");
         }
         return spotRepository.findMostMarkedNear(lat, lng)
                 .map(spot -> new PopularMarkingSpotResponse(
-                        spot.getId(), spot.getLat(), spot.getLng(), spot.getDogCount()));
+                        spot.getId(), spot.getLat(), spot.getLng(), spot.getDogCount(),
+                        spot.getLastVisitedAt(), rainObservationService.lastRain(spot.getLat(), spot.getLng()),
+                        !visitRepository.findFamilyDogIdsBySpotId(spot.getId(), userId).isEmpty()));
     }
 
     public List<MarkingSpotCandidateResponse> detectCandidates(List<WalkPointRequest> points) {
@@ -377,13 +380,14 @@ public class MarkingSpotService {
         return MarkingSpotResponse.from(spot);
     }
 
-    public MarkingSpotDetailResponse getDetail(Long spotId) {
+    public MarkingSpotDetailResponse getDetail(Long userId, Long spotId) {
         MarkingSpot spot = spotRepository.findById(spotId)
                 .orElseThrow(() -> BusinessException.notFound("발자국 스팟을 찾을 수 없습니다"));
+        Set<Long> familyDogIds = visitRepository.findFamilyDogIdsBySpotId(spotId, userId);
         List<MarkingSpotVisitResponse> visits = visitRepository
                 .findAllBySpotIdOrderByCreatedAtDesc(spotId, PageRequest.of(0, 30))
                 .stream()
-                .map(MarkingSpotVisitResponse::from)
+                .map(visit -> MarkingSpotVisitResponse.from(visit, familyDogIds.contains(visit.getDog().getId())))
                 .toList();
         return new MarkingSpotDetailResponse(
                 spot.getId(),
@@ -391,6 +395,7 @@ public class MarkingSpotService {
                 spot.getLng(),
                 spot.getVisitCount(),
                 spot.getLastVisitedAt(),
+                rainObservationService.lastRain(spot.getLat(), spot.getLng()),
                 visits
         );
     }
