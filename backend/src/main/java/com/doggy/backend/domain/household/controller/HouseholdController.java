@@ -3,6 +3,7 @@ package com.doggy.backend.domain.household.controller;
 import com.doggy.backend.domain.household.dto.CreateHouseholdRequest;
 import com.doggy.backend.domain.household.dto.HouseholdResponse;
 import com.doggy.backend.domain.household.dto.JoinHouseholdRequest;
+import com.doggy.backend.domain.household.dto.TransferHouseholdOwnerRequest;
 import com.doggy.backend.domain.household.service.HouseholdService;
 import com.doggy.backend.global.ratelimit.RateLimitService;
 import com.doggy.backend.global.security.UserPrincipal;
@@ -52,6 +53,13 @@ public class HouseholdController {
             @AuthenticationPrincipal UserPrincipal principal) {
         String code = householdService.refreshInviteCode(principal.getId());
         return ResponseEntity.ok(Map.of("inviteCode", code));
+    }
+
+    @PostMapping("/owner/transfer")
+    public ResponseEntity<HouseholdResponse> transferOwner(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody TransferHouseholdOwnerRequest request) {
+        return ResponseEntity.ok(householdService.transferOwner(principal.getId(), request.targetUserId()));
     }
 
     @DeleteMapping("/leave")

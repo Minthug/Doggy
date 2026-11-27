@@ -68,9 +68,68 @@ class MarkingFeedbackDatabaseTest {
     @Autowired MarkingSpotVisitRepository visitRepository;
     @Autowired MarkingSpotRepository spotRepository;
     @Autowired MarkingSpotService service;
+    @Autowired com.doggy.backend.domain.walk.repository.WalkPingLogRepository pingRepository;
+    @Autowired com.doggy.backend.domain.dog.repository.DogFavoriteRepository favoriteRepository;
     @Autowired com.doggy.backend.global.weather.RainObservationService rainService;
     @MockitoBean HouseholdService householdService;
     @MockitoBean TrafficMapFeatureRepository trafficMapFeatureRepository;
+
+    @Test
+    @Transactional
+    void meetsFollowSharedWalkAccessIncludingJoinAndLeaveBoundaries() {
+        var owner = userRepository.save(User.builder().nickname("meet-owner").build());
+        var member = userRepository.save(User.builder().nickname("meet-family").build());
+        var outsider = userRepository.save(User.builder().nickname("meet-outsider").build());
+        var family = householdRepository.save(Household.builder().name("meet-family").build());
+        var time = LocalDateTime.now().minusHours(1);
+        var walk = WalkSession.builder().user(owner).householdId(family.getId()).startedAt(time).build();
+        walk.complete(time.plusMinutes(30), 1000, 1800);
+        walkSessionRepository.save(walk);
+        var otherDog = dogRepository.save(Dog.builder().user(outsider).name("만난두부").build());
+        var otherWalk = WalkSession.builder().user(outsider).startedAt(time).build();
+        otherWalk.setDogs(List.of(otherDog));
+        otherWalk.complete(time.plusMinutes(30), 1000, 1800);
+        walkSessionRepository.save(otherWalk);
+        pingRepository.save(com.doggy.backend.domain.walk.entity.WalkPingLog.builder()
+                .sessionAId(walk.getId()).sessionBId(otherWalk.getId()).build());
+        favoriteRepository.save(com.doggy.backend.domain.dog.entity.DogFavorite.builder()
+                .user(member).dog(otherDog).build());
+
+        var access = org.mockito.Mockito.mock(WalkService.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        org.springframework.test.util.ReflectionTestUtils.setField(access, "householdService", householdService);
+        org.springframework.test.util.ReflectionTestUtils.setField(access, "walkSessionRepository", walkSessionRepository);
+        var meets = new WalkMeetService(pingRepository, walkSessionRepository, dogRepository, favoriteRepository, access);
+        given(householdService.findHouseholdIdByUserId(owner.getId()))
+                .willReturn(new HouseholdIdCache(family.getId(), time.minusDays(1)));
+        given(householdService.findHouseholdIdByUserId(member.getId()))
+                .willReturn(new HouseholdIdCache(family.getId(), time.minusDays(1)));
+        given(householdService.findHouseholdIdByUserId(outsider.getId()))
+                .willReturn(new HouseholdIdCache(null, null));
+
+        var shared = meets.getMeets(member.getId(), walk.getId());
+        assertThat(shared).hasSize(1);
+        assertThat(shared.getFirst().dogs()).extracting(d -> d.name()).containsExactly("만난두부");
+        assertThat(shared.getFirst().dogs().getFirst().isFavorited()).isTrue();
+        assertThat(meets.getMeets(owner.getId(), walk.getId()).getFirst().dogs().getFirst().isFavorited()).isFalse();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> meets.getMeets(outsider.getId(), walk.getId()))
+                .hasMessageContaining("산책 기록을 찾을 수 없습니다");
+
+        given(householdService.findHouseholdIdByUserId(member.getId()))
+                .willReturn(new HouseholdIdCache(family.getId(), time.plusMinutes(1)));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> meets.getMeets(member.getId(), walk.getId()))
+                .hasMessageContaining("산책 기록을 찾을 수 없습니다");
+        given(householdService.findHouseholdIdByUserId(member.getId()))
+                .willReturn(new HouseholdIdCache(null, null));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> meets.getMeets(member.getId(), walk.getId()))
+                .hasMessageContaining("산책 기록을 찾을 수 없습니다");
+
+        var active = walkSessionRepository.save(WalkSession.builder().user(owner)
+                .householdId(family.getId()).startedAt(time).build());
+        given(householdService.findHouseholdIdByUserId(member.getId()))
+                .willReturn(new HouseholdIdCache(family.getId(), time.minusDays(1)));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> meets.getMeets(member.getId(), active.getId()))
+                .hasMessageContaining("산책 기록을 찾을 수 없습니다");
+    }
 
     @Test
     void familyCanReadSharedMarkingSpotsWithoutCountingSameDogTwice() {

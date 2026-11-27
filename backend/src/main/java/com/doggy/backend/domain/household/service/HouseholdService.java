@@ -78,7 +78,7 @@ public class HouseholdService {
             throw BusinessException.badRequest("이미 가구에 속해 있습니다");
         }
 
-        Household household = householdRepository.findByInviteCode(request.inviteCode().toUpperCase())
+        Household household = householdRepository.findByInviteCodeForUpdate(request.inviteCode().toUpperCase())
                 .orElseThrow(() -> BusinessException.notFound("유효하지 않은 초대 코드입니다"));
 
         User user = userRepository.findById(userId)
@@ -100,8 +100,7 @@ public class HouseholdService {
 
     @Transactional
     public String refreshInviteCode(Long userId) {
-        Household household = householdRepository.findByUserId(userId)
-                .orElseThrow(() -> BusinessException.notFound("가구를 찾을 수 없습니다"));
+        Household household = findHouseholdForUpdate(userId);
 
         HouseholdMember member = householdMemberRepository
                 .findByHouseholdIdAndUserId(household.getId(), userId)
@@ -116,16 +115,49 @@ public class HouseholdService {
     }
 
     @Transactional
-    public void leave(Long userId) {
-        Household household = householdRepository.findByUserId(userId)
+    public HouseholdResponse transferOwner(Long userId, Long targetUserId) {
+        Household household = findHouseholdForUpdate(userId);
+        HouseholdMember owner = householdMemberRepository
+                .findByHouseholdIdAndUserId(household.getId(), userId)
+                .orElseThrow(() -> BusinessException.forbidden("가족 관리자만 위임할 수 있습니다"));
+        if (owner.getRole() != Role.OWNER) {
+            throw BusinessException.forbidden("가족 관리자만 위임할 수 있습니다");
+        }
+        if (userId.equals(targetUserId)) {
+            throw BusinessException.badRequest("다른 가족 구성원을 선택해 주세요");
+        }
+        HouseholdMember target = householdMemberRepository
+                .findByHouseholdIdAndUserId(household.getId(), targetUserId)
+                .orElseThrow(() -> BusinessException.notFound("같은 가족의 구성원을 선택해 주세요"));
+        if (target.getRole() != Role.MEMBER) {
+            throw BusinessException.badRequest("일반 구성원에게만 위임할 수 있습니다");
+        }
+        owner.changeRole(Role.MEMBER);
+        target.changeRole(Role.OWNER);
+        return HouseholdResponse.from(household);
+    }
+
+    private Household findHouseholdForUpdate(Long userId) {
+        Long householdId = householdRepository.findByUserId(userId)
+                .orElseThrow(() -> BusinessException.notFound("가구를 찾을 수 없습니다")).getId();
+        return lockHousehold(householdId);
+    }
+
+    private Household lockHousehold(Long householdId) {
+        return householdRepository.findByIdForUpdate(householdId)
                 .orElseThrow(() -> BusinessException.notFound("가구를 찾을 수 없습니다"));
+    }
+
+    @Transactional
+    public void leave(Long userId) {
+        Household household = findHouseholdForUpdate(userId);
 
         HouseholdMember member = householdMemberRepository
                 .findByHouseholdIdAndUserId(household.getId(), userId)
                 .orElseThrow(() -> BusinessException.notFound("가구 멤버를 찾을 수 없습니다"));
 
         if (member.getRole() == Role.OWNER && household.getMembers().size() > 1) {
-            throw BusinessException.badRequest("다른 멤버가 있을 때 오너는 탈퇴할 수 없습니다. 오너를 위임하거나 멤버를 먼저 내보내세요");
+            throw BusinessException.badRequest("다른 멤버가 있을 때 오너는 탈퇴할 수 없습니다. 가족 관리에서 관리자 권한을 위임해 주세요");
         }
 
         householdMemberRepository.deleteByHouseholdIdAndUserId(household.getId(), userId);

@@ -23,13 +23,24 @@ class HouseholdRepository {
   }
 
   Future<Household> join(String inviteCode) async {
-    final response = await _dio.post('/api/households/join', data: {'inviteCode': inviteCode});
+    final response = await _dio.post(
+      '/api/households/join',
+      data: {'inviteCode': inviteCode},
+    );
     return Household.fromJson(response.data);
   }
 
   Future<String> refreshInviteCode() async {
     final response = await _dio.post('/api/households/invite-code/refresh');
     return response.data['inviteCode'] as String;
+  }
+
+  Future<Household> transferOwner(int targetUserId) async {
+    final response = await _dio.post(
+      '/api/households/owner/transfer',
+      data: {'targetUserId': targetUserId},
+    );
+    return Household.fromJson(response.data);
   }
 
   Future<void> leave() async {

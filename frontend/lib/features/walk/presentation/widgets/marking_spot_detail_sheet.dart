@@ -1,3 +1,4 @@
+import '../../../../core/providers/household_change_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/walk_model.dart';
@@ -6,10 +7,14 @@ import 'marking_scent_notice.dart';
 import 'trace_affiliation.dart';
 
 final _markingSpotDetailProvider = FutureProvider.autoDispose
-    .family<MarkingSpotDetail, int>(
-      (ref, spotId) =>
-          ref.watch(walkRepositoryProvider).getMarkingSpotDetail(spotId),
-    );
+    .family<MarkingSpotDetail, int>((ref, spotId) async {
+      final change = ref.watch(householdChangeProvider);
+      if (change != null) {
+        ref.state = const AsyncLoading();
+        await change;
+      }
+      return ref.watch(walkRepositoryProvider).getMarkingSpotDetail(spotId);
+    });
 
 Future<void> showMarkingSpotDetail(
   BuildContext context, {
@@ -31,7 +36,7 @@ Future<void> showMarkingSpotDetail(
         child: Consumer(
           builder: (context, ref, _) {
             final snapshot = ref.watch(_markingSpotDetailProvider(spotId));
-            final detail = snapshot.valueOrNull;
+            final detail = snapshot.isLoading ? null : snapshot.valueOrNull;
             final lastVisitedDate = _markingVisitDate(
               detail?.lastVisitedAt ?? lastVisitedAt,
             );

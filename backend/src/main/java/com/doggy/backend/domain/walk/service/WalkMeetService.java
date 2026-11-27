@@ -9,7 +9,6 @@ import com.doggy.backend.domain.walk.entity.WalkPingLog;
 import com.doggy.backend.domain.walk.entity.WalkSession;
 import com.doggy.backend.domain.walk.repository.WalkPingLogRepository;
 import com.doggy.backend.domain.walk.repository.WalkSessionRepository;
-import com.doggy.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,15 +27,11 @@ public class WalkMeetService {
     private final WalkSessionRepository walkSessionRepository;
     private final DogRepository dogRepository;
     private final DogFavoriteRepository dogFavoriteRepository;
+    private final WalkService walkService;
 
     @Transactional(readOnly = true)
     public List<WalkMeetResponse> getMeets(Long userId, Long sessionId) {
-        WalkSession session = walkSessionRepository.findById(sessionId)
-                .orElseThrow(() -> BusinessException.notFound("산책 세션을 찾을 수 없습니다"));
-
-        if (!session.getUser().getId().equals(userId)) {
-            throw BusinessException.badRequest("본인의 산책 세션이 아닙니다");
-        }
+        walkService.findAccessibleWalk(userId, sessionId);
 
         List<WalkPingLog> logs = walkPingLogRepository.findAllBySessionId(sessionId);
         if (logs.isEmpty()) return List.of();

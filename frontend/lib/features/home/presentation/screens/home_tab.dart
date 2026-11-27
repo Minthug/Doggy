@@ -203,9 +203,17 @@ class _HomeTabState extends ConsumerState<HomeTab> with WidgetsBindingObserver {
                 builder: (context, ref, _) {
                   final meetsAsync = ref.watch(todayMeetsProvider);
                   return meetsAsync.when(
-                    data: (meets) => _TodayMeetsCard(meets: meets),
+                    data: (result) => _TodayMeetsCard(
+                      meets: result.meets,
+                      failedSessionCount: result.failedSessionCount,
+                      onRetry: () => ref.invalidate(todayMeetsProvider),
+                    ),
                     loading: () => const SizedBox.shrink(),
-                    error: (error, stackTrace) => const SizedBox.shrink(),
+                    error: (error, stackTrace) => _TodayMeetsCard(
+                      meets: const [],
+                      failedSessionCount: 1,
+                      onRetry: () => ref.invalidate(todayMeetsProvider),
+                    ),
                   );
                 },
               ),
@@ -1011,7 +1019,13 @@ class _StatItem extends StatelessWidget {
 // 오늘 만난 강아지들 카드
 class _TodayMeetsCard extends StatelessWidget {
   final List<WalkMeet> meets;
-  const _TodayMeetsCard({required this.meets});
+  final int failedSessionCount;
+  final VoidCallback onRetry;
+  const _TodayMeetsCard({
+    required this.meets,
+    required this.failedSessionCount,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1024,7 +1038,14 @@ class _TodayMeetsCard extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 12),
-          if (meets.isEmpty)
+          if (failedSessionCount > 0) ...[
+            Text(
+              meets.isEmpty ? '만남 기록을 불러오지 못했어요.' : '일부 산책의 만남 기록을 불러오지 못했어요.',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('다시 불러오기')),
+          ],
+          if (meets.isEmpty && failedSessionCount == 0)
             const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),

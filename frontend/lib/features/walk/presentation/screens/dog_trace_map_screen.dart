@@ -1,3 +1,4 @@
+import '../../../../core/providers/household_change_provider.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
@@ -65,15 +66,17 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
   Widget build(BuildContext context) {
     final discoveriesAsync = ref.watch(latestTodayWalkTraceDiscoveriesProvider);
     final allTraces = buildDogTraceMapItems(
-      discoveriesAsync.valueOrNull ?? const [],
+      (discoveriesAsync.isLoading || discoveriesAsync.hasError)
+          ? const []
+          : discoveriesAsync.valueOrNull ?? const [],
     );
     final traces = _visibleTraces(allTraces);
 
     ref.listen(latestTodayWalkDetailProvider, (_, next) {
-      if (next.hasValue) _drawTraces(traces);
+      if (!next.isLoading) _drawTraces(next.hasError ? const [] : traces);
     });
     ref.listen(latestTodayWalkTraceDiscoveriesProvider, (_, next) {
-      if (next.hasValue) {
+      if (next.hasValue && !next.isLoading && !next.hasError) {
         final updated = _visibleTraces(buildDogTraceMapItems(next.value!));
         _drawTraces(updated);
       }
@@ -81,7 +84,9 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
 
     final topPadding = MediaQuery.of(context).padding.top;
     final todayStatsAsync = ref.watch(todayWalkStatsProvider);
-    final todayStats = todayStatsAsync.valueOrNull;
+    final todayStats = todayStatsAsync.hasError
+        ? null
+        : todayStatsAsync.valueOrNull;
     final distanceText = todayStatsAsync.isLoading
         ? '...'
         : todayStats?.distanceText ?? '0m';
@@ -247,6 +252,9 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
     final request = ++_popularSpotRequest;
     PopularMarkingSpot? spot;
     try {
+      final change = ref.read(householdChangeProvider);
+      if (change != null) await change;
+      if (!mounted || request != _popularSpotRequest) return;
       final profile = ref.read(userProfileProvider).valueOrNull;
       if (profile?.hasNeighborhood != true) return;
       spot = await ref
@@ -355,8 +363,11 @@ class _DogTraceMapScreenState extends ConsumerState<DogTraceMapScreen> {
       await controller.addOverlay(marker);
     }
 
+    final detail = ref.read(latestTodayWalkDetailProvider);
     final ownSegments = parseRouteSegments(
-      ref.read(latestTodayWalkDetailProvider).valueOrNull?.routeGeoJson,
+      (detail.isLoading || detail.hasError)
+          ? null
+          : detail.valueOrNull?.routeGeoJson,
     );
     for (var i = 0; i < ownSegments.length; i++) {
       await controller.addOverlay(

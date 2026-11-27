@@ -1,3 +1,4 @@
+import '../../../../core/providers/household_change_provider.dart';
 import '../widgets/marking_spot_detail_sheet.dart';
 import '../widgets/trace_affiliation.dart';
 import 'dart:math' as math;
@@ -16,19 +17,37 @@ import 'manual_marking_sheet.dart';
 final _walkDetailProvider = FutureProvider.family<WalkDetail, int>((
   ref,
   sessionId,
-) {
+) async {
+  final change = ref.watch(householdChangeProvider);
+  if (change != null) {
+    ref.state = const AsyncLoading();
+    await change;
+  }
   return ref.watch(walkRepositoryProvider).getDetail(sessionId);
 });
 
 final _walkMeetsProvider = FutureProvider.family<List<WalkMeet>, int>((
   ref,
   sessionId,
-) {
+) async {
+  final change = ref.watch(householdChangeProvider);
+  if (change != null) {
+    ref.state = const AsyncLoading();
+    await change;
+  }
   return ref.watch(walkRepositoryProvider).getMeets(sessionId);
 });
 
 final _pendingMarkingCandidatesProvider =
-    FutureProvider.family<List<MarkingSpotCandidate>, int>((ref, sessionId) {
+    FutureProvider.family<List<MarkingSpotCandidate>, int>((
+      ref,
+      sessionId,
+    ) async {
+      final change = ref.watch(householdChangeProvider);
+      if (change != null) {
+        ref.state = const AsyncLoading();
+        await change;
+      }
       return ref.watch(walkRepositoryProvider).getMarkingCandidates(sessionId);
     });
 

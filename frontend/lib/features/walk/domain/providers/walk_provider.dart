@@ -1,9 +1,16 @@
+import '../../../../core/providers/household_change_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../dog/domain/providers/dog_provider.dart';
 import '../../data/models/walk_model.dart';
 import '../../data/repositories/walk_repository.dart';
 
 final walkHistoryProvider = FutureProvider<List<WalkSession>>((ref) async {
+  final change = ref.watch(householdChangeProvider);
+  if (change != null) {
+    ref.state = const AsyncData(<WalkSession>[]);
+    ref.state = const AsyncLoading();
+    await change;
+  }
   return ref.watch(walkRepositoryProvider).getHistory(size: 100);
 });
 
@@ -32,7 +39,15 @@ final latestTodayWalkDetailProvider = FutureProvider<WalkDetail?>((ref) async {
 });
 
 final walkTraceDiscoveriesProvider =
-    FutureProvider.family<List<WalkTraceDiscovery>, int>((ref, sessionId) {
+    FutureProvider.family<List<WalkTraceDiscovery>, int>((
+      ref,
+      sessionId,
+    ) async {
+      final change = ref.watch(householdChangeProvider);
+      if (change != null) {
+        ref.state = const AsyncLoading();
+        await change;
+      }
       return ref.watch(walkRepositoryProvider).getTraceDiscoveries(sessionId);
     });
 
@@ -45,12 +60,17 @@ final latestTodayWalkTraceDiscoveriesProvider =
 
 // 이번 달 산책 통계
 final monthlyWalkStatsProvider = FutureProvider<MonthlyWalkStats>((ref) async {
+  final change = ref.watch(householdChangeProvider);
+  if (change != null) {
+    ref.state = const AsyncLoading();
+    await change;
+  }
   final now = DateTime.now();
   return ref.watch(walkRepositoryProvider).getMonthlyStats(now.year, now.month);
 });
 
 // 오늘 만난 강아지들 (오늘 완료된 모든 세션 집계)
-final todayMeetsProvider = FutureProvider<List<WalkMeet>>((ref) async {
+final todayMeetsProvider = FutureProvider<TodayWalkMeets>((ref) async {
   final history = await ref.watch(walkHistoryProvider.future);
   final today = DateTime.now();
 
@@ -63,14 +83,23 @@ final todayMeetsProvider = FutureProvider<List<WalkMeet>>((ref) async {
         s.status == 'COMPLETED';
   }).toList();
 
-  if (todaySessions.isEmpty) return [];
+  if (todaySessions.isEmpty) return const TodayWalkMeets();
 
   final repo = ref.watch(walkRepositoryProvider);
   final results = await Future.wait(
-    todaySessions.map((s) => repo.getMeets(s.id)),
+    todaySessions.map((session) async {
+      try {
+        return (meets: await repo.getMeets(session.id), failed: false);
+      } catch (_) {
+        return (meets: <WalkMeet>[], failed: true);
+      }
+    }),
   );
 
-  return results.expand((list) => list).toList();
+  return TodayWalkMeets(
+    meets: results.expand((result) => result.meets).toList(),
+    failedSessionCount: results.where((result) => result.failed).length,
+  );
 });
 
 // 강아지별 오늘 소모 칼로리 (dogId -> kcal)
@@ -116,5 +145,10 @@ final todayDogCaloriesProvider = FutureProvider<Map<int, int>>((ref) async {
 
 // 오늘 산책 통계만 추출
 final todayWalkStatsProvider = FutureProvider<TodayWalkStats>((ref) async {
+  final change = ref.watch(householdChangeProvider);
+  if (change != null) {
+    ref.state = const AsyncLoading();
+    await change;
+  }
   return ref.watch(walkRepositoryProvider).getTodayStats();
 });

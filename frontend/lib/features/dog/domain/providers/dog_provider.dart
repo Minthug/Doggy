@@ -1,3 +1,4 @@
+import '../../../../core/providers/household_change_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/storage/local_cache.dart';
 import '../../data/models/dog_model.dart';
@@ -8,6 +9,14 @@ const _cacheKey = 'my_dogs';
 final myDogsProvider = FutureProvider<List<Dog>>((ref) async {
   var disposed = false;
   ref.onDispose(() => disposed = true);
+  final change = ref.watch(householdChangeProvider);
+  if (change != null) {
+    // Riverpod otherwise retains the previous household's data on errors.
+    ref.state = const AsyncData(<Dog>[]);
+    ref.state = const AsyncLoading();
+    await change;
+  }
+  if (disposed) return [];
   final cacheKey = await LocalCache.currentUserKey(_cacheKey);
   if (cacheKey == null || disposed) return [];
   // 1. 캐시에서 즉시 반환

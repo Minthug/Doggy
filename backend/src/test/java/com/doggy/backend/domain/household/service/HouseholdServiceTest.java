@@ -102,7 +102,7 @@ class HouseholdServiceTest {
         @DisplayName("유효하지 않은 초대 코드로 참가 불가")
         void fail_invalidInviteCode() {
             given(householdRepository.findByUserId(2L)).willReturn(Optional.empty());
-            given(householdRepository.findByInviteCode("FFFFFFFFFFFFFFFFFFFF")).willReturn(Optional.empty());
+            given(householdRepository.findByInviteCodeForUpdate("FFFFFFFFFFFFFFFFFFFF")).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> householdService.join(2L, new JoinHouseholdRequest("FFFFFFFFFFFFFFFFFFFF")))
                     .isInstanceOf(BusinessException.class)
@@ -115,7 +115,7 @@ class HouseholdServiceTest {
             User user = makeUser(2L);
             Household household = makeHousehold(10L, "우리집");
             given(householdRepository.findByUserId(2L)).willReturn(Optional.empty());
-            given(householdRepository.findByInviteCode(household.getInviteCode())).willReturn(Optional.of(household));
+            given(householdRepository.findByInviteCodeForUpdate(household.getInviteCode())).willReturn(Optional.of(household));
             given(userRepository.findById(2L)).willReturn(Optional.of(user));
             given(householdMemberRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
             given(dogRepository.findAllByUserId(2L)).willReturn(List.of());
@@ -139,6 +139,7 @@ class HouseholdServiceTest {
                     .household(household).user(user).role(Role.MEMBER).build();
 
             given(householdRepository.findByUserId(1L)).willReturn(Optional.of(household));
+            given(householdRepository.findByIdForUpdate(10L)).willReturn(Optional.of(household));
             given(householdMemberRepository.findByHouseholdIdAndUserId(10L, 1L)).willReturn(Optional.of(member));
 
             assertThatThrownBy(() -> householdService.refreshInviteCode(1L))
@@ -156,6 +157,7 @@ class HouseholdServiceTest {
                     .household(household).user(user).role(Role.OWNER).build();
 
             given(householdRepository.findByUserId(1L)).willReturn(Optional.of(household));
+            given(householdRepository.findByIdForUpdate(10L)).willReturn(Optional.of(household));
             given(householdMemberRepository.findByHouseholdIdAndUserId(10L, 1L)).willReturn(Optional.of(owner));
 
             String newCode = householdService.refreshInviteCode(1L);
@@ -183,6 +185,7 @@ class HouseholdServiceTest {
             household.getMembers().addAll(List.of(ownerMember, normalMember));
 
             given(householdRepository.findByUserId(1L)).willReturn(Optional.of(household));
+            given(householdRepository.findByIdForUpdate(10L)).willReturn(Optional.of(household));
             given(householdMemberRepository.findByHouseholdIdAndUserId(10L, 1L)).willReturn(Optional.of(ownerMember));
 
             assertThatThrownBy(() -> householdService.leave(1L))
@@ -200,6 +203,7 @@ class HouseholdServiceTest {
             household.getMembers().add(ownerMember);
 
             given(householdRepository.findByUserId(1L)).willReturn(Optional.of(household));
+            given(householdRepository.findByIdForUpdate(10L)).willReturn(Optional.of(household));
             given(householdMemberRepository.findByHouseholdIdAndUserId(10L, 1L)).willReturn(Optional.of(ownerMember));
             given(dogRepository.findAllByUserId(1L)).willReturn(List.of());
             given(householdMemberRepository.countByHouseholdId(10L)).willReturn(0L);
@@ -219,6 +223,7 @@ class HouseholdServiceTest {
             household.getMembers().add(normalMember);
 
             given(householdRepository.findByUserId(2L)).willReturn(Optional.of(household));
+            given(householdRepository.findByIdForUpdate(10L)).willReturn(Optional.of(household));
             given(householdMemberRepository.findByHouseholdIdAndUserId(10L, 2L)).willReturn(Optional.of(normalMember));
             given(dogRepository.findAllByUserId(2L)).willReturn(List.of());
             given(householdMemberRepository.countByHouseholdId(10L)).willReturn(1L);

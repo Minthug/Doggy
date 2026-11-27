@@ -396,6 +396,12 @@ class PublicRoute {
   }
 }
 
+class TodayWalkMeets {
+  final List<WalkMeet> meets;
+  final int failedSessionCount;
+  const TodayWalkMeets({this.meets = const [], this.failedSessionCount = 0});
+}
+
 class WalkMeet {
   final String metAt;
   final WalkMeetUser user;

@@ -408,7 +408,7 @@ public class WalkService {
                 session, routeGeoJson, List.of(), markingSpotService.getSessionSpots(sessionId));
     }
 
-    private WalkSession findAccessibleWalk(Long userId, Long sessionId) {
+    WalkSession findAccessibleWalk(Long userId, Long sessionId) {
         var household = getHousehold(userId);
         var session = household.getId() == null || household.getJoinedAt() == null
                 ? walkSessionRepository.findAccessibleByOwnerId(

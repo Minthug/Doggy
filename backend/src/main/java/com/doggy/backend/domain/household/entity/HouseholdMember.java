@@ -48,4 +48,8 @@ public class HouseholdMember {
     public enum Role {
         OWNER, MEMBER
     }
+
+    public void changeRole(Role role) {
+        this.role = role;
+    }
 }

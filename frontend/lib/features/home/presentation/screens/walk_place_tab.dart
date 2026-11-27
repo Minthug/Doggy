@@ -1,3 +1,4 @@
+import '../../../../core/providers/household_change_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../walk/domain/providers/walk_active_provider.dart';
@@ -16,6 +17,7 @@ class _WalkPlaceTabState extends ConsumerState<WalkPlaceTab> {
 
   @override
   Widget build(BuildContext context) {
+    final householdChange = ref.watch(householdChangeProvider);
     final topPadding = MediaQuery.of(context).padding.top;
     final walkStatus = ref.watch(walkActiveProvider).status;
     final isWalking =
@@ -26,7 +28,10 @@ class _WalkPlaceTabState extends ConsumerState<WalkPlaceTab> {
         children: [
           IndexedStack(
             index: _index,
-            children: const [WalkScreen(), DogTraceMapScreen()],
+            children: [
+              const WalkScreen(),
+              DogTraceMapScreen(key: ValueKey(householdChange)),
+            ],
           ),
           Positioned(
             top: topPadding + 8,
